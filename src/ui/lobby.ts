@@ -1,0 +1,246 @@
+import { BOT_COLORS, PLAYER_COLORS, TEAM_COLORS } from '../game/game';
+import { allMaps } from '../game/maps';
+import type { Difficulty, MapDef, MatchConfig, Mode, SlotConfig } from '../game/types';
+import { WEAPONS } from '../game/weapons';
+import { t, teamName, type Key } from '../i18n';
+import { save } from '../save';
+import { h } from './dom';
+import { mapThumb } from './icons';
+import { coinChip } from './menu';
+import { go, register } from './router';
+
+export const MAX_PLAYERS = 6;
+export const MAX_BOTS = 6;
+
+export function mapLabel(m: MapDef) {
+  return m.builtin ? t(m.name as Key) : m.name;
+}
+
+/** Display name and colour for each slot, in order. */
+export function slotLooks(match: MatchConfig): { name: string; color: string; playerIndex: number }[] {
+  let p = 0;
+  let b = 0;
+  return match.slots.map((s) => {
+    const human = s.kind === 'human';
+    const n = human ? p++ : b++;
+    const base = human ? PLAYER_COLORS[n] : BOT_COLORS[n % BOT_COLORS.length];
+    return {
+      name: human ? t('player', { n: n + 1 }) : t('bot', { n: n + 1 }),
+      color: match.mode === 'team' ? TEAM_COLORS[s.team] : base,
+      playerIndex: human ? n : -1,
+    };
+  });
+}
+
+function defaultMatch(): MatchConfig {
+  return {
+    mode: 'ffa',
+    mapId: 'arena',
+    slots: [
+      { kind: 'human', weapon: 'sword', team: 0, difficulty: 'medium' },
+      { kind: 'bot', weapon: 'random', team: 1, difficulty: 'medium' },
+    ],
+  };
+}
+
+register('lobby', (root, arg) => {
+  const owned = save.data.owned;
+  const maps = allMaps(save.data.customMaps);
+  const m: MatchConfig = structuredClone(save.data.lastMatch ?? defaultMatch());
+  // Drop anything that no longer exists (sold-out weapon, deleted map).
+  for (const s of m.slots) if (s.weapon !== 'random' && !owned.includes(s.weapon)) s.weapon = 'sword';
+  if (arg?.mapId) m.mapId = arg.mapId;
+  if (!maps.some((x) => x.id === m.mapId)) m.mapId = 'arena';
+
+  const body = h('div', { class: 'page-body' });
+  const errorEl = h('p', { class: 'error' });
+
+  const leastTeam = () => {
+    const counts = [0, 0, 0, 0];
+    for (const s of m.slots) counts[s.team]++;
+    return counts.indexOf(Math.min(...counts));
+  };
+
+  const validate = (): string => {
+    const n = m.slots.length;
+    if (m.mode === 'boss') return n >= 1 ? '' : t('needOne');
+    if (n < 2) return t('needTwo');
+    if (m.mode === 'team' && new Set(m.slots.map((s) => s.team)).size < 2) return t('needTwoTeams');
+    return '';
+  };
+
+  const render = () => {
+    const looks = slotLooks(m);
+    const humans = m.slots.filter((s) => s.kind === 'human').length;
+    const bots = m.slots.length - humans;
+
+    const modeBtn = (mode: Mode, icon: string) =>
+      h(
+        'button',
+        {
+          class: `seg ${m.mode === mode ? 'on' : ''}`,
+          onclick: () => {
+            m.mode = mode;
+            render();
+          },
+        },
+        `${icon} ${t(mode)}`,
+      );
+
+    const mapCards = maps.map((mp) =>
+      h(
+        'button',
+        {
+          class: `map-card ${m.mapId === mp.id ? 'on' : ''}`,
+          onclick: () => {
+            m.mapId = mp.id;
+            render();
+          },
+        },
+        mapThumb(mp),
+        h('span', {}, mapLabel(mp)),
+      ),
+    );
+
+    const weaponSelect = (s: SlotConfig) => {
+      const sel = h(
+        'select',
+        {
+          onchange: (e: Event) => {
+            s.weapon = (e.target as HTMLSelectElement).value;
+          },
+        },
+        h('option', { value: 'random' }, `🎲 ${t('random')}`),
+        ...WEAPONS.filter((w) => owned.includes(w.id)).map((w) => h('option', { value: w.id }, t(`w.${w.id}` as Key))),
+      );
+      sel.value = s.weapon;
+      return sel;
+    };
+
+    const diffSelect = (s: SlotConfig) => {
+      const sel = h(
+        'select',
+        {
+          onchange: (e: Event) => {
+            s.difficulty = (e.target as HTMLSelectElement).value as Difficulty;
+          },
+        },
+        ...(['easy', 'medium', 'hard'] as Difficulty[]).map((d) => h('option', { value: d }, t(d))),
+      );
+      sel.value = s.difficulty;
+      return sel;
+    };
+
+    const teamPicker = (s: SlotConfig) =>
+      h(
+        'div',
+        { class: 'team-pick' },
+        ...TEAM_COLORS.map((c, ti) =>
+          h('button', {
+            class: `team-dot ${s.team === ti ? 'on' : ''}`,
+            style: `background:${c}`,
+            title: teamName(ti),
+            'aria-label': teamName(ti),
+            onclick: () => {
+              s.team = ti;
+              render();
+            },
+          }),
+        ),
+      );
+
+    const rows = m.slots.map((s, i) =>
+      h(
+        'div',
+        { class: 'slot' },
+        h('span', { class: 'slot-name', style: `--c:${looks[i].color}` }, s.kind === 'human' ? '🎮 ' : '🤖 ', looks[i].name),
+        h('label', { class: 'field' }, h('small', {}, t('weapon')), weaponSelect(s)),
+        s.kind === 'bot' ? h('label', { class: 'field' }, h('small', {}, '⚙'), diffSelect(s)) : null,
+        m.mode === 'team' ? teamPicker(s) : null,
+        h(
+          'button',
+          {
+            class: 'icon-btn',
+            'aria-label': 'remove',
+            onclick: () => {
+              m.slots.splice(i, 1);
+              render();
+            },
+          },
+          '✕',
+        ),
+      ),
+    );
+
+    const err = validate();
+    errorEl.textContent = err;
+    body.replaceChildren(
+      h('section', {}, h('h3', {}, t('mode')), h('div', { class: 'segs' }, modeBtn('ffa', '🥊'), modeBtn('team', '🤝'), modeBtn('boss', '👹')), h('p', { class: 'muted' }, t(`${m.mode}Desc` as Key))),
+      h('section', {}, h('h3', {}, t('map')), h('div', { class: 'map-row' }, ...mapCards)),
+      h(
+        'section',
+        {},
+        h(
+          'div',
+          { class: 'row between' },
+          h('h3', {}, `${t('fighters')} (${m.slots.length})`),
+          h(
+            'div',
+            { class: 'row gap' },
+            h(
+              'button',
+              {
+                class: 'btn small',
+                disabled: humans >= MAX_PLAYERS,
+                onclick: () => {
+                  m.slots.push({ kind: 'human', weapon: 'sword', team: leastTeam(), difficulty: 'medium' });
+                  render();
+                },
+              },
+              `${t('addPlayer')} ${humans}/${MAX_PLAYERS}`,
+            ),
+            h(
+              'button',
+              {
+                class: 'btn small',
+                disabled: bots >= MAX_BOTS,
+                onclick: () => {
+                  m.slots.push({ kind: 'bot', weapon: 'random', team: leastTeam(), difficulty: 'medium' });
+                  render();
+                },
+              },
+              `${t('addBot')} ${bots}/${MAX_BOTS}`,
+            ),
+          ),
+        ),
+        humans === 0 && m.slots.length ? h('p', { class: 'muted' }, `👀 ${t('watchOnly')}`) : null,
+        h('div', { class: 'slots' }, ...rows),
+      ),
+    );
+    startBtn.disabled = !!err;
+  };
+
+  const startBtn = h(
+    'button',
+    {
+      class: 'btn big primary',
+      onclick: () => {
+        if (validate()) return;
+        save.update((d) => (d.lastMatch = structuredClone(m)));
+        go('play', { match: structuredClone(m) });
+      },
+    },
+    `⚔️ ${t('start')}`,
+  );
+
+  root.append(
+    h(
+      'div',
+      { class: 'page' },
+      h('header', { class: 'page-head' }, h('button', { class: 'btn ghost', onclick: () => go('menu') }, `← ${t('back')}`), h('h2', {}, t('play')), coinChip()),
+      body,
+      h('footer', { class: 'page-foot' }, errorEl, startBtn),
+    ),
+  );
+  render();
+});
