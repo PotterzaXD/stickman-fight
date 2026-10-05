@@ -18,6 +18,7 @@ interface Stick {
   pointer: number | null;
   state: Controller;
   hp: () => number;
+  name?: string;
 }
 
 const KEYMAPS = [
@@ -35,7 +36,7 @@ export class JoystickManager {
   pauseRect = { x: 0, y: 0, w: 0, h: 0 };
   onPause: (() => void) | null = null;
 
-  constructor(el: HTMLElement, players: { color: string; label: string; hp: () => number }[]) {
+  constructor(el: HTMLElement, players: { color: string; label: string; hp: () => number; name?: string }[]) {
     this.el = el;
     players.forEach((p, i) => {
       this.sticks.push({
@@ -250,6 +251,16 @@ export class JoystickManager {
       ctx.fillRect(s.baseX - bw / 2 - 2, clampedY - 2, bw + 4, 8);
       ctx.fillStyle = s.color;
       ctx.fillRect(s.baseX - bw / 2, clampedY, bw * Math.max(0, hp), 4);
+      if (s.name) {
+        ctx.font = '700 12px "Baloo 2", system-ui, sans-serif';
+        ctx.lineWidth = 3;
+        ctx.strokeStyle = 'rgba(0,0,0,0.6)';
+        const below = clampedY + 20 <= this.el.clientHeight;
+        const ny = clampedY < s.baseY ? clampedY - 6 : below ? clampedY + 18 : s.baseY - r - 8;
+        ctx.strokeText(s.name, s.baseX, ny);
+        ctx.fillStyle = '#fff';
+        ctx.fillText(s.name, s.baseX, ny);
+      }
       ctx.globalAlpha = 1;
     }
   }

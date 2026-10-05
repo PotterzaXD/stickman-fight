@@ -71,6 +71,7 @@ register('menu', (root) => {
           'div',
           { class: 'menu-buttons' },
           h('button', { class: 'btn big primary', onclick: () => go('lobby') }, `⚔️ ${t('play')}`),
+          h('button', { class: 'btn big online', onclick: () => go('online') }, `🌐 ${t('online')}`),
           h('button', { class: 'btn big', onclick: () => go('shop') }, `🛒 ${t('shop')}`),
           h('button', { class: 'btn big', onclick: () => go('maps') }, `🗺️ ${t('editor')}`),
           h('button', { class: 'btn big', onclick: () => go('settings') }, `⚙️ ${t('settings')}`),

@@ -8,6 +8,9 @@ export interface Routes {
   maps: undefined;
   editor: { map: MapDef };
   play: { match: MatchConfig; fromEditor?: MapDef };
+  online: { code?: string } | undefined;
+  room: undefined;
+  netplay: undefined;
 }
 
 export type Screen<K extends keyof Routes> = (root: HTMLElement, arg: Routes[K]) => (() => void) | void;

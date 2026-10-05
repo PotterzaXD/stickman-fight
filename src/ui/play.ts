@@ -24,7 +24,7 @@ function buildSpecs(match: MatchConfig): FighterSpec[] {
   }));
 }
 
-function resultTitle(r: MatchResult): string {
+export function resultTitle(r: Pick<MatchResult, 'mode' | 'winnerTeam' | 'winners'>): string {
   if (r.mode === 'boss') return r.winnerTeam === BOSS_TEAM ? t('bossWon') : t('bossDefeated');
   if (r.winnerTeam === null || !r.winners.length) return t('draw');
   if (r.mode === 'team') return t('teamWins', { name: teamName(r.winnerTeam) });

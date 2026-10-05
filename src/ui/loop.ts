@@ -12,7 +12,13 @@ export interface Loop {
 export function startLoop(
   canvas: HTMLCanvasElement,
   getGame: () => Game,
-  opts: { paused?: () => boolean; overlay?: (ctx: CanvasRenderingContext2D, w: number, h: number) => void; onResize?: (w: number, h: number) => void } = {},
+  opts: {
+    paused?: () => boolean;
+    overlay?: (ctx: CanvasRenderingContext2D, w: number, h: number) => void;
+    onResize?: (w: number, h: number) => void;
+    /** Replace the normal game update (joining devices only animate what the host sends). */
+    step?: (dt: number) => void;
+  } = {},
 ): Loop {
   const ctx = canvas.getContext('2d')!;
   let w = 0;
@@ -41,7 +47,8 @@ export function startLoop(
     const g = getGame();
     g.view.w = w;
     g.view.h = h;
-    if (!opts.paused?.()) {
+    if (opts.step) opts.step(dt);
+    else if (!opts.paused?.()) {
       acc += dt;
       while (acc >= STEP) {
         g.update(STEP);

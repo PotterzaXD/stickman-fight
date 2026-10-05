@@ -49,7 +49,18 @@ export interface GameOpts {
   bossName?: string;
   /** Menu background: no sound, no results. */
   demo?: boolean;
+  /** Snowmen each fighter may have (online rooms use fewer). */
+  maxSnowmen?: number;
+  /** Host of an online room: remember effects so they can be sent to the other devices. */
+  record?: boolean;
 }
+
+/** Effects and sounds that happened this frame, sent from the host to the other devices. */
+export type NetEvent =
+  | ['b', number, number, string, number, number]
+  | ['t', number, number, string, string, number]
+  | ['r', number, number, number, number, string]
+  | ['s', string];
 
 const sign = (v: number) => (v > 0 ? 1 : v < 0 ? -1 : 0);
 const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v));
@@ -74,6 +85,9 @@ export class Game {
   over = false;
   result: MatchResult | null = null;
   onOver: ((r: MatchResult) => void) | null = null;
+  maxSnowmen: number;
+  record: boolean;
+  events: NetEvent[] = [];
   private endT = -1;
   private camReady = false;
 
@@ -82,6 +96,8 @@ export class Game {
     this.mode = opts.mode;
     this.fallMode = opts.fallMode;
     this.demo = !!opts.demo;
+    this.maxSnowmen = opts.maxSnowmen ?? MAX_SNOWMEN;
+    this.record = !!opts.record;
     const spawns = pickSpawns(map, specs.length + (opts.mode === 'boss' ? 1 : 0));
     specs.forEach((s, i) => {
       const sp = spawns[i];
@@ -112,7 +128,50 @@ export class Game {
   }
 
   private play(name: keyof typeof sfx) {
+    if (this.record) this.events.push(['s', name]);
     if (!this.demo) sfx[name]();
+  }
+
+  /** Joining device: the host runs the match; this only animates effects and the camera between updates. */
+  clientTick(dt: number) {
+    this.time += dt;
+    for (const f of this.fighters) {
+      if (!f.alive) continue;
+      if (f.onGround) f.walkPhase += f.vx * dt * 0.045;
+      const swinging = Math.abs(f.angVel[0]) > 3.5 || f.dashT > 0 || f.thrustT > 0;
+      if (swinging) {
+        f.trail.push(f.tip(0));
+        if (f.trail.length > 7) f.trail.shift();
+      } else if (f.trail.length) f.trail.shift();
+    }
+    for (const p of this.projectiles) {
+      if (p.kind !== 'boomerang') p.vy += p.g * dt;
+      p.x += p.vx * dt;
+      p.y += p.vy * dt;
+    }
+    this.updateEffects(dt);
+    this.updateCamera(dt);
+  }
+
+  /** Replay effects sent by the host. */
+  applyEvents(list: NetEvent[]) {
+    for (const e of list) {
+      if (e[0] === 'b') this.burst(e[1], e[2], e[3], e[4], e[5]);
+      else if (e[0] === 't') this.text(e[1], e[2], e[3], e[4], e[5]);
+      else if (e[0] === 'r') this.rings.push({ x: e[1], y: e[2], r: 10, maxR: e[3], life: e[4], max: e[4], color: e[5] });
+      else if (e[0] === 's' && e[1] in sfx) (sfx as unknown as Record<string, () => void>)[e[1]]();
+    }
+  }
+
+  private ring(x: number, y: number, maxR: number, life: number, color: string) {
+    this.rings.push({ x, y, r: 10, maxR, life, max: life, color });
+    if (this.record) this.events.push(['r', Math.round(x), Math.round(y), Math.round(maxR), life, color]);
+  }
+
+  /** A player left the room mid-match: a bot takes over their stickman. */
+  handToBot(f: Fighter) {
+    f.human = false;
+    f.brain = new BotBrain('medium');
   }
 
   update(dt: number) {
@@ -506,13 +565,13 @@ export class Game {
     const owner = gb.owner;
     const count = this.snowmen.filter((s) => s.alive && s.owner === owner).length;
     this.burst(gb.x, gb.y - 20, '#ffffff', 16, 300);
-    if (count >= MAX_SNOWMEN) {
-      this.text(gb.x, gb.y - 40, `${MAX_SNOWMEN}/${MAX_SNOWMEN}`, '#ffffff', 22);
+    if (count >= this.maxSnowmen) {
+      this.text(gb.x, gb.y - 40, `${this.maxSnowmen}/${this.maxSnowmen}`, '#ffffff', 22);
       return;
     }
     this.snowmen.push(new Snowman(owner, gb.x, gb.y));
-    this.rings.push({ x: gb.x, y: gb.y - 25, r: 10, maxR: 80, life: 0.4, max: 0.4, color: owner.color });
-    this.text(gb.x, gb.y - 70, `☃ ${count + 1}/${MAX_SNOWMEN}`, owner.color, 22);
+    this.ring(gb.x, gb.y - 25, 80, 0.4, owner.color);
+    this.text(gb.x, gb.y - 70, `☃ ${count + 1}/${this.maxSnowmen}`, owner.color, 22);
     this.play('snowman');
   }
 
@@ -536,7 +595,7 @@ export class Game {
 
   private explode(p: Projectile) {
     const R = 170 * p.scale;
-    this.rings.push({ x: p.x, y: p.y, r: 10, maxR: R, life: 0.35, max: 0.35, color: '#ff9800' });
+    this.ring(p.x, p.y, R, 0.35, '#ff9800');
     this.burst(p.x, p.y, '#ff9800', 24, 500);
     this.burst(p.x, p.y, '#424242', 12, 300);
     this.shake = Math.min(18, this.shake + 10);
@@ -555,7 +614,7 @@ export class Game {
 
   private shockwave(f: Fighter) {
     const R = 230 * f.scale;
-    this.rings.push({ x: f.x, y: f.y, r: 10, maxR: R, life: 0.35, max: 0.35, color: '#bcaaa4' });
+    this.ring(f.x, f.y, R, 0.35, '#bcaaa4');
     this.burst(f.x, f.y, '#a1887f', 20, 420);
     this.shake = Math.min(18, this.shake + 12);
     this.play('boom');
@@ -641,6 +700,7 @@ export class Game {
   // ---------- effects ----------
 
   burst(x: number, y: number, color: string, n: number, speed: number) {
+    if (this.record) this.events.push(['b', Math.round(x), Math.round(y), color, n, speed]);
     if (this.particles.length > 700) return;
     for (let i = 0; i < n; i++) {
       const a = Math.random() * Math.PI * 2;
@@ -651,11 +711,12 @@ export class Game {
   }
 
   text(x: number, y: number, text: string, color: string, size: number) {
+    if (this.record) this.events.push(['t', Math.round(x), Math.round(y), text, color, Math.round(size)]);
     if (this.texts.length > 80) this.texts.shift();
     this.texts.push({ x, y, text, color, life: 0.9, size });
   }
 
-  private updateEffects(dt: number) {
+  updateEffects(dt: number) {
     for (const p of this.particles) {
       p.vy += p.g * dt;
       p.x += p.vx * dt;
@@ -678,7 +739,7 @@ export class Game {
 
   // ---------- camera ----------
 
-  private updateCamera(dt: number) {
+  updateCamera(dt: number) {
     const { w: vw, h: vh } = this.view;
     let list: Body[] = this.fighters.filter((f) => f.alive);
     if (!list.length) list = this.snowmen;

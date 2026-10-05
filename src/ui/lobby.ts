@@ -3,7 +3,7 @@ import { allMaps } from '../game/maps';
 import type { Difficulty, MapDef, MatchConfig, Mode, SlotConfig } from '../game/types';
 import { WEAPONS } from '../game/weapons';
 import { t, teamName, type Key } from '../i18n';
-import { save } from '../save';
+import { NAME_MAX, cleanName, save } from '../save';
 import { h } from './dom';
 import { mapThumb } from './icons';
 import { coinChip } from './menu';
@@ -16,6 +16,32 @@ export function mapLabel(m: MapDef) {
   return m.builtin ? t(m.name as Key) : m.name;
 }
 
+/** P1-P6's typed name on this device (P1 falls back to your online name). */
+export function localName(n: number): string {
+  return save.data.localNames[n] || (n === 0 ? save.data.name : '') || t('player', { n: n + 1 });
+}
+
+/** Name box for player n on this device; saves as you type. */
+export function nameInput(n: number, onChange?: () => void): HTMLInputElement {
+  const el = h('input', {
+    class: 'name-box',
+    maxlength: NAME_MAX,
+    placeholder: t('player', { n: n + 1 }),
+    value: save.data.localNames[n] || (n === 0 ? save.data.name : ''),
+    'aria-label': `${t('namePh')} ${t('player', { n: n + 1 })}`,
+  });
+  el.addEventListener('change', () => {
+    save.update((d) => {
+      d.localNames[n] = cleanName(el.value);
+      if (n === 0) d.name = d.localNames[0];
+      for (let i = 0; i < n; i++) d.localNames[i] ??= '';
+    });
+    el.value = save.data.localNames[n];
+    onChange?.();
+  });
+  return el;
+}
+
 /** Display name and colour for each slot, in order. */
 export function slotLooks(match: MatchConfig): { name: string; color: string; playerIndex: number }[] {
   let p = 0;
@@ -25,7 +51,7 @@ export function slotLooks(match: MatchConfig): { name: string; color: string; pl
     const n = human ? p++ : b++;
     const base = human ? PLAYER_COLORS[n] : BOT_COLORS[n % BOT_COLORS.length];
     return {
-      name: human ? t('player', { n: n + 1 }) : t('bot', { n: n + 1 }),
+      name: human ? localName(n) : t('bot', { n: n + 1 }),
       color: match.mode === 'team' ? TEAM_COLORS[s.team] : base,
       playerIndex: human ? n : -1,
     };
@@ -153,7 +179,9 @@ register('lobby', (root, arg) => {
       h(
         'div',
         { class: 'slot' },
-        h('span', { class: 'slot-name', style: `--c:${looks[i].color}` }, s.kind === 'human' ? '🎮 ' : '🤖 ', looks[i].name),
+        s.kind === 'human'
+          ? h('span', { class: 'slot-name', style: `--c:${looks[i].color}` }, '🎮 ', nameInput(looks[i].playerIndex))
+          : h('span', { class: 'slot-name', style: `--c:${looks[i].color}` }, '🤖 ', looks[i].name),
         h('label', { class: 'field' }, h('small', {}, t('weapon')), weaponSelect(s)),
         s.kind === 'bot' ? h('label', { class: 'field' }, h('small', {}, '⚙'), diffSelect(s)) : null,
         m.mode === 'team' ? teamPicker(s) : null,

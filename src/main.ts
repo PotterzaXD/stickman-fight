@@ -12,6 +12,10 @@ import './ui/play';
 import './ui/shop';
 import './ui/settings';
 import './ui/editor';
+import './ui/online';
+import './ui/roomScreen';
+import './ui/netplay';
+import { session, setSession } from './net/room';
 
 const app = document.getElementById('app')!;
 initRouter(app);
@@ -51,5 +55,13 @@ window.addEventListener('pointerdown', () => sfx.unlock(), { once: true });
 document.addEventListener('gesturestart', (e) => e.preventDefault());
 document.addEventListener('dblclick', (e) => e.preventDefault());
 
+// Closing the tab tells the room you left.
+window.addEventListener('pagehide', () => session() && setSession(null));
+
 void initCloud();
-go('menu');
+// An invite link: ?room=CODE
+const roomCode = params.get('room');
+if (roomCode) {
+  history.replaceState(null, '', location.pathname);
+  go('online', { code: roomCode });
+} else go('menu');

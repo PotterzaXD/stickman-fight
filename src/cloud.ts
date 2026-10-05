@@ -1,36 +1,32 @@
-import { normalize, save, type SaveData } from './save';
+import { createClient, type SupabaseClient } from '@supabase/supabase-js';
+import { cleanName, normalize, save, type SaveData } from './save';
 
 /**
- * Optional Google sign-in + online save (Firebase).
- * Works only when the VITE_FIREBASE_* settings are present; otherwise the game saves on this device only.
+ * Google sign-in + online save + room signalling (Supabase).
+ * The URL and publishable key are public by design; data is protected by row level security
+ * (see supabase/setup.sql). Environment variables override them for a different project.
  */
-const config = {
-  apiKey: import.meta.env.VITE_FIREBASE_API_KEY as string | undefined,
-  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN as string | undefined,
-  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID as string | undefined,
-  appId: import.meta.env.VITE_FIREBASE_APP_ID as string | undefined,
-};
+const URL = (import.meta.env.VITE_SUPABASE_URL as string | undefined) || 'https://ifkotvvhauqqgsfiutyy.supabase.co';
+const KEY = (import.meta.env.VITE_SUPABASE_KEY as string | undefined) || 'sb_publishable_pAKWgoKWvWD_ohhY5I6Eyw_orhCbjV-';
 
-export const cloudEnabled = Boolean(config.apiKey && config.projectId && config.authDomain);
+export const cloudEnabled = Boolean(URL && KEY);
 
 export interface CloudUser {
   name: string;
   email: string;
 }
 
-type Fb = {
-  auth: import('firebase/auth').Auth;
-  db: import('firebase/firestore').Firestore;
-  authMod: typeof import('firebase/auth');
-  fsMod: typeof import('firebase/firestore');
-};
-
-let fb: Fb | null = null;
+let client: SupabaseClient | null = null;
 let uid: string | null = null;
 let user: CloudUser | null = null;
 let pushTimer: number | undefined;
 let applyingRemote = false;
 const listeners: ((u: CloudUser | null) => void)[] = [];
+
+export function supabase(): SupabaseClient {
+  client ??= createClient(URL, KEY, { auth: { persistSession: true, detectSessionInUrl: true, flowType: 'pkce' } });
+  return client;
+}
 
 export function currentUser() {
   return user;
@@ -38,14 +34,6 @@ export function currentUser() {
 
 export function onUserChange(l: (u: CloudUser | null) => void) {
   listeners.push(l);
-}
-
-async function load(): Promise<Fb> {
-  if (fb) return fb;
-  const [{ initializeApp }, authMod, fsMod] = await Promise.all([import('firebase/app'), import('firebase/auth'), import('firebase/firestore')]);
-  const app = initializeApp(config as Record<string, string>);
-  fb = { auth: authMod.getAuth(app), db: fsMod.getFirestore(app), authMod, fsMod };
-  return fb;
 }
 
 /** Merge the device save with the online save so nothing bought is lost. */
@@ -57,37 +45,47 @@ function merge(local: SaveData, remote: SaveData): SaveData {
     ...newer,
     owned: Array.from(new Set([...local.owned, ...remote.owned])),
     customMaps: [...maps.values()],
+    name: newer.name || local.name || remote.name,
     updatedAt: Date.now(),
   };
 }
 
 async function pull() {
-  if (!fb || !uid) return;
-  const ref = fb.fsMod.doc(fb.db, 'saves', uid);
-  const snap = await fb.fsMod.getDoc(ref);
+  if (!uid) return;
+  const { data, error } = await supabase().from('saves').select('data').eq('user_id', uid).maybeSingle();
+  if (error) throw error;
   applyingRemote = true;
-  if (snap.exists()) save.replace(merge(save.data, normalize(snap.data())));
+  if (data?.data) save.replace(merge(save.data, normalize(data.data)));
   applyingRemote = false;
   await push();
 }
 
 async function push() {
-  if (!fb || !uid) return;
-  const ref = fb.fsMod.doc(fb.db, 'saves', uid);
-  // Firestore rejects undefined values; JSON round-trip drops them.
-  await fb.fsMod.setDoc(ref, JSON.parse(JSON.stringify(save.data)));
+  if (!uid) return;
+  const { error } = await supabase()
+    .from('saves')
+    .upsert({ user_id: uid, data: JSON.parse(JSON.stringify(save.data)), updated_at: new Date().toISOString() });
+  if (error) throw error;
 }
 
 export async function initCloud() {
   if (!cloudEnabled) return;
   try {
-    const f = await load();
-    await f.authMod.getRedirectResult(f.auth).catch(() => null);
-    f.authMod.onAuthStateChanged(f.auth, (u) => {
-      uid = u?.uid ?? null;
-      user = u ? { name: u.displayName ?? u.email ?? 'Player', email: u.email ?? '' } : null;
+    const sb = supabase();
+    let lastUid: string | null = null;
+    sb.auth.onAuthStateChange((_event, session) => {
+      const u = session?.user ?? null;
+      uid = u?.id ?? null;
+      const meta = (u?.user_metadata ?? {}) as Record<string, string>;
+      user = u ? { name: meta.full_name || meta.name || u.email || 'Player', email: u.email ?? '' } : null;
       for (const l of listeners) l(user);
-      if (u) void pull().catch((e) => console.warn('cloud pull failed', e));
+      if (u && uid !== lastUid) {
+        // First sign-in: use the Google first name until the player picks one.
+        if (!save.data.name && user) save.update((d) => (d.name = cleanName(user!.name.split(' ')[0])));
+        // Run outside the auth callback (Supabase recommends not awaiting inside it).
+        setTimeout(() => void pull().catch((e) => console.warn('cloud pull failed', e)), 0);
+      }
+      lastUid = uid;
     });
     save.onChange(() => {
       if (!uid || applyingRemote) return;
@@ -101,23 +99,14 @@ export async function initCloud() {
 
 export async function signIn(): Promise<boolean> {
   if (!cloudEnabled) return false;
-  const f = await load();
-  const provider = new f.authMod.GoogleAuthProvider();
-  try {
-    await f.authMod.signInWithPopup(f.auth, provider);
-    return true;
-  } catch (e) {
-    const code = (e as { code?: string }).code ?? '';
-    if (code.includes('popup-blocked') || code.includes('operation-not-supported')) {
-      await f.authMod.signInWithRedirect(f.auth, provider);
-      return true;
-    }
-    if (code.includes('popup-closed') || code.includes('cancelled-popup')) return false;
-    throw e;
-  }
+  const { error } = await supabase().auth.signInWithOAuth({
+    provider: 'google',
+    options: { redirectTo: location.origin + location.pathname },
+  });
+  if (error) throw error;
+  return true;
 }
 
 export async function signOut() {
-  if (!fb) return;
-  await fb.authMod.signOut(fb.auth);
+  await supabase().auth.signOut();
 }

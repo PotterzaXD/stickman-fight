@@ -7,11 +7,21 @@ export interface SaveData {
   customMaps: MapDef[];
   settings: { lang: Lang; fallMode: FallMode; sound: boolean };
   lastMatch?: MatchConfig;
+  /** Your name for online rooms. */
+  name: string;
+  /** Names typed for P1-P6 on this device. */
+  localNames: string[];
   updatedAt: number;
 }
 
 const KEY = 'stickman-fight-save-v1';
 export const FREE_WEAPONS = ['sword', 'spear'];
+export const NAME_MAX = 12;
+
+/** Tidy a typed name: single spaces, no ends, at most NAME_MAX characters. */
+export function cleanName(s: unknown): string {
+  return Array.from(String(s ?? '').replace(/\s+/g, ' ').trim()).slice(0, NAME_MAX).join('');
+}
 
 function defaults(): SaveData {
   const thai = typeof navigator !== 'undefined' && navigator.language?.toLowerCase().startsWith('th');
@@ -20,6 +30,8 @@ function defaults(): SaveData {
     owned: [...FREE_WEAPONS],
     customMaps: [],
     settings: { lang: thai ? 'th' : 'en', fallMode: 'ko', sound: true },
+    name: '',
+    localNames: [],
     updatedAt: 0,
   };
 }
@@ -39,6 +51,8 @@ export function normalize(raw: unknown): SaveData {
       sound: r.settings?.sound !== false,
     },
     lastMatch: r.lastMatch,
+    name: cleanName(r.name),
+    localNames: Array.isArray(r.localNames) ? r.localNames.slice(0, 6).map(cleanName) : [],
     updatedAt: Number.isFinite(r.updatedAt) ? (r.updatedAt as number) : 0,
   };
 }

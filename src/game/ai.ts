@@ -1,5 +1,5 @@
 import type { Game } from './game';
-import { Body, Fighter, MAX_SNOWMEN, Snowman } from './entities';
+import { Body, Fighter, Snowman } from './entities';
 import type { Difficulty, Intent, Platform } from './types';
 
 const rand = Math.random;
@@ -203,7 +203,7 @@ export class BotBrain {
         case 'snowball': {
           // Build snowmen: throw at your own snowball on the ground.
           const mine = g.snowmen.filter((m) => m.alive && m.owner === f).length;
-          const ball = mine < MAX_SNOWMEN ? g.groundBalls.find((b) => b.owner === f) : undefined;
+          const ball = mine < g.maxSnowmen ? g.groundBalls.find((b) => b.owner === f) : undefined;
           if (ball && rand() < p.skillP * 0.8) {
             const sh = f.shoulder();
             angle = ballisticAngle(ball.x - sh.x, ball.y - 8 - sh.y, 950, 1500);

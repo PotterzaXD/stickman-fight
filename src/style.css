@@ -219,6 +219,11 @@ h3 {
   grid-column: 1 / -1;
   font-size: 26px;
 }
+.menu-buttons .btn.online {
+  grid-column: 1 / -1;
+  background: #4fc3f7;
+  color: #062b43;
+}
 .howto {
   max-width: 560px;
   background: rgba(0, 0, 0, 0.35);
@@ -653,4 +658,95 @@ select {
   .page-head h2 {
     font-size: 20px;
   }
+}
+
+/* ---------- names & online ---------- */
+.name-box {
+  border: 2px solid var(--line);
+  border-radius: 10px;
+  padding: 4px 8px;
+  width: 130px;
+  font-weight: 700;
+  background: #fff;
+}
+.code-box {
+  border: 2px solid var(--line);
+  border-radius: 12px;
+  padding: 8px 12px;
+  width: 170px;
+  font-size: 22px;
+  font-weight: 800;
+  letter-spacing: 4px;
+  text-transform: uppercase;
+  text-align: center;
+}
+.stepper {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+}
+.stepper b {
+  min-width: 2.2em;
+  text-align: center;
+  font-size: 22px;
+}
+.names {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.room-code {
+  font-size: 40px;
+  font-weight: 800;
+  letter-spacing: 6px;
+  color: #0d47a1;
+  line-height: 1;
+}
+.room-top {
+  display: flex;
+  gap: 16px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.room-top canvas {
+  border-radius: 10px;
+  background: #fff;
+}
+.tag {
+  font-size: 12px;
+  font-weight: 800;
+  border-radius: 999px;
+  padding: 1px 8px;
+  background: #e3f2fd;
+  color: #0d47a1;
+}
+.tag.you {
+  background: #fff3c4;
+  color: #6d4c00;
+}
+.tag.wait {
+  background: #eceff1;
+  color: #546e7a;
+}
+.member-name {
+  font-weight: 800;
+  border-left: 6px solid var(--c);
+  padding-left: 8px;
+  min-width: 100px;
+}
+.busy {
+  opacity: 0.6;
+  pointer-events: none;
+}
+.watch-banner {
+  position: absolute;
+  left: 50%;
+  bottom: 14px;
+  transform: translateX(-50%);
+  background: rgba(0, 0, 0, 0.6);
+  color: #fff;
+  padding: 6px 14px;
+  border-radius: 999px;
+  font-weight: 700;
+  pointer-events: none;
 }

@@ -2,6 +2,7 @@ import { cloudEnabled, currentUser, onUserChange, signIn, signOut } from '../clo
 import { t, type Lang } from '../i18n';
 import { save } from '../save';
 import { h, toast } from './dom';
+import { nameInput } from './lobby';
 import { shareGame } from './menu';
 import { go, register } from './router';
 
@@ -69,6 +70,7 @@ register('settings', (root) => {
       h(
         'div',
         { class: 'page-body narrow' },
+        h('section', {}, h('h3', {}, `🏷️ ${t('yourName')}`), nameInput(0)),
         h('section', {}, h('h3', {}, `🌐 ${t('language')}`), seg<Lang>(s.lang, [['en', 'English'], ['th', 'ไทย']], (v) => (save.data.settings.lang = v))),
         h('section', {}, h('h3', {}, `🕳️ ${t('fallOff')}`), seg(s.fallMode, [['ko', t('fallKO')], ['bounce', t('fallBounce')]], (v) => (save.data.settings.fallMode = v))),
         h('section', {}, h('h3', {}, `🔊 ${t('sound')}`), seg(s.sound ? 'on' : 'off', [['on', t('on')], ['off', t('off')]], (v) => (save.data.settings.sound = v === 'on'))),
