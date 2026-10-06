@@ -19,6 +19,12 @@ On a computer you can test with the keyboard: WASD is P1, the arrow keys are P2 
 - **Teams:** 4 team colours. The last team standing wins.
 - **Boss Fight:** players, bots and snowmen team up against a giant stickman with 5,000 HP. It holds 2 random weapons, so it has 2 skills. You choose how many bosses to fight: 1, 2 or 3. Each boss has its own health bar.
 
+- **Grandfather Cat:** everyone teams up against Grandfather Cat, a giant cat boss with 10,000 HP holding the **Soup of Gang Som**. It has 2 skills:
+  - **Sud Gang Som:** throws yellow soup. Every enemy it splashes takes 20 damage, then burns for 10 damage a second for 5 seconds.
+  - **Call Cat AI:** calls 5 AI cats (100 HP each) that run at enemies and do 10 damage on touch. It calls about every 8 seconds, with at most 15 cats at once.
+
+  Beating him gives **1,000 coins** every time. The first win also gives you **The Grandfather Cat Treasure** (see Weapons).
+
 You can have up to 6 players and 6 bots at once. Each bot has its own difficulty: CPU-easy, CPU-medium or CPU-hard. With no players, you watch the bots fight.
 
 Players and bots have 500 HP. Falling off the map is a KO. In Settings you can change it so you lose 25 HP and bounce back up instead.
@@ -41,6 +47,9 @@ Winning gives 3–5 coins. When bots or the boss win, you get 1 coin. Beating th
 | Shuriken | 550 | Triple Star: 3 ninja stars in a spread |
 | Laser Gun | 600 | Laser Beam: goes through every enemy in its way |
 | Magic Staff | 700 | Fireball: explodes and sets enemies on fire for 2 seconds |
+| 67 Weapon | 670 | Throws the 67 weapon for 67 damage and it comes back. Normal hits do 34. Cooldown 10 seconds |
+| Poop Bomb | 299 | Throws poo for 6 damage. Cooldown 1 second. Normal hits do 20 |
+| The Grandfather Cat Treasure | Reward | Not sold. Beat Grandfather Cat to get it. Its skills take turns: Sud Gang Som (12 damage, then 6 a second for 5 seconds), then Call Cat AI (3 cats with 60 HP that do 6 damage) |
 
 All players and bots on the device share the weapons you buy.
 
@@ -53,7 +62,9 @@ All players and bots on the device share the weapons you buy.
 
 ## Maps
 
-There are 11 built-in maps: Classic Arena, Sky Islands, The Tower, Long Bridge, Snowy Peak, The Pit, Volcano, Concrete Factory, Glass Palace, Rooftops and Frozen Lake.
+There are 12 built-in maps: Classic Arena, Sky Islands, The Tower, Long Bridge, Snowy Peak, The Pit, Volcano, Concrete Factory, Glass Palace, Rooftops, Frozen Lake and **Space**.
+
+Space has a big spaceship in the middle to fight on, and low gravity: everyone jumps higher and falls slower. Any map you make with the Space theme in the editor gets low gravity too.
 
 The **Map Editor** lets you draw platforms, place spawn points, and pick a size and theme. You can share a map as a link: anyone who opens the link gets the map.
 
@@ -81,7 +92,7 @@ Tap **Online** on the main menu.
 - **Weapons:** everyone can only pick from the **host's weapons**.
 - **Teams:** in Teams mode, each player picks a team colour, and the host can change it.
 - **Snowmen:** online, each player can have up to 5 snowmen (10 offline).
-- **Bosses:** in Boss Fight, the host picks 1–3 bosses.
+- **Bosses:** in Boss Fight, the host picks 1–3 bosses. The host can also pick Grandfather Cat. Every device that had a player in the match gets the 1,000 coins (and the Treasure on its first win).
 - **The room keeps your place:** adding bots or changing weapons doesn't scroll the room back to the top.
 - **Invite friends:** if you are signed in with Google, the room lists your online friends with an **Invite** button.
 - **Joining late:** someone who joins during a match watches it and plays from the next round.
@@ -103,6 +114,14 @@ Only players signed in with Google can use friends. Tap **Friends** on the main 
 - **Friend code:** everyone gets an 8-letter friend code. When someone adds your code, you both become friends.
 - **Online:** a green dot means that friend had the game open in the last couple of minutes.
 - **Invite:** in an online room, tap **Invite** next to an online friend. They get a pop-up with **Join**, which takes them straight into your room.
+
+## Credits
+
+Tap **⭐ Credits** on the main menu:
+
+- **Designer:** Claude
+- **Scripts:** Claude
+- **Prompt:** Taratorn, the best helper
 
 ## First visit
 

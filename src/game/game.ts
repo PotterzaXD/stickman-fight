@@ -1,6 +1,7 @@
-import { BotBrain, nearestEnemy, nearestPlatform, updateSnowman } from './ai';
+import { BotBrain, nearestEnemy, nearestPlatform, updateCat, updateSnowman } from './ai';
 import {
   Body,
+  Cat,
   Fighter,
   GRAVITY,
   MAX_SNOWMEN,
@@ -14,9 +15,9 @@ import {
   type Ring,
   returns,
 } from './entities';
-import { pickSpawns } from './maps';
-import type { Difficulty, FallMode, MapDef, Mode } from './types';
-import { WEAPONS, weapon } from './weapons';
+import { THEMES, pickSpawns } from './maps';
+import { isBossMode, type Difficulty, type FallMode, type MapDef, type Mode } from './types';
+import { SHOP_WEAPONS, weapon } from './weapons';
 import { sfx } from '../sfx';
 
 export const PLAYER_COLORS = ['#e53935', '#1e88e5', '#43a047', '#fdd835', '#8e24aa', '#fb8c00'];
@@ -66,9 +67,16 @@ export const GLASS_BACK = 10;
 export const LAVA_DMG = 40;
 const LAVA_JUMP = 1250;
 
+/** Grandfather Cat: AI cats it may have at once, and the Treasure's (40% weaker) numbers. */
+export const BOSS_CATS = { count: 5, hp: 100, dmg: 10, max: 15 };
+export const TREASURE_CATS = { count: 3, hp: 60, dmg: 6, max: 6 };
+export const SOUP = { dmg: 20, burn: 10 };
+export const TREASURE_SOUP = { dmg: 12, burn: 6 };
+const SOUP_BURN_S = 5;
+
 /** Two different random weapons for a boss. */
 export function randomBossWeapons(): string[] {
-  const pool = [...WEAPONS];
+  const pool = [...SHOP_WEAPONS];
   const a = pool.splice(Math.floor(Math.random() * pool.length), 1)[0];
   const b = pool[Math.floor(Math.random() * pool.length)];
   return [a.id, b.id];
@@ -107,6 +115,9 @@ export class Game {
   maxSnowmen: number;
   record: boolean;
   events: NetEvent[] = [];
+  cats: Cat[] = [];
+  /** Gravity on this map (the Space theme has low gravity). */
+  gravity: number;
   /** For each platform: seconds until its glass comes back (0 = whole). */
   glassT: number[];
   private endT = -1;
@@ -120,6 +131,7 @@ export class Game {
     this.maxSnowmen = opts.maxSnowmen ?? MAX_SNOWMEN;
     this.record = !!opts.record;
     this.glassT = map.platforms.map(() => 0);
+    this.gravity = GRAVITY * (THEMES[map.theme]?.gravity ?? 1);
     const spawns = pickSpawns(map, specs.length + (opts.mode === 'boss' ? 1 : 0));
     specs.forEach((s, i) => {
       const sp = spawns[i];
@@ -152,6 +164,23 @@ export class Game {
         this.fighters.push(boss);
       }
     }
+    if (opts.mode === 'cat') {
+      // Grandfather Cat: 10,000 HP, the soup of gang som and a bell that calls AI cats.
+      const top = [...map.platforms].filter((p) => p.kind !== 'lava').sort((p, q) => q.w - p.w)[0];
+      const cat = new Fighter({
+        name: opts.bossName ?? 'Grandfather Cat',
+        color: '#ff9800',
+        team: BOSS_TEAM,
+        human: false,
+        weapons: [weapon('soup'), weapon('catcall')],
+        x: top ? top.x + top.w / 2 : map.w / 2,
+        y: (top?.y ?? map.h / 2) - 300,
+        boss: true,
+        cat: true,
+      });
+      cat.brain = new BotBrain('boss');
+      this.fighters.push(cat);
+    }
   }
 
   get bosses(): Fighter[] {
@@ -164,7 +193,7 @@ export class Game {
   }
 
   bodies(): Body[] {
-    return [...this.fighters, ...this.snowmen];
+    return [...this.fighters, ...this.snowmen, ...this.cats];
   }
 
   get boss(): Fighter | undefined {
@@ -228,6 +257,14 @@ export class Game {
       updateSnowman(s, dt, this);
       this.stepBody(s, dt);
     }
+    for (const c of this.cats) {
+      if (!c.alive) continue;
+      c.stun -= dt;
+      c.hurtFlash -= dt;
+      updateCat(c, dt, this);
+      this.stepBody(c, dt);
+      if (c.onGround) c.walkPhase += c.vx * dt * 0.06;
+    }
     this.meleeHits();
     this.updateProjectiles(dt);
     this.updateGroundBalls(dt);
@@ -235,6 +272,7 @@ export class Game {
     this.updateGlass(dt);
     this.checkOffMap();
     this.snowmen = this.snowmen.filter((s) => s.alive);
+    this.cats = this.cats.filter((c) => c.alive);
     this.updateEffects(dt);
     this.checkWin();
     this.updateCamera(dt);
@@ -305,7 +343,7 @@ export class Game {
   }
 
   stepBody(b: Body, dt: number, gScale = 1) {
-    b.vy = Math.min(b.vy + GRAVITY * gScale * dt, 2200);
+    b.vy = Math.min(b.vy + this.gravity * gScale * dt, 2200);
     const prevY = b.y;
     b.x += b.vx * dt;
     b.y += b.vy * dt;
@@ -372,17 +410,17 @@ export class Game {
     });
   }
 
-  /** On fire from the Magic Staff: a little damage every half second. */
+  /** On fire (Magic Staff fireball, gang som soup): a little damage every few moments. */
   private updateBurns(dt: number) {
     for (const b of this.bodies()) {
       if (!b.alive || b.burnT <= 0) continue;
       b.burnT -= dt;
       b.burnTick -= dt;
       if (b.burnTick > 0) continue;
-      b.burnTick = 0.5;
-      b.hp -= 8;
+      b.burnTick = b.burnEvery;
+      b.hp -= b.burnDmg;
       b.hurtFlash = 0.1;
-      this.text(b.x + (Math.random() - 0.5) * 20, b.y - b.h - 10, '8', '#ff9800', 18);
+      this.text(b.x + (Math.random() - 0.5) * 20, b.y - b.h - 10, String(b.burnDmg), '#ff9800', 18);
       this.burst(b.x, b.cy, '#ff9800', 4, 160);
       if (b.hp <= 0) this.kill(b, b.burnSrc);
     }
@@ -440,7 +478,7 @@ export class Game {
       this.shake = Math.min(18, this.shake + 8);
       this.play('ko');
     }
-    const killer = src instanceof Snowman ? src.owner : src;
+    const killer = src instanceof Snowman || src instanceof Cat ? src.owner : src;
     if (killer instanceof Fighter && killer !== b && b.kind === 'fighter') killer.kos++;
     if (b instanceof Fighter) for (const p of this.projectiles) if (p.owner === b && returns(p.kind)) p.dead = true;
   }
@@ -452,7 +490,7 @@ export class Game {
       for (let i = 0; i < f.weapons.length; i++) {
         const def = f.weapons[i];
         // A thrown axe is not in your hand.
-        if (def.id === 'axe' && f.boomerangOut[i]) continue;
+        if ((def.id === 'axe' || def.id === 'six7') && f.boomerangOut[i]) continue;
         const speed = Math.abs(f.angVel[i]);
         const dash = f.dashT > 0;
         const thrust = f.thrustT > 0 && i === f.thrustSlot;
@@ -553,14 +591,90 @@ export class Game {
       case 'staff':
         this.spawnProj('fireball', f, tip.x, tip.y, angle, 900, 300, 50 * m, i);
         break;
+      case 'six7':
+        this.spawnProj('six7', f, tip.x, tip.y, angle, 950, 0, 67, i);
+        f.boomerangOut[i] = true;
+        this.text(f.x, f.y - f.h - 30, '67!', '#ffeb3b', 30);
+        break;
+      case 'poop':
+        this.spawnProj('poop', f, tip.x, tip.y, angle, 850, 1400, 6, i);
+        break;
+      case 'soup':
+        this.throwSoup(f, i, tip.x, tip.y, angle, SOUP.dmg, SOUP.burn);
+        break;
+      case 'catcall':
+        this.callCats(f, BOSS_CATS);
+        break;
+      case 'treasure':
+        // Takes turns: soup, then cats, then soup...
+        if (f.nextCats) this.callCats(f, TREASURE_CATS);
+        else this.throwSoup(f, i, tip.x, tip.y, angle, TREASURE_SOUP.dmg, TREASURE_SOUP.burn);
+        f.nextCats = !f.nextCats;
+        break;
+    }
+  }
+
+  /** Sud Gang Som: throw a splash of yellow gang som soup. */
+  private throwSoup(f: Fighter, slot: number, x: number, y: number, angle: number, dmg: number, burn: number) {
+    this.spawnProj('soup', f, x, y, angle, 850, 1400, dmg, slot);
+    this.projectiles[this.projectiles.length - 1].burnDmg = burn;
+  }
+
+  /** Call Cat AI: little cats appear around the caller. */
+  private callCats(f: Fighter, o: { count: number; hp: number; dmg: number; max: number }) {
+    const have = this.cats.filter((c) => c.alive && c.owner === f).length;
+    const n = Math.min(o.count, o.max - have);
+    if (n <= 0) {
+      this.text(f.x, f.y - f.h - 20, `🐱 ${o.max}/${o.max}`, '#ffffff', 22);
+      return;
+    }
+    for (let k = 0; k < n; k++) {
+      const x = f.x + (k - (n - 1) / 2) * 44;
+      const c = new Cat(f, x, f.y - 10, o.hp, o.dmg);
+      c.vy = -500 - Math.random() * 300;
+      c.vx = (k - (n - 1) / 2) * 120;
+      this.cats.push(c);
+      this.burst(x, f.y - 20, '#ffcc80', 6, 220);
+    }
+    this.ring(f.x, f.y, 90 * f.scale, 0.4, '#ffb74d');
+    this.text(f.x, f.y - f.h - 30, `🐱 ×${n}`, '#ffcc80', 28);
+    this.play('snowman');
+  }
+
+  /** A cat touched an enemy. */
+  catBite(c: Cat, e: Body) {
+    c.attackT = 0.8;
+    const dir = sign(e.x - c.x) || c.facing;
+    this.damage(e, c.touchDmg, c, dir * 260, -220);
+  }
+
+  /** Soup lands: a yellow splash that hurts and burns every enemy close by. */
+  private splash(p: Projectile) {
+    const R = 95 * p.scale;
+    this.ring(p.x, p.y, R, 0.35, '#ffeb3b');
+    this.burst(p.x, p.y, '#ffeb3b', 22, 420);
+    this.burst(p.x, p.y, '#fbc02d', 10, 260);
+    this.breakGlassAt(p.x, p.y, R * 0.6, p.owner);
+    this.play('hit');
+    for (const e of this.bodies()) {
+      if (!e.alive || e.team === p.team) continue;
+      if (Math.hypot(e.x - p.x, e.cy - p.y) > R + e.w / 2) continue;
+      this.damage(e, p.dmg, p.owner, (sign(e.x - p.x) || 1) * 300, -300);
+      if (!e.alive) continue;
+      // A hair over 5 s so the 5th tick still lands.
+      e.burnT = SOUP_BURN_S + 0.05;
+      e.burnTick = 1;
+      e.burnDmg = p.burnDmg ?? SOUP.burn;
+      e.burnEvery = 1;
+      e.burnSrc = p.owner;
     }
   }
 
   spawnProj(kind: ProjKind, owner: Body, x: number, y: number, angle: number, speed: number, g: number, dmg: number, slot: number) {
     const scale = owner instanceof Fighter ? owner.scale : 1;
-    const big = kind === 'boomerang' || kind === 'bomb' || kind === 'axe' || kind === 'fireball';
-    const r = { arrow: 5, snowball: 11, minisnow: 8, boomerang: 16, bomb: 11, axe: 22, shuriken: 8, laser: 6, fireball: 14 }[kind] * (big ? scale : 1);
-    const life = { arrow: 2, snowball: 3, minisnow: 3, boomerang: 3.5, bomb: 1.5, axe: 3.5, shuriken: 2, laser: 0.7, fireball: 2 }[kind];
+    const big = kind === 'boomerang' || kind === 'bomb' || kind === 'axe' || kind === 'fireball' || kind === 'six7' || kind === 'soup';
+    const r = { arrow: 5, snowball: 11, minisnow: 8, boomerang: 16, bomb: 11, axe: 22, shuriken: 8, laser: 6, fireball: 14, six7: 24, poop: 10, soup: 14 }[kind] * (big ? scale : 1);
+    const life = { arrow: 2, snowball: 3, minisnow: 3, boomerang: 3.5, bomb: 1.5, axe: 3.5, shuriken: 2, laser: 0.7, fireball: 2, six7: 3.5, poop: 3, soup: 3 }[kind];
     this.projectiles.push({
       kind,
       x,
@@ -633,7 +747,7 @@ export class Game {
           this.damage(e, p.dmg, p.owner, dir * 450, -350);
           continue;
         }
-        if (p.kind === 'axe') {
+        if (p.kind === 'axe' || p.kind === 'six7') {
           p.hit.add(e.id);
           this.damage(e, p.dmg, p.owner, dir * 600, -450);
           continue;
@@ -647,7 +761,11 @@ export class Game {
         }
         if (p.kind === 'fireball') this.explode(p, 120 * p.scale, true);
         else if (p.kind === 'bomb') this.explode(p);
-        else {
+        else if (p.kind === 'soup') this.splash(p);
+        else if (p.kind === 'poop') {
+          this.damage(e, p.dmg, p.owner, dir * 220, -200);
+          this.burst(p.x, p.y, '#6d4c41', 10, 240);
+        } else {
           this.damage(e, p.dmg, p.owner, dir * (p.kind === 'arrow' ? 420 : 300), -260);
           if (p.kind !== 'arrow') this.burst(p.x, p.y, '#ffffff', 8, 220);
         }
@@ -679,11 +797,22 @@ export class Game {
             this.breakGlassAt(p.x, p.y, p.r, p.owner);
             if (p.kind === 'laser' || p.kind === 'bomb') continue;
             if (p.kind === 'fireball') this.explode(p, 120 * p.scale, true);
+            if (p.kind === 'soup') this.splash(p);
             p.dead = true;
             break;
           }
           if (p.kind === 'fireball') {
             this.explode(p, 120 * p.scale, true);
+            p.dead = true;
+            break;
+          }
+          if (p.kind === 'soup') {
+            this.splash(p);
+            p.dead = true;
+            break;
+          }
+          if (p.kind === 'poop') {
+            this.burst(p.x, Math.min(p.y, pl.y), '#6d4c41', 8, 200);
             p.dead = true;
             break;
           }
@@ -710,6 +839,7 @@ export class Game {
       if (p.life <= 0) {
         if (p.kind === 'bomb') this.explode(p);
         if (p.kind === 'fireball') this.explode(p, 120 * p.scale, true);
+        if (p.kind === 'soup') this.splash(p);
         this.finishProj(p);
         continue;
       }
@@ -770,6 +900,8 @@ export class Game {
       if (burn && e.alive) {
         e.burnT = 2;
         e.burnTick = 0.5;
+        e.burnDmg = 8;
+        e.burnEvery = 0.5;
         e.burnSrc = p.owner;
       }
     }
@@ -797,7 +929,7 @@ export class Game {
     for (const b of this.bodies()) {
       if (!b.alive) continue;
       if (b.y < m.h + 300 && b.x > -700 && b.x < m.w + 700) continue;
-      if (b instanceof Snowman) this.kill(b, null);
+      if (b instanceof Snowman || b instanceof Cat) this.kill(b, null);
       else if (b instanceof Fighter) {
         if (b.boss) this.bounce(b, 250);
         else if (this.fallMode === 'ko') this.kill(b, null);
@@ -814,7 +946,7 @@ export class Game {
     f.x = px;
     f.y = this.map.h + 200;
     f.vx = 0;
-    f.vy = -Math.sqrt(2 * GRAVITY * (f.y - py + 170));
+    f.vy = -Math.sqrt(2 * this.gravity * (f.y - py + 170));
     f.stun = 0;
     f.slamming = false;
     f.airJumps = 1;
@@ -828,7 +960,7 @@ export class Game {
 
   private winnerTeam(): { decided: boolean; team: number | null } {
     const alive = this.fighters.filter((f) => f.alive);
-    if (this.mode === 'boss') {
+    if (isBossMode(this.mode)) {
       const bosses = this.bosses;
       if (bosses.length && bosses.every((b) => !b.alive)) return { decided: true, team: 0 };
       if (!alive.some((f) => !f.boss)) return { decided: true, team: BOSS_TEAM };

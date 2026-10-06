@@ -1,5 +1,5 @@
 import type { Game } from './game';
-import { Body, Fighter, Snowman } from './entities';
+import { Body, Cat, Fighter, Snowman } from './entities';
 import type { Difficulty, Intent, Platform } from './types';
 
 const rand = Math.random;
@@ -11,7 +11,7 @@ export function nearestEnemy(g: Game, me: Body, maxD = Infinity): Body | null {
   let bestD = maxD;
   for (const b of g.bodies()) {
     if (!b.alive || b.team === me.team) continue;
-    const d = Math.hypot(b.x - me.x, b.cy - me.cy) * (b.kind === 'snowman' ? 1.3 : 1);
+    const d = Math.hypot(b.x - me.x, b.cy - me.cy) * (b.kind !== 'fighter' ? 1.3 : 1);
     if (d < bestD) {
       bestD = d;
       best = b;
@@ -229,6 +229,21 @@ export class BotBrain {
         case 'staff':
           if (dist < 900) angle = ballisticAngle(dx, dy, 900, 300);
           break;
+        case 'six7':
+          if (dist < 480 * s) angle = Math.atan2(dy, dx);
+          break;
+        case 'poop':
+          if (dist < 700) angle = ballisticAngle(dx, dy, 850, 1400);
+          break;
+        case 'soup':
+          if (dist < 750 * s) angle = ballisticAngle(dx, dy, 850, 1400);
+          break;
+        case 'catcall':
+          angle = -Math.PI / 2;
+          break;
+        case 'treasure':
+          if (f.nextCats || dist < 750) angle = ballisticAngle(dx, dy, 850, 1400);
+          break;
       }
       if (angle !== null) {
         it.skill = angle + err;
@@ -277,5 +292,42 @@ export function updateSnowman(s: Snowman, dt: number, g: Game) {
       const a = ballisticAngle(dx, dy, 760, 1500) + (rand() - 0.5) * 0.12;
       g.spawnProj('minisnow', s, s.x + s.facing * 14, s.y - s.h + 18, a, 760, 1500, 12, 0);
     }
+  }
+}
+
+/** AI cats run at the nearest enemy, jump up to reach it, and bite on touch. */
+export function updateCat(c: Cat, dt: number, g: Game) {
+  c.thinkT -= dt;
+  c.attackT -= dt;
+  if (c.thinkT <= 0) {
+    c.thinkT = 0.25 + rand() * 0.2;
+    c.target = nearestEnemy(g, c);
+    const t = c.target;
+    c.moveX = t ? (Math.abs(t.x - c.x) > 12 ? sign(t.x - c.x) : 0) : rand() < 0.4 ? (rand() < 0.5 ? -0.5 : 0.5) : 0;
+    // Don't run off an edge unless the target is across a small gap.
+    if (c.onGround && c.moveX !== 0 && !platformBelow(g, c.x + sign(c.moveX) * 30, c.y, 700)) {
+      if (t && t.y < c.y + 80 && Math.abs(t.x - c.x) > 120 && rand() < 0.5) {
+        c.vy = -900;
+        c.onGround = false;
+      } else c.moveX = 0;
+    }
+  }
+  if (!c.onGround && !platformBelow(g, c.x, c.y, 2000)) {
+    const np = nearestPlatform(g, c.x, c.y);
+    if (np) c.moveX = sign(np.x + np.w / 2 - c.x);
+  }
+  if (c.stun > 0) c.vx *= Math.max(0, 1 - 2 * dt);
+  else c.vx += (c.moveX * 330 - c.vx) * Math.min(1, (c.onGround ? 10 : 4) * dt);
+  if (c.moveX) c.facing = sign(c.moveX);
+  const t = c.target && c.target.alive ? c.target : null;
+  if (t && c.onGround && t.cy < c.y - 90 && rand() < dt * 2.5) {
+    c.vy = -900;
+    c.onGround = false;
+  }
+  if (c.attackT > 0) return;
+  for (const e of g.bodies()) {
+    if (!e.alive || e.team === c.team || !e.contains(c.x, c.cy, c.w / 2)) continue;
+    g.catBite(c, e);
+    break;
   }
 }

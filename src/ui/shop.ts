@@ -14,7 +14,8 @@ register('shop', (root) => {
   const render = () => {
     head.replaceChildren(h('button', { class: 'btn ghost', onclick: () => go('menu') }, `← ${t('back')}`), h('h2', {}, t('shop')), coinChip());
     grid.replaceChildren(
-      ...WEAPONS.map((w) => {
+      // Boss-only weapons are never shown; the Treasure shows as a reward to win.
+      ...WEAPONS.filter((w) => w.special !== 'boss').map((w) => {
         const name = t(`w.${w.id}` as Key);
         const have = save.data.owned.includes(w.id);
         const afford = save.data.coins >= w.price;
@@ -36,7 +37,9 @@ register('shop', (root) => {
           h('div', { class: 'shop-icon' }, weaponIcon(w.id, 64)),
           h('h3', {}, name),
           h('p', { class: 'muted small' }, t(`s.${w.id}` as Key)),
-          have
+          w.special === 'reward'
+            ? h('span', { class: 'badge' }, have ? `🏆 ${t('owned')}` : `🔒 ${t('rewardOnly')}`)
+            : have
             ? h('span', { class: 'badge' }, w.price === 0 ? t('free') : `✔ ${t('owned')}`)
             : h('button', { class: `btn ${afford ? 'primary' : ''}`, onclick: buy }, `🪙 ${w.price}`),
         );

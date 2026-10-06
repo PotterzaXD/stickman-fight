@@ -9,6 +9,7 @@ export const PLAYER_HP = 500;
 export const SNOWMAN_HP = 250;
 export const BOSS_HP = 5000;
 export const MAX_SNOWMEN = 10;
+export const CAT_BOSS_HP = 10000;
 
 let nextId = 1;
 
@@ -33,7 +34,10 @@ export abstract class Body {
   burnT = 0;
   burnTick = 0;
   burnSrc: Body | null = null;
-  abstract readonly kind: 'fighter' | 'snowman';
+  /** Burn damage and seconds between ticks (fireball: 8 every 0.5 s, gang som soup: 10 every 1 s). */
+  burnDmg = 8;
+  burnEvery = 0.5;
+  abstract readonly kind: 'fighter' | 'snowman' | 'cat';
 
   constructor(x: number, y: number, w: number, h: number, hp: number, team: number, color: string) {
     this.x = x;
@@ -68,6 +72,8 @@ export interface FighterOpts {
   x: number;
   y: number;
   boss?: boolean;
+  /** The Grandfather Cat boss. */
+  cat?: boolean;
 }
 
 export class Fighter extends Body {
@@ -75,6 +81,10 @@ export class Fighter extends Body {
   name: string;
   human: boolean;
   boss: boolean;
+  /** Grandfather Cat (drawn with cat ears and whiskers). */
+  cat: boolean;
+  /** The Grandfather Cat Treasure takes turns: soup, then cats, then soup... */
+  nextCats = false;
   scale: number;
   dmgMult: number;
   speed: number;
@@ -111,10 +121,11 @@ export class Fighter extends Body {
 
   constructor(o: FighterOpts) {
     const scale = o.boss ? 2.6 : 1;
-    super(o.x, o.y, 30 * scale, 80 * scale, o.boss ? BOSS_HP : PLAYER_HP, o.team, o.color);
+    super(o.x, o.y, 30 * scale, 80 * scale, o.cat ? CAT_BOSS_HP : o.boss ? BOSS_HP : PLAYER_HP, o.team, o.color);
     this.name = o.name;
     this.human = o.human;
     this.boss = !!o.boss;
+    this.cat = !!o.cat;
     this.scale = scale;
     this.dmgMult = o.boss ? 1.5 : 1;
     this.speed = o.boss ? 300 : 380;
@@ -216,10 +227,41 @@ export class Snowman extends Body {
   }
 }
 
-export type ProjKind = 'arrow' | 'snowball' | 'minisnow' | 'boomerang' | 'bomb' | 'axe' | 'shuriken' | 'laser' | 'fireball';
+/** An AI cat called by Grandfather Cat (or the Treasure). Runs at enemies and hurts them on touch. */
+export class Cat extends Body {
+  readonly kind = 'cat' as const;
+  owner: Fighter;
+  touchDmg: number;
+  thinkT = 0;
+  attackT = 0;
+  moveX = 0;
+  target: Body | null = null;
+  walkPhase = 0;
+
+  constructor(owner: Fighter, x: number, y: number, hp: number, touchDmg: number) {
+    super(x, y, 34, 30, hp, owner.team, owner.color);
+    this.owner = owner;
+    this.touchDmg = touchDmg;
+    this.facing = owner.facing;
+  }
+}
+
+export type ProjKind =
+  | 'arrow'
+  | 'snowball'
+  | 'minisnow'
+  | 'boomerang'
+  | 'bomb'
+  | 'axe'
+  | 'shuriken'
+  | 'laser'
+  | 'fireball'
+  | 'six7'
+  | 'poop'
+  | 'soup';
 
 /** Thrown weapons that fly out and come back to the hand. */
-export const returns = (k: ProjKind) => k === 'boomerang' || k === 'axe';
+export const returns = (k: ProjKind) => k === 'boomerang' || k === 'axe' || k === 'six7';
 
 export interface Projectile {
   kind: ProjKind;
@@ -239,6 +281,8 @@ export interface Projectile {
   hit: Set<number>;
   returning: boolean;
   dead: boolean;
+  /** Gang som soup: burn damage each second for 5 seconds. */
+  burnDmg?: number;
 }
 
 export interface GroundBall {

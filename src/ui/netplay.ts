@@ -3,11 +3,10 @@ import { JoystickManager } from '../game/input';
 import { t } from '../i18n';
 import { ONLINE_SNOWMEN, RoomHost, session, setSession, type NetResult, type StartPayload } from '../net/room';
 import { Mirror, encodeSnapshot } from '../net/snapshot';
-import { save } from '../save';
 import { sfx } from '../sfx';
 import { h } from './dom';
 import { startLoop } from './loop';
-import { BOSS_COINS, resultTitle } from './play';
+import { giveReward, resultTitle } from './play';
 import { onRoomClosed } from './roomScreen';
 import { go, register } from './router';
 
@@ -66,15 +65,13 @@ register('netplay', (root) => {
   const showResult = (r: Pick<MatchResult, 'mode' | 'winnerTeam' | 'winners'>) => {
     menuOpen = true;
     // Coins only for devices that had someone in this match: win 3-5 (beating the bosses: 500 per boss), otherwise 1.
-    let coinLine: HTMLElement | null = null;
+    // Grandfather Cat: 1,000 coins and the Treasure for every device that played.
+    let coinLine: HTMLElement[] = [];
     const bosses = game.bosses.length;
     if (localIdx.length) {
       const won = r.winners.some((f) => localIdx.includes(game.fighters.indexOf(f))) && r.winnerTeam !== 99;
-      const coins = won ? (r.mode === 'boss' ? BOSS_COINS * bosses : 3 + Math.floor(Math.random() * 3)) : 1;
-      save.update((d) => (d.coins += coins));
-      setTimeout(() => sfx.coin(), 400);
+      coinLine = giveReward(r.mode, won, bosses);
       if (won) sfx.win();
-      coinLine = h('p', { class: 'coins-earned' }, `🪙 ${t('coinsEarned', { n: coins })}`, h('small', {}, ` (${save.data.coins})`));
     }
     const ranked = [...game.fighters].sort((a, b) => Number(b.alive) - Number(a.alive) || b.kos - a.kos);
     overlay.replaceChildren(
@@ -82,7 +79,7 @@ register('netplay', (root) => {
         'div',
         { class: 'modal result' },
         h('h2', {}, resultTitle(r, bosses)),
-        coinLine,
+        ...coinLine,
         h('ul', { class: 'scores' }, ...ranked.map((f) => h('li', {}, h('span', { class: 'dot', style: `background:${f.color}` }), h('b', {}, f.name), h('span', { class: 'muted' }, `${f.alive ? '🏆' : '💀'}${host ? ` ${f.kos} KO` : ''}`)))),
         host
           ? h('div', { class: 'row gap center' }, h('button', { class: 'btn ghost', onclick: () => host.toLobby() }, `🏠 ${t('backToRoom')}`), h('button', { class: 'btn big primary', onclick: () => host.start() }, `🔄 ${t('playAgain')}`))
@@ -101,7 +98,7 @@ register('netplay', (root) => {
       fallMode: start.fallMode,
       maxSnowmen: ONLINE_SNOWMEN,
       record: !!host,
-      bossName: t('boss_name'),
+      bossName: t(start.mode === 'cat' ? 'cat_name' : 'boss_name'),
       bosses: start.bosses,
       bossWeapons: start.bossWeapons,
     });

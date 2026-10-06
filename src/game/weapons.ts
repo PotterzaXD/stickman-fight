@@ -1,4 +1,4 @@
-export type WeaponId = 'sword' | 'spear' | 'hammer' | 'bow' | 'boomerang' | 'bomb' | 'katana' | 'snowball' | 'axe' | 'shuriken' | 'laser' | 'staff';
+export type WeaponId = 'sword' | 'spear' | 'hammer' | 'bow' | 'boomerang' | 'bomb' | 'katana' | 'snowball' | 'axe' | 'shuriken' | 'laser' | 'staff' | 'six7' | 'poop' | 'treasure' | 'soup' | 'catcall';
 
 export interface WeaponDef {
   id: WeaponId;
@@ -13,6 +13,8 @@ export interface WeaponDef {
   cooldown: number;
   /** Bots keep their distance with these. */
   ranged: boolean;
+  /** Not sold in the shop: 'boss' = only Grandfather Cat holds it, 'reward' = won by beating Grandfather Cat. */
+  special?: 'boss' | 'reward';
 }
 
 export const WEAPONS: WeaponDef[] = [
@@ -28,7 +30,15 @@ export const WEAPONS: WeaponDef[] = [
   { id: 'shuriken', price: 550, length: 24, damage: 8, turn: 14, cooldown: 1.2, ranged: true },
   { id: 'laser', price: 600, length: 46, damage: 10, turn: 14, cooldown: 1.6, ranged: true },
   { id: 'staff', price: 700, length: 74, damage: 16, turn: 12, cooldown: 2.8, ranged: true },
+  { id: 'six7', price: 670, length: 64, damage: 34, turn: 12, cooldown: 10, ranged: false },
+  { id: 'poop', price: 299, length: 30, damage: 20, turn: 14, cooldown: 1, ranged: true },
+  { id: 'treasure', price: 0, length: 40, damage: 14, turn: 13, cooldown: 2.5, ranged: true, special: 'reward' },
+  { id: 'soup', price: 0, length: 40, damage: 24, turn: 10, cooldown: 2.5, ranged: true, special: 'boss' },
+  { id: 'catcall', price: 0, length: 26, damage: 10, turn: 10, cooldown: 8, ranged: true, special: 'boss' },
 ];
+
+/** Weapons you can buy in the shop or roll at random (no boss or reward weapons). */
+export const SHOP_WEAPONS = WEAPONS.filter((w) => !w.special);
 
 export function weapon(id: string): WeaponDef {
   return WEAPONS.find((w) => w.id === id) ?? WEAPONS[0];
