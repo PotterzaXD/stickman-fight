@@ -246,10 +246,8 @@ const en = {
   'th.space': 'Space',
   // credits
   credits: 'Credits',
-  creditDesigner: 'Designer',
-  creditScripts: 'Scripts',
-  creditPrompt: 'Prompt',
-  bestHelper: 'The best helper',
+  creditCreator: 'Creator',
+  creditHelper: 'Helper',
   close: 'Close',
 };
 
@@ -487,10 +485,8 @@ const th: Record<Key, string> = {
   'm.space': 'อวกาศ',
   'th.space': 'อวกาศ',
   credits: 'เครดิต',
-  creditDesigner: 'ออกแบบ',
-  creditScripts: 'สคริปต์',
-  creditPrompt: 'พรอมต์',
-  bestHelper: 'ผู้ช่วยที่ดีที่สุด',
+  creditCreator: 'ผู้สร้าง',
+  creditHelper: 'ผู้ช่วย',
   close: 'ปิด',
 };
 
