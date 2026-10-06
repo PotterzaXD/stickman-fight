@@ -7,7 +7,7 @@ import { save } from '../save';
 import { sfx } from '../sfx';
 import { h } from './dom';
 import { startLoop } from './loop';
-import { resultTitle } from './play';
+import { BOSS_COINS, resultTitle } from './play';
 import { onRoomClosed } from './roomScreen';
 import { go, register } from './router';
 
@@ -65,11 +65,12 @@ register('netplay', (root) => {
 
   const showResult = (r: Pick<MatchResult, 'mode' | 'winnerTeam' | 'winners'>) => {
     menuOpen = true;
-    // Coins only for devices that had someone in this match: win 3-5, otherwise 1.
+    // Coins only for devices that had someone in this match: win 3-5 (beating the bosses: 500 per boss), otherwise 1.
     let coinLine: HTMLElement | null = null;
+    const bosses = game.bosses.length;
     if (localIdx.length) {
       const won = r.winners.some((f) => localIdx.includes(game.fighters.indexOf(f))) && r.winnerTeam !== 99;
-      const coins = won ? 3 + Math.floor(Math.random() * 3) : 1;
+      const coins = won ? (r.mode === 'boss' ? BOSS_COINS * bosses : 3 + Math.floor(Math.random() * 3)) : 1;
       save.update((d) => (d.coins += coins));
       setTimeout(() => sfx.coin(), 400);
       if (won) sfx.win();
@@ -80,7 +81,7 @@ register('netplay', (root) => {
       h(
         'div',
         { class: 'modal result' },
-        h('h2', {}, resultTitle(r)),
+        h('h2', {}, resultTitle(r, bosses)),
         coinLine,
         h('ul', { class: 'scores' }, ...ranked.map((f) => h('li', {}, h('span', { class: 'dot', style: `background:${f.color}` }), h('b', {}, f.name), h('span', { class: 'muted' }, `${f.alive ? '🏆' : '💀'}${host ? ` ${f.kos} KO` : ''}`)))),
         host
@@ -95,7 +96,15 @@ register('netplay', (root) => {
     hideOverlay();
     sticks?.destroy();
     acc = 0;
-    game = new Game(start.map, start.specs, { mode: start.mode, fallMode: start.fallMode, maxSnowmen: ONLINE_SNOWMEN, record: !!host, bossName: t('boss_name') });
+    game = new Game(start.map, start.specs, {
+      mode: start.mode,
+      fallMode: start.fallMode,
+      maxSnowmen: ONLINE_SNOWMEN,
+      record: !!host,
+      bossName: t('boss_name'),
+      bosses: start.bosses,
+      bossWeapons: start.bossWeapons,
+    });
     mirror = host ? null : new Mirror(game);
     if (import.meta.env.DEV) (window as unknown as { __ng: Game }).__ng = game;
     // Joysticks for the players on this device, in joystick order.

@@ -1,4 +1,4 @@
-import type { MapDef, Platform, ThemeId, Vec } from './types';
+import type { BlockKind, MapDef, Platform, ThemeId, Vec } from './types';
 
 export interface Theme {
   sky: [string, string];
@@ -18,6 +18,11 @@ export const THEMES: Record<ThemeId, Theme> = {
 export const THEME_IDS: ThemeId[] = ['day', 'sunset', 'night', 'snow', 'lava'];
 
 const P = (x: number, y: number, w: number, h = 24): Platform => ({ x, y, w, h });
+/** Special block: concrete, lava or glass. */
+const B = (kind: BlockKind, x: number, y: number, w: number, h = 24): Platform => ({ x, y, w, h, kind });
+
+/** Block kinds in shared map links (0 = normal platform). */
+const BLOCK_CODES: (BlockKind | undefined)[] = [undefined, 'concrete', 'lava', 'glass'];
 
 export const BUILTIN_MAPS: MapDef[] = [
   {
@@ -80,6 +85,108 @@ export const BUILTIN_MAPS: MapDef[] = [
     platforms: [P(100, 650, 520, 60), P(980, 650, 520, 60), P(700, 500, 200), P(250, 450, 200), P(1150, 450, 200)],
     spawns: [],
   },
+  {
+    id: 'volcano',
+    name: 'm.volcano',
+    w: 1800,
+    h: 1000,
+    theme: 'lava',
+    builtin: true,
+    platforms: [
+      P(150, 780, 460, 60),
+      B('lava', 610, 830, 580, 40),
+      P(1190, 780, 460, 60),
+      B('concrete', 680, 640, 440, 28),
+      P(280, 600, 220),
+      P(1300, 600, 220),
+      B('glass', 780, 470, 240, 20),
+      P(820, 310, 160),
+      B('lava', 380, 470, 120, 20),
+      B('lava', 1300, 470, 120, 20),
+    ],
+    spawns: [],
+  },
+  {
+    id: 'factory',
+    name: 'm.factory',
+    w: 1700,
+    h: 950,
+    theme: 'day',
+    builtin: true,
+    platforms: [
+      B('concrete', 150, 760, 610, 60),
+      B('lava', 760, 760, 180, 60),
+      B('concrete', 940, 760, 610, 60),
+      B('concrete', 250, 580, 300),
+      B('glass', 600, 590, 500, 20),
+      B('concrete', 1150, 580, 300),
+      B('concrete', 430, 410, 250),
+      B('concrete', 1020, 410, 250),
+      B('glass', 700, 250, 300, 20),
+    ],
+    spawns: [],
+  },
+  {
+    id: 'glass',
+    name: 'm.glass',
+    w: 1600,
+    h: 1100,
+    theme: 'night',
+    builtin: true,
+    platforms: [
+      P(200, 950, 1200, 60),
+      B('glass', 150, 790, 400, 20),
+      B('glass', 1050, 790, 400, 20),
+      B('glass', 550, 640, 500, 20),
+      B('glass', 250, 480, 300, 20),
+      B('glass', 1050, 480, 300, 20),
+      B('glass', 600, 330, 400, 20),
+      B('concrete', 720, 180, 160),
+    ],
+    spawns: [],
+  },
+  {
+    id: 'rooftops',
+    name: 'm.rooftops',
+    w: 2000,
+    h: 1000,
+    theme: 'sunset',
+    builtin: true,
+    platforms: [
+      B('concrete', 100, 700, 350, 300),
+      B('glass', 450, 700, 150, 16),
+      B('concrete', 600, 620, 300, 380),
+      B('glass', 900, 650, 200, 16),
+      B('concrete', 1100, 680, 300, 320),
+      B('glass', 1400, 660, 150, 16),
+      B('concrete', 1550, 600, 350, 400),
+      P(680, 450, 160),
+      P(1200, 500, 180),
+      P(250, 520, 150),
+      B('concrete', 1650, 430, 180),
+    ],
+    spawns: [],
+  },
+  {
+    id: 'frozen',
+    name: 'm.frozen',
+    w: 1800,
+    h: 1000,
+    theme: 'snow',
+    builtin: true,
+    platforms: [
+      P(150, 800, 500, 60),
+      B('glass', 650, 820, 500, 20),
+      P(1150, 800, 500, 60),
+      B('concrete', 350, 620, 260),
+      B('concrete', 1190, 620, 260),
+      P(760, 560, 280),
+      B('glass', 450, 430, 240, 20),
+      B('glass', 1110, 430, 240, 20),
+      B('concrete', 800, 300, 200),
+    ],
+    spawns: [],
+  },
 ];
 
 export const MAP_SIZES = {
@@ -92,7 +199,7 @@ export const MAP_SIZES = {
 function platformSpots(map: MapDef): Vec[] {
   const out: Vec[] = [];
   for (const p of map.platforms) {
-    if (p.w < 40) continue;
+    if (p.w < 40 || p.kind === 'lava') continue;
     const n = Math.max(1, Math.floor(p.w / 150));
     for (let i = 0; i < n; i++) out.push({ x: p.x + ((i + 0.5) * p.w) / n, y: p.y });
   }
@@ -140,7 +247,11 @@ export function encodeMap(m: MapDef): string {
     w: m.w,
     h: m.h,
     t: m.theme,
-    p: m.platforms.map((p) => [p.x, p.y, p.w, p.h].map(Math.round)),
+    p: m.platforms.map((p) => {
+      const a = [p.x, p.y, p.w, p.h].map(Math.round);
+      const k = BLOCK_CODES.indexOf(p.kind);
+      return k > 0 ? [...a, k] : a;
+    }),
     s: m.spawns.map((s) => [Math.round(s.x), Math.round(s.y)]),
   };
   const bytes = new TextEncoder().encode(JSON.stringify(compact));
@@ -159,7 +270,11 @@ export function decodeMap(code: string): MapDef | null {
     const h = num(c.h, 400, 3000);
     const platforms: Platform[] = (Array.isArray(c.p) ? c.p : [])
       .slice(0, 200)
-      .map((a: number[]) => P(num(a[0], -500, w + 500), num(a[1], -500, h + 500), num(a[2], 10, 5000), num(a[3], 10, 500)));
+      .map((a: number[]) => {
+        const p = P(num(a[0], -500, w + 500), num(a[1], -500, h + 500), num(a[2], 10, 5000), num(a[3], 10, 500));
+        const kind = BLOCK_CODES[Math.floor(num(a[4], 0, BLOCK_CODES.length - 1))];
+        return kind ? { ...p, kind } : p;
+      });
     const spawns: Vec[] = (Array.isArray(c.s) ? c.s : []).slice(0, 24).map((a: number[]) => ({ x: num(a[0], 0, w), y: num(a[1], 0, h) }));
     if (!platforms.length) return null;
     const theme = (THEME_IDS as string[]).includes(c.t) ? (c.t as ThemeId) : 'day';

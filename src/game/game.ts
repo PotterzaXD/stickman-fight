@@ -12,6 +12,7 @@ import {
   type ProjKind,
   type Projectile,
   type Ring,
+  returns,
 } from './entities';
 import { pickSpawns } from './maps';
 import type { Difficulty, FallMode, MapDef, Mode } from './types';
@@ -53,6 +54,24 @@ export interface GameOpts {
   maxSnowmen?: number;
   /** Host of an online room: remember effects so they can be sent to the other devices. */
   record?: boolean;
+  /** Boss Fight: how many bosses (1-3). */
+  bosses?: number;
+  /** Weapon ids for each boss (online: the host picks them so every device matches). */
+  bossWeapons?: string[][];
+}
+
+/** Seconds until broken glass comes back. */
+export const GLASS_BACK = 10;
+/** Lava: damage and how hard it throws you up. */
+export const LAVA_DMG = 40;
+const LAVA_JUMP = 1250;
+
+/** Two different random weapons for a boss. */
+export function randomBossWeapons(): string[] {
+  const pool = [...WEAPONS];
+  const a = pool.splice(Math.floor(Math.random() * pool.length), 1)[0];
+  const b = pool[Math.floor(Math.random() * pool.length)];
+  return [a.id, b.id];
 }
 
 /** Effects and sounds that happened this frame, sent from the host to the other devices. */
@@ -88,6 +107,8 @@ export class Game {
   maxSnowmen: number;
   record: boolean;
   events: NetEvent[] = [];
+  /** For each platform: seconds until its glass comes back (0 = whole). */
+  glassT: number[];
   private endT = -1;
   private camReady = false;
 
@@ -98,6 +119,7 @@ export class Game {
     this.demo = !!opts.demo;
     this.maxSnowmen = opts.maxSnowmen ?? MAX_SNOWMEN;
     this.record = !!opts.record;
+    this.glassT = map.platforms.map(() => 0);
     const spawns = pickSpawns(map, specs.length + (opts.mode === 'boss' ? 1 : 0));
     specs.forEach((s, i) => {
       const sp = spawns[i];
@@ -107,16 +129,38 @@ export class Game {
       this.fighters.push(f);
     });
     if (opts.mode === 'boss') {
-      // Boss: a giant stickman holding two different random weapons.
-      const pool = [...WEAPONS];
-      const a = pool.splice(Math.floor(Math.random() * pool.length), 1)[0];
-      const b = pool[Math.floor(Math.random() * pool.length)];
-      const top = [...map.platforms].sort((p, q) => q.w - p.w)[0];
-      const x = top ? top.x + top.w / 2 : map.w / 2;
-      const boss = new Fighter({ name: opts.bossName ?? 'Boss', color: '#263238', team: BOSS_TEAM, human: false, weapons: [a, b], x, y: (top?.y ?? map.h / 2) - 300, boss: true });
-      boss.brain = new BotBrain('boss');
-      this.fighters.push(boss);
+      // Boss: a giant stickman holding two different random weapons. Up to 3 of them.
+      const n = clamp(Math.round(opts.bosses ?? 1), 1, 3);
+      const wide = [...map.platforms].filter((p) => p.kind !== 'lava').sort((p, q) => q.w - p.w);
+      for (let k = 0; k < n; k++) {
+        const ids = opts.bossWeapons?.[k] ?? randomBossWeapons();
+        // Each boss on its own wide platform; if there are not enough, spread them on the widest.
+        const own = wide[k] && (n === 1 || wide[k].w >= 200) ? wide[k] : null;
+        const top = own ?? wide[0];
+        const x = top ? (own ? top.x + top.w / 2 : top.x + (top.w * (k + 1)) / (n + 1)) : map.w / 2;
+        const boss = new Fighter({
+          name: `${opts.bossName ?? 'Boss'}${n > 1 ? ` ${k + 1}` : ''}`,
+          color: '#263238',
+          team: BOSS_TEAM,
+          human: false,
+          weapons: ids.map((id) => weapon(id)),
+          x,
+          y: (top?.y ?? map.h / 2) - 300,
+          boss: true,
+        });
+        boss.brain = new BotBrain('boss');
+        this.fighters.push(boss);
+      }
     }
+  }
+
+  get bosses(): Fighter[] {
+    return this.fighters.filter((f) => f.boss);
+  }
+
+  /** Can you stand on platform i? (Broken glass is gone for a while.) */
+  solid(i: number) {
+    return !(this.glassT[i] > 0);
   }
 
   bodies(): Body[] {
@@ -145,7 +189,7 @@ export class Game {
       } else if (f.trail.length) f.trail.shift();
     }
     for (const p of this.projectiles) {
-      if (p.kind !== 'boomerang') p.vy += p.g * dt;
+      if (!returns(p.kind)) p.vy += p.g * dt;
       p.x += p.vx * dt;
       p.y += p.vy * dt;
     }
@@ -187,6 +231,8 @@ export class Game {
     this.meleeHits();
     this.updateProjectiles(dt);
     this.updateGroundBalls(dt);
+    this.updateBurns(dt);
+    this.updateGlass(dt);
     this.checkOffMap();
     this.snowmen = this.snowmen.filter((s) => s.alive);
     this.updateEffects(dt);
@@ -241,6 +287,9 @@ export class Game {
     if (it.skill !== null) this.useSkill(f, it.skillSlot, it.skill);
 
     this.stepBody(f, dt, f.dashT > 0 ? 0.15 : 1);
+    // Skills break glass: the sword's dash and the spear's thrust.
+    if (f.dashT > 0) f.weapons.forEach((w, i) => w.id === 'sword' && this.breakGlassAt(f.tip(i).x, f.tip(i).y, 14, f));
+    if (f.thrustT > 0) this.breakGlassAt(f.tip(f.thrustSlot).x, f.tip(f.thrustSlot).y, 10, f);
     if (f.onGround) f.airJumps = 1;
     if (f.slamming && f.onGround) {
       f.slamming = false;
@@ -264,16 +313,78 @@ export class Game {
     if (b.vy >= 0) {
       const half = b.w * 0.35;
       let land: number | null = null;
-      for (const p of this.map.platforms) {
+      let lava = false;
+      this.map.platforms.forEach((p, i) => {
+        if (!this.solid(i)) return;
         if (b.x + half > p.x && b.x - half < p.x + p.w && prevY <= p.y + 2 && b.y >= p.y) {
-          if (land === null || p.y < land) land = p.y;
+          if (land === null || p.y < land) {
+            land = p.y;
+            lava = p.kind === 'lava';
+          }
         }
-      }
+      });
       if (land !== null) {
         b.y = land;
         b.vy = 0;
         b.onGround = true;
+        if (lava) this.lavaHit(b);
       }
+    }
+  }
+
+  /** Landed on lava: it hurts and throws you back up. */
+  private lavaHit(b: Body) {
+    if (!b.alive) return;
+    b.vy = -LAVA_JUMP;
+    b.onGround = false;
+    b.hp -= LAVA_DMG;
+    b.hurtFlash = 0.15;
+    if (b instanceof Fighter) b.slamming = false;
+    this.text(b.x, b.y - b.h - 10, `-${LAVA_DMG}`, '#ff7043', 26);
+    this.burst(b.x, b.y, '#ff6d00', 14, 380);
+    this.play('hit');
+    if (b.hp <= 0) this.kill(b, null);
+  }
+
+  /** A skill hit glass around (x, y): it shatters and comes back after GLASS_BACK seconds. */
+  breakGlassAt(x: number, y: number, r: number, by: Body | null) {
+    if (!(by instanceof Fighter)) return;
+    this.map.platforms.forEach((p, i) => {
+      if (p.kind !== 'glass' || !this.solid(i)) return;
+      const cx = clamp(x, p.x, p.x + p.w);
+      const cy = clamp(y, p.y, p.y + p.h);
+      if (Math.hypot(x - cx, y - cy) > r) return;
+      this.glassT[i] = GLASS_BACK;
+      const n = Math.max(1, Math.round(p.w / 120));
+      for (let k = 0; k < n; k++) this.burst(p.x + ((k + 0.5) * p.w) / n, p.y + p.h / 2, '#b3e5fc', 10, 320);
+      this.play('glass');
+    });
+  }
+
+  private updateGlass(dt: number) {
+    this.glassT.forEach((t, i) => {
+      if (t <= 0) return;
+      this.glassT[i] = Math.max(0, t - dt);
+      if (this.glassT[i] === 0) {
+        const p = this.map.platforms[i];
+        this.burst(p.x + p.w / 2, p.y, '#e1f5fe', 8, 160);
+      }
+    });
+  }
+
+  /** On fire from the Magic Staff: a little damage every half second. */
+  private updateBurns(dt: number) {
+    for (const b of this.bodies()) {
+      if (!b.alive || b.burnT <= 0) continue;
+      b.burnT -= dt;
+      b.burnTick -= dt;
+      if (b.burnTick > 0) continue;
+      b.burnTick = 0.5;
+      b.hp -= 8;
+      b.hurtFlash = 0.1;
+      this.text(b.x + (Math.random() - 0.5) * 20, b.y - b.h - 10, '8', '#ff9800', 18);
+      this.burst(b.x, b.cy, '#ff9800', 4, 160);
+      if (b.hp <= 0) this.kill(b, b.burnSrc);
     }
   }
 
@@ -331,7 +442,7 @@ export class Game {
     }
     const killer = src instanceof Snowman ? src.owner : src;
     if (killer instanceof Fighter && killer !== b && b.kind === 'fighter') killer.kos++;
-    if (b instanceof Fighter) for (const p of this.projectiles) if (p.owner === b && p.kind === 'boomerang') p.dead = true;
+    if (b instanceof Fighter) for (const p of this.projectiles) if (p.owner === b && returns(p.kind)) p.dead = true;
   }
 
   private meleeHits() {
@@ -340,6 +451,8 @@ export class Game {
       if (!f.alive || f.shielding) continue;
       for (let i = 0; i < f.weapons.length; i++) {
         const def = f.weapons[i];
+        // A thrown axe is not in your hand.
+        if (def.id === 'axe' && f.boomerangOut[i]) continue;
         const speed = Math.abs(f.angVel[i]);
         const dash = f.dashT > 0;
         const thrust = f.thrustT > 0 && i === f.thrustSlot;
@@ -419,19 +532,35 @@ export class Game {
           this.damage(t, 80 * m, f, f.facing * 650, -500);
         } else f.x += f.facing * 220;
         this.burst(f.x, f.cy, '#212121', 14, 300);
+        this.breakGlassAt(f.x, f.cy, 50 * s, f);
         this.play('throw');
         break;
       }
       case 'snowball':
         this.spawnProj('snowball', f, tip.x, tip.y, angle, 950, 1500, 20 * m, i);
         break;
+      case 'axe':
+        this.spawnProj('axe', f, tip.x, tip.y, angle, 900, 0, 55 * m, i);
+        f.boomerangOut[i] = true;
+        break;
+      case 'shuriken':
+        for (const spread of [-0.16, 0, 0.16]) this.spawnProj('shuriken', f, tip.x, tip.y, angle + spread, 1300, 300, 18 * m, i);
+        break;
+      case 'laser':
+        this.spawnProj('laser', f, tip.x, tip.y, angle, 2600, 0, 38 * m, i);
+        this.burst(tip.x, tip.y, '#ff1744', 6, 200);
+        break;
+      case 'staff':
+        this.spawnProj('fireball', f, tip.x, tip.y, angle, 900, 300, 50 * m, i);
+        break;
     }
   }
 
   spawnProj(kind: ProjKind, owner: Body, x: number, y: number, angle: number, speed: number, g: number, dmg: number, slot: number) {
     const scale = owner instanceof Fighter ? owner.scale : 1;
-    const r = { arrow: 5, snowball: 11, minisnow: 8, boomerang: 16, bomb: 11 }[kind] * (kind === 'boomerang' || kind === 'bomb' ? scale : 1);
-    const life = { arrow: 2, snowball: 3, minisnow: 3, boomerang: 3.5, bomb: 1.5 }[kind];
+    const big = kind === 'boomerang' || kind === 'bomb' || kind === 'axe' || kind === 'fireball';
+    const r = { arrow: 5, snowball: 11, minisnow: 8, boomerang: 16, bomb: 11, axe: 22, shuriken: 8, laser: 6, fireball: 14 }[kind] * (big ? scale : 1);
+    const life = { arrow: 2, snowball: 3, minisnow: 3, boomerang: 3.5, bomb: 1.5, axe: 3.5, shuriken: 2, laser: 0.7, fireball: 2 }[kind];
     this.projectiles.push({
       kind,
       x,
@@ -456,7 +585,7 @@ export class Game {
 
   private finishProj(p: Projectile) {
     p.dead = true;
-    if (p.kind === 'boomerang' && p.owner instanceof Fighter) {
+    if (returns(p.kind) && p.owner instanceof Fighter) {
       p.owner.boomerangOut[p.slot] = false;
       p.owner.cds[p.slot] = p.owner.weapons[p.slot].cooldown;
     }
@@ -471,7 +600,7 @@ export class Game {
       }
       p.t += dt;
       p.life -= dt;
-      if (p.kind === 'boomerang') {
+      if (returns(p.kind)) {
         if (!p.returning && p.t > 0.42) {
           p.returning = true;
           p.hit.clear();
@@ -504,7 +633,20 @@ export class Game {
           this.damage(e, p.dmg, p.owner, dir * 450, -350);
           continue;
         }
-        if (p.kind === 'bomb') this.explode(p);
+        if (p.kind === 'axe') {
+          p.hit.add(e.id);
+          this.damage(e, p.dmg, p.owner, dir * 600, -450);
+          continue;
+        }
+        if (p.kind === 'laser') {
+          // The beam goes through everyone in its way.
+          p.hit.add(e.id);
+          this.damage(e, p.dmg, p.owner, dir * 380, -220);
+          this.burst(p.x, p.y, '#ff1744', 6, 220);
+          continue;
+        }
+        if (p.kind === 'fireball') this.explode(p, 120 * p.scale, true);
+        else if (p.kind === 'bomb') this.explode(p);
         else {
           this.damage(e, p.dmg, p.owner, dir * (p.kind === 'arrow' ? 420 : 300), -260);
           if (p.kind !== 'arrow') this.burst(p.x, p.y, '#ffffff', 8, 220);
@@ -527,9 +669,24 @@ export class Game {
         }
       }
 
-      if (p.kind !== 'boomerang') {
-        for (const pl of this.map.platforms) {
+      if (returns(p.kind)) this.breakGlassAt(p.x, p.y, p.r, p.owner);
+      else {
+        for (const [pi, pl] of this.map.platforms.entries()) {
+          if (!this.solid(pi)) continue;
           if (p.x < pl.x || p.x > pl.x + pl.w || p.y + p.r < pl.y || p.y - p.r > pl.y + pl.h) continue;
+          // A skill shot breaks glass. Lasers and bombs keep going; everything else stops.
+          if (pl.kind === 'glass' && p.owner instanceof Fighter) {
+            this.breakGlassAt(p.x, p.y, p.r, p.owner);
+            if (p.kind === 'laser' || p.kind === 'bomb') continue;
+            if (p.kind === 'fireball') this.explode(p, 120 * p.scale, true);
+            p.dead = true;
+            break;
+          }
+          if (p.kind === 'fireball') {
+            this.explode(p, 120 * p.scale, true);
+            p.dead = true;
+            break;
+          }
           if (p.kind === 'bomb') {
             if (p.vy > 0) {
               p.y = pl.y - p.r;
@@ -552,6 +709,7 @@ export class Game {
       if (p.dead) continue;
       if (p.life <= 0) {
         if (p.kind === 'bomb') this.explode(p);
+        if (p.kind === 'fireball') this.explode(p, 120 * p.scale, true);
         this.finishProj(p);
         continue;
       }
@@ -593,9 +751,9 @@ export class Game {
     this.groundBalls = this.groundBalls.filter((b) => b.life > 0);
   }
 
-  private explode(p: Projectile) {
-    const R = 170 * p.scale;
+  private explode(p: Projectile, R = 170 * p.scale, burn = false) {
     this.ring(p.x, p.y, R, 0.35, '#ff9800');
+    this.breakGlassAt(p.x, p.y, R * 0.8, p.owner);
     this.burst(p.x, p.y, '#ff9800', 24, 500);
     this.burst(p.x, p.y, '#424242', 12, 300);
     this.shake = Math.min(18, this.shake + 10);
@@ -609,6 +767,11 @@ export class Game {
       const k = 1 - Math.min(1, d / (R * 1.3));
       const n = d || 1;
       this.damage(e, p.dmg * (0.4 + 0.6 * k), p.owner, (dx / n) * 900 * (0.4 + k), -700 * (0.5 + k));
+      if (burn && e.alive) {
+        e.burnT = 2;
+        e.burnTick = 0.5;
+        e.burnSrc = p.owner;
+      }
     }
   }
 
@@ -618,6 +781,7 @@ export class Game {
     this.burst(f.x, f.y, '#a1887f', 20, 420);
     this.shake = Math.min(18, this.shake + 12);
     this.play('boom');
+    this.breakGlassAt(f.x, f.y, R * 0.6, f);
     for (const e of this.bodies()) {
       if (!e.alive || e.team === f.team) continue;
       const dx = e.x - f.x;
@@ -665,8 +829,8 @@ export class Game {
   private winnerTeam(): { decided: boolean; team: number | null } {
     const alive = this.fighters.filter((f) => f.alive);
     if (this.mode === 'boss') {
-      const boss = this.boss;
-      if (boss && !boss.alive) return { decided: true, team: 0 };
+      const bosses = this.bosses;
+      if (bosses.length && bosses.every((b) => !b.alive)) return { decided: true, team: 0 };
       if (!alive.some((f) => !f.boss)) return { decided: true, team: BOSS_TEAM };
       return { decided: false, team: null };
     }

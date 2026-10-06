@@ -20,10 +20,16 @@ export function nearestEnemy(g: Game, me: Body, maxD = Infinity): Body | null {
   return best;
 }
 
+/** Ground that is safe to stand on: not lava, not broken glass. */
+function safe(g: Game, i: number) {
+  return g.solid(i) && g.map.platforms[i].kind !== 'lava';
+}
+
 /** First platform under (x, y), within `depth` pixels. */
 export function platformBelow(g: Game, x: number, y: number, depth: number): Platform | null {
   let best: Platform | null = null;
-  for (const p of g.map.platforms) {
+  for (const [i, p] of g.map.platforms.entries()) {
+    if (!safe(g, i)) continue;
     if (x < p.x || x > p.x + p.w) continue;
     if (p.y < y - 4 || p.y > y + depth) continue;
     if (!best || p.y < best.y) best = p;
@@ -34,7 +40,8 @@ export function platformBelow(g: Game, x: number, y: number, depth: number): Pla
 export function nearestPlatform(g: Game, x: number, y: number): Platform | null {
   let best: Platform | null = null;
   let bestD = Infinity;
-  for (const p of g.map.platforms) {
+  for (const [i, p] of g.map.platforms.entries()) {
+    if (!safe(g, i)) continue;
     const px = Math.max(p.x + 10, Math.min(p.x + p.w - 10, x));
     const d = Math.abs(px - x) + Math.max(0, p.y - y) * 0.3 + Math.max(0, y - p.y) * 0.6;
     if (d < bestD) {
@@ -210,6 +217,18 @@ export class BotBrain {
           } else if (dist < 850) angle = ballisticAngle(dx, dy, 950, 1500);
           break;
         }
+        case 'axe':
+          if (dist < 480 * s) angle = Math.atan2(dy, dx);
+          break;
+        case 'shuriken':
+          if (dist < 900) angle = ballisticAngle(dx, dy, 1300, 300);
+          break;
+        case 'laser':
+          if (dist < 1500) angle = Math.atan2(dy, dx);
+          break;
+        case 'staff':
+          if (dist < 900) angle = ballisticAngle(dx, dy, 900, 300);
+          break;
       }
       if (angle !== null) {
         it.skill = angle + err;

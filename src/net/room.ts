@@ -1,11 +1,11 @@
 import type { RealtimeChannel } from '@supabase/supabase-js';
 import { supabase } from '../cloud';
-import { TEAM_COLORS, type FighterSpec, type MatchResult } from '../game/game';
+import { TEAM_COLORS, randomBossWeapons, type FighterSpec, type MatchResult } from '../game/game';
 import type { Controller, Difficulty, FallMode, MapDef, Mode } from '../game/types';
 import { cleanName } from '../save';
 import type { Snapshot } from './snapshot';
 
-export const PROTO = 1;
+export const PROTO = 2;
 export const MIN_ROOM = 2;
 export const MAX_ROOM = 20;
 export const MAX_LOCAL = 6;
@@ -41,6 +41,8 @@ export interface RoomState {
   mapId: string;
   map: MapDef | null;
   fallMode: FallMode;
+  /** Boss Fight: how many bosses (1-3). */
+  bosses: number;
   hostWeapons: string[];
   phase: 'lobby' | 'playing';
   members: Member[];
@@ -57,6 +59,9 @@ export interface StartPayload {
   mode: Mode;
   fallMode: FallMode;
   specs: NetSpec[];
+  bosses: number;
+  /** Each boss's two weapons, so every device draws the same bosses. */
+  bossWeapons: string[][];
 }
 
 export interface NetResult {
@@ -319,6 +324,7 @@ export class RoomHost extends Emitter<RoomEvents> {
         mapId: map.id,
         map,
         fallMode: 'ko',
+        bosses: 1,
         hostWeapons,
         phase: 'lobby',
         members,
@@ -428,8 +434,9 @@ export class RoomHost extends Emitter<RoomEvents> {
     if (mem) this.patch(mem, p);
   }
 
-  setRoom(p: Partial<Pick<RoomState, 'mode' | 'fallMode' | 'size'>> & { map?: MapDef }) {
+  setRoom(p: Partial<Pick<RoomState, 'mode' | 'fallMode' | 'size' | 'bosses'>> & { map?: MapDef }) {
     if (p.mode) this.state.mode = p.mode;
+    if (p.bosses) this.state.bosses = Math.max(1, Math.min(3, Math.round(p.bosses)));
     if (p.fallMode) this.state.fallMode = p.fallMode;
     if (p.size) this.state.size = Math.max(Math.max(MIN_ROOM, this.state.members.length), Math.min(MAX_ROOM, p.size));
     if (p.map) {
@@ -513,7 +520,8 @@ export class RoomHost extends Emitter<RoomEvents> {
     for (const m of st.members) if (m.kind === 'human' && m.device !== 'host') this.remoteCtrl.set(m.id, { x: 0, y: 0, active: false });
     this.leftIds = [];
     st.phase = 'playing';
-    this.lastStart = { map: st.map, mode: st.mode, fallMode: st.fallMode, specs };
+    const bosses = st.mode === 'boss' ? st.bosses : 0;
+    this.lastStart = { map: st.map, mode: st.mode, fallMode: st.fallMode, specs, bosses, bossWeapons: Array.from({ length: bosses }, randomBossWeapons) };
     for (const p of this.peers.values()) sendJson(p.rel, { t: 'start', start: this.lastStart });
     this.changed();
     this.emit('start', this.lastStart);

@@ -50,4 +50,8 @@ export const sfx = {
     setTimeout(() => tone('w3', 784, 0.3, 'square', 0.07), 300);
   },
   coin: () => tone('coin', 988, 0.15, 'square', 0.06, 400),
+  glass: () => {
+    tone('g1', 1800, 0.12, 'triangle', 0.06, 900);
+    setTimeout(() => tone('g2', 2400, 0.1, 'triangle', 0.04, -600), 40);
+  },
 };

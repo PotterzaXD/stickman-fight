@@ -750,3 +750,40 @@ select {
   font-weight: 700;
   pointer-events: none;
 }
+
+/* ---------- friends ---------- */
+.menu-buttons .btn.online.with-friends {
+  grid-column: span 2;
+}
+.menu-buttons .btn.friends {
+  background: #b39ddb;
+  color: #1a0b3d;
+}
+@media (max-width: 420px) {
+  .menu-buttons .btn.online.with-friends {
+    grid-column: auto;
+  }
+}
+.slot.friend {
+  align-items: center;
+}
+.slot.friend .spacer {
+  flex: 1;
+}
+.presence {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: #b0bec5;
+  flex: none;
+}
+.presence.on {
+  background: #43a047;
+  box-shadow: 0 0 0 3px rgba(67, 160, 71, 0.25);
+}
+.modal-wrap.welcome {
+  z-index: 70;
+}
+.modal-wrap.welcome p {
+  font-size: 18px;
+}

@@ -1,6 +1,6 @@
 import { BUILTIN_MAPS, MAP_SIZES, THEME_IDS, encodeMap } from '../game/maps';
 import { drawBackground, drawPlatforms } from '../game/render';
-import type { MapDef, Platform, ThemeId } from '../game/types';
+import type { BlockKind, MapDef, Platform, ThemeId } from '../game/types';
 import { t, type Key } from '../i18n';
 import { save } from '../save';
 import { confirmBox, h, shareLink, toast } from './dom';
@@ -90,7 +90,9 @@ register('maps', (root) => {
   );
 });
 
-type Tool = 'platform' | 'spawn' | 'erase';
+type Tool = 'platform' | BlockKind | 'spawn' | 'erase';
+const BLOCKS: BlockKind[] = ['concrete', 'lava', 'glass'];
+const isBlock = (t: Tool): t is BlockKind => (BLOCKS as string[]).includes(t);
 
 register('editor', (root, { map }) => {
   const m = map;
@@ -142,7 +144,7 @@ register('editor', (root, { map }) => {
     ctx.lineWidth = 3;
     ctx.strokeRect(0, 0, m.w, m.h);
     ctx.setLineDash([]);
-    drawPlatforms(ctx, m);
+    drawPlatforms(ctx, m, performance.now() / 1000);
     for (const [i, s] of m.spawns.entries()) {
       ctx.strokeStyle = '#111';
       ctx.lineWidth = 5;
@@ -179,7 +181,9 @@ register('editor', (root, { map }) => {
   const dragRect = (d: { x0: number; y0: number; x1: number; y1: number }): Platform => {
     const x = snap(Math.min(d.x0, d.x1));
     const y = snap(Math.min(d.y0, d.y1));
-    return { x, y, w: Math.max(GRID * 2, snap(Math.abs(d.x1 - d.x0))), h: Math.max(GRID, snap(Math.abs(d.y1 - d.y0))) };
+    const r: Platform = { x, y, w: Math.max(GRID * 2, snap(Math.abs(d.x1 - d.x0))), h: Math.max(GRID, snap(Math.abs(d.y1 - d.y0))) };
+    if (isBlock(tool)) r.kind = tool;
+    return r;
   };
 
   const resize = () => {
@@ -194,7 +198,7 @@ register('editor', (root, { map }) => {
   canvas.addEventListener('pointerdown', (e) => {
     const r = canvas.getBoundingClientRect();
     const p = toWorld(e.clientX - r.left, e.clientY - r.top);
-    if (tool === 'platform') {
+    if (tool === 'platform' || isBlock(tool)) {
       canvas.setPointerCapture(e.pointerId);
       drag = { x0: p.x, y0: p.y, x1: p.x, y1: p.y };
     } else if (tool === 'spawn') {
@@ -225,7 +229,9 @@ register('editor', (root, { map }) => {
     snapshot();
     const tiny = Math.abs(drag.x1 - drag.x0) < GRID && Math.abs(drag.y1 - drag.y0) < GRID;
     // A tap makes a ready-sized platform.
-    m.platforms.push(tiny ? { x: snap(drag.x0 - 120), y: snap(drag.y0), w: 240, h: 24 } : dragRect(drag));
+    const tap: Platform = { x: snap(drag.x0 - 120), y: snap(drag.y0), w: 240, h: 24 };
+    if (isBlock(tool)) tap.kind = tool;
+    m.platforms.push(tiny ? tap : dragRect(drag));
     drag = null;
     draw();
   };
@@ -244,6 +250,9 @@ register('editor', (root, { map }) => {
       ...(
         [
           ['platform', `▭ ${t('toolPlatform')}`],
+          ['concrete', `🧱 ${t('toolConcrete')}`],
+          ['lava', `🌋 ${t('toolLava')}`],
+          ['glass', `🪟 ${t('toolGlass')}`],
           ['spawn', `🧍 ${t('toolSpawn')}`],
           ['erase', `🧽 ${t('toolErase')}`],
         ] as [Tool, string][]
@@ -357,7 +366,7 @@ register('editor', (root, { map }) => {
           `▶ ${t('testMap')}`,
         ),
       ),
-      h('p', { class: 'editor-hint' }, t('editorHint')),
+      h('p', { class: 'editor-hint' }, t('editorHint'), h('br', {}), t('blocksHint')),
       canvas,
     ),
   );

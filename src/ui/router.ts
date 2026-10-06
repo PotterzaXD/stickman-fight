@@ -11,6 +11,7 @@ export interface Routes {
   online: { code?: string } | undefined;
   room: undefined;
   netplay: undefined;
+  friends: undefined;
 }
 
 export type Screen<K extends keyof Routes> = (root: HTMLElement, arg: Routes[K]) => (() => void) | void;
