@@ -119,9 +119,8 @@ Only players signed in with Google can use friends. Tap **Friends** on the main 
 
 Tap **⭐ Credits** on the main menu:
 
-- **Designer:** Claude
-- **Scripts:** Claude
-- **Prompt:** Taratorn, the best helper
+- **Creator:** Taratorn
+- **Helper:** PotterzaXD
 
 ## First visit
 

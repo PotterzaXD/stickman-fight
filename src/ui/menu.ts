@@ -31,8 +31,7 @@ export function coinChip() {
 
 /** Who made the game. */
 function showCredits() {
-  const row = (role: string, name: string, note = '') =>
-    h('div', { class: 'credit-row' }, h('small', { class: 'muted' }, role), h('b', {}, name), note ? h('span', { class: 'credit-note' }, `🏅 ${note}`) : null);
+  const row = (role: string, name: string) => h('div', { class: 'credit-row' }, h('small', { class: 'muted' }, role), h('b', {}, name));
   const wrap = h(
     'div',
     { class: 'modal-wrap' },
@@ -40,9 +39,8 @@ function showCredits() {
       'div',
       { class: 'modal credits' },
       h('h2', {}, `⭐ ${t('credits')}`),
-      row(t('creditDesigner'), 'Claude'),
-      row(t('creditScripts'), 'Claude'),
-      row(t('creditPrompt'), 'Taratorn', t('bestHelper')),
+      row(t('creditCreator'), 'Taratorn'),
+      row(t('creditHelper'), 'PotterzaXD'),
       h('button', { class: 'btn primary', onclick: () => wrap.remove() }, t('close')),
     ),
   );
