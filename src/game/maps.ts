@@ -4,7 +4,9 @@ export interface Theme {
   sky: [string, string];
   plat: string;
   top: string;
-  deco: 'clouds' | 'stars' | 'snow' | 'embers';
+  deco: 'clouds' | 'stars' | 'snow' | 'embers' | 'space';
+  /** Gravity multiplier (space: low gravity, you jump higher and fall slower). */
+  gravity?: number;
 }
 
 export const THEMES: Record<ThemeId, Theme> = {
@@ -13,9 +15,10 @@ export const THEMES: Record<ThemeId, Theme> = {
   night: { sky: ['#0d1b3e', '#3a4a7a'], plat: '#37474f', top: '#90a4ae', deco: 'stars' },
   snow: { sky: ['#b3e5fc', '#ffffff'], plat: '#78909c', top: '#ffffff', deco: 'snow' },
   lava: { sky: ['#2b0f0f', '#a1301a'], plat: '#3e2723', top: '#ff7043', deco: 'embers' },
+  space: { sky: ['#05010f', '#1a1240'], plat: '#4a4458', top: '#9e97b8', deco: 'space', gravity: 0.55 },
 };
 
-export const THEME_IDS: ThemeId[] = ['day', 'sunset', 'night', 'snow', 'lava'];
+export const THEME_IDS: ThemeId[] = ['day', 'sunset', 'night', 'snow', 'lava', 'space'];
 
 const P = (x: number, y: number, w: number, h = 24): Platform => ({ x, y, w, h });
 /** Special block: concrete, lava or glass. */
@@ -184,6 +187,31 @@ export const BUILTIN_MAPS: MapDef[] = [
       B('glass', 450, 430, 240, 20),
       B('glass', 1110, 430, 240, 20),
       B('concrete', 800, 300, 200),
+    ],
+    spawns: [],
+  },
+  {
+    id: 'space',
+    name: 'm.space',
+    w: 2000,
+    h: 1100,
+    theme: 'space',
+    builtin: true,
+    deco: 'spaceship',
+    platforms: [
+      // The spaceship in the middle: main deck, glass cockpit and two wings.
+      B('concrete', 640, 640, 720, 40),
+      B('glass', 840, 470, 320, 20),
+      B('concrete', 520, 720, 120, 20),
+      B('concrete', 1360, 720, 120, 20),
+      // Asteroids around it
+      P(120, 780, 280, 50),
+      P(1600, 780, 280, 50),
+      P(300, 540, 180),
+      P(1520, 540, 180),
+      P(900, 290, 200),
+      P(160, 330, 140),
+      P(1700, 330, 140),
     ],
     spawns: [],
   },

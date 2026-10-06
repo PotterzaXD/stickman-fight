@@ -120,7 +120,7 @@ register('lobby', (root, arg) => {
 
   const validate = (): string => {
     const n = m.slots.length;
-    if (m.mode === 'boss') return n >= 1 ? '' : t('needOne');
+    if (m.mode === 'boss' || m.mode === 'cat') return n >= 1 ? '' : t('needOne');
     if (n < 2) return t('needTwo');
     if (m.mode === 'team' && new Set(m.slots.map((s) => s.team)).size < 2) return t('needTwoTeams');
     return '';
@@ -240,8 +240,9 @@ register('lobby', (root, arg) => {
         'section',
         {},
         h('h3', {}, t('mode')),
-        h('div', { class: 'segs' }, modeBtn('ffa', '🥊'), modeBtn('team', '🤝'), modeBtn('boss', '👹')),
+        h('div', { class: 'segs' }, modeBtn('ffa', '🥊'), modeBtn('team', '🤝'), modeBtn('boss', '👹'), modeBtn('cat', '🐱')),
         h('p', { class: 'muted' }, t(`${m.mode}Desc` as Key)),
+        m.mode === 'cat' ? h('small', { class: 'muted' }, `🪙🏆 ${t('catReward')}`) : null,
         m.mode === 'boss'
           ? bossPicker(m.bosses ?? 1, (n) => {
               m.bosses = n;

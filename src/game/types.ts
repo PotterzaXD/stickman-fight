@@ -23,9 +23,12 @@ export interface Intent {
 }
 
 export type Difficulty = 'easy' | 'medium' | 'hard';
-export type Mode = 'ffa' | 'team' | 'boss';
+export type Mode = 'ffa' | 'team' | 'boss' | 'cat';
+
+/** Boss Fight and Grandfather Cat: everyone teams up against the boss. */
+export const isBossMode = (m: Mode) => m === 'boss' || m === 'cat';
 export type FallMode = 'ko' | 'bounce';
-export type ThemeId = 'day' | 'sunset' | 'night' | 'snow' | 'lava';
+export type ThemeId = 'day' | 'sunset' | 'night' | 'snow' | 'lava' | 'space';
 
 /** Special blocks from the map editor. No kind = a normal platform. */
 export type BlockKind = 'concrete' | 'lava' | 'glass';
@@ -47,6 +50,8 @@ export interface MapDef {
   platforms: Platform[];
   spawns: Vec[];
   builtin?: boolean;
+  /** Big background picture (the Space map's spaceship). */
+  deco?: 'spaceship';
 }
 
 export interface SlotConfig {

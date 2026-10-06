@@ -787,3 +787,34 @@ select {
 .modal-wrap.welcome p {
   font-size: 18px;
 }
+
+/* ---------- Grandfather Cat & credits ---------- */
+.treasure-got {
+  font-size: 20px;
+  font-weight: 800;
+  color: #8d6e00;
+  background: #fff3c4;
+  border-radius: 12px;
+  padding: 6px 10px;
+}
+.credits-btn {
+  margin-top: 4px;
+}
+.modal.credits {
+  gap: 10px;
+}
+.credit-row {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  background: #f5f8fc;
+  border-radius: 12px;
+  padding: 8px 12px;
+}
+.credit-row b {
+  font-size: 22px;
+}
+.credit-note {
+  font-weight: 700;
+  color: #b8860b;
+}

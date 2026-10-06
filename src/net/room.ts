@@ -1,11 +1,11 @@
 import type { RealtimeChannel } from '@supabase/supabase-js';
 import { supabase } from '../cloud';
 import { TEAM_COLORS, randomBossWeapons, type FighterSpec, type MatchResult } from '../game/game';
-import type { Controller, Difficulty, FallMode, MapDef, Mode } from '../game/types';
+import { isBossMode, type Controller, type Difficulty, type FallMode, type MapDef, type Mode } from '../game/types';
 import { cleanName } from '../save';
 import type { Snapshot } from './snapshot';
 
-export const PROTO = 2;
+export const PROTO = 3;
 export const MIN_ROOM = 2;
 export const MAX_ROOM = 20;
 export const MAX_LOCAL = 6;
@@ -495,7 +495,7 @@ export class RoomHost extends Emitter<RoomEvents> {
 
   canStart(): boolean {
     const ms = this.state.members;
-    if (this.state.mode === 'boss') return ms.length >= 1;
+    if (isBossMode(this.state.mode)) return ms.length >= 1;
     if (ms.length < 2) return false;
     return this.state.mode !== 'team' || new Set(ms.map((m) => m.team)).size >= 2;
   }
@@ -507,7 +507,7 @@ export class RoomHost extends Emitter<RoomEvents> {
     const specs: NetSpec[] = st.members.map((m, i) => ({
       name: m.name,
       color: st.mode === 'team' ? TEAM_COLORS[m.team] : ONLINE_COLORS[i % ONLINE_COLORS.length],
-      team: st.mode === 'team' ? m.team : st.mode === 'boss' ? 0 : i,
+      team: st.mode === 'team' ? m.team : isBossMode(st.mode) ? 0 : i,
       human: m.kind === 'human',
       weapon: m.weapon === 'random' ? st.hostWeapons[Math.floor(Math.random() * st.hostWeapons.length)] : m.weapon,
       difficulty: m.difficulty,

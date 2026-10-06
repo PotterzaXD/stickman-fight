@@ -1,4 +1,4 @@
-import { Fighter, Snowman, type ProjKind, type Projectile } from '../game/entities';
+import { Cat, Fighter, Snowman, type ProjKind, type Projectile } from '../game/entities';
 import type { Game, NetEvent } from '../game/game';
 
 /** One frame of the match as the host sees it, packed into small arrays of numbers. */
@@ -11,11 +11,13 @@ export interface Snapshot {
   p: number[][];
   g: number[][];
   e: NetEvent[];
+  /** AI cats: [id, owner, x, y, hp, facing, hurt, maxHp, vx]. */
+  c?: number[][];
   /** Broken glass right now: [platform index, seconds until it comes back]. */
   gl?: number[][];
 }
 
-const KINDS: ProjKind[] = ['arrow', 'snowball', 'minisnow', 'boomerang', 'bomb', 'axe', 'shuriken', 'laser', 'fireball'];
+const KINDS: ProjKind[] = ['arrow', 'snowball', 'minisnow', 'boomerang', 'bomb', 'axe', 'shuriken', 'laser', 'fireball', 'six7', 'poop', 'soup'];
 const r1 = (v: number) => Math.round(v);
 const r2 = (v: number) => Math.round(v * 100) / 100;
 
@@ -33,7 +35,7 @@ const SHIELD = 1,
   BURN = 1024;
 
 function ownerIndex(g: Game, o: unknown): number {
-  const f = o instanceof Snowman ? o.owner : o;
+  const f = o instanceof Snowman || o instanceof Cat ? o.owner : o;
   return g.fighters.indexOf(f as Fighter);
 }
 
@@ -61,6 +63,7 @@ export function encodeSnapshot(g: Game): Snapshot {
     p: g.projectiles.map((p) => [KINDS.indexOf(p.kind), r1(p.x), r1(p.y), r1(p.vx), r1(p.vy), ownerIndex(g, p.owner), r2(p.scale), r1(p.r), r1(p.g)]),
     g: g.groundBalls.map((b) => [r1(b.x), r1(b.y), ownerIndex(g, b.owner), r2(b.life)]),
     e: g.events,
+    c: g.cats.map((c) => [c.id, ownerIndex(g, c.owner), r1(c.x), r1(c.y), r1(c.hp), c.facing, c.hurtFlash > 0 ? 1 : 0, c.maxHp, r1(c.vx)]),
     gl: g.glassT.flatMap((t, i) => (t > 0 ? [[i, r2(t)]] : [])),
   };
   g.events = [];
@@ -71,6 +74,7 @@ export function encodeSnapshot(g: Game): Snapshot {
 export class Mirror {
   private target = new Map<object, { x: number; y: number; a0: number; a1: number }>();
   private snowmen = new Map<number, Snowman>();
+  private cats = new Map<number, Cat>();
 
   constructor(private g: Game) {}
 
@@ -139,6 +143,35 @@ export class Mirror {
     }
     g.snowmen = list;
 
+    const seenCats = new Set<number>();
+    const cats: Cat[] = [];
+    for (const [id, oi, x, y, hp, facing, hurt, maxHp, vx] of s.c ?? []) {
+      seenCats.add(id);
+      let c = this.cats.get(id);
+      if (!c) {
+        c = new Cat(g.fighters[oi] ?? g.fighters[0], x, y, maxHp, 0);
+        this.cats.set(id, c);
+      }
+      c.hp = hp;
+      c.facing = facing;
+      c.vx = vx;
+      c.onGround = true;
+      if (hurt) c.hurtFlash = 0.12;
+      const prev = this.target.get(c);
+      if (!prev || Math.hypot(x - c.x, y - c.y) > 260) {
+        c.x = x;
+        c.y = y;
+      }
+      this.target.set(c, { x, y, a0: 0, a1: 0 });
+      cats.push(c);
+    }
+    for (const [id, c] of [...this.cats]) {
+      if (seenCats.has(id)) continue;
+      this.cats.delete(id);
+      this.target.delete(c);
+    }
+    g.cats = cats;
+
     g.projectiles = s.p.map(([k, x, y, vx, vy, oi, scale, r, gr]) => {
       const owner = g.fighters[oi] ?? g.fighters[0];
       const p: Projectile = { kind: KINDS[k], x, y, vx, vy, owner, team: owner.team, dmg: 0, g: gr, life: 1, r, t: 0, scale, slot: 0, hit: new Set(), returning: false, dead: false };
@@ -158,14 +191,17 @@ export class Mirror {
     const k = Math.min(1, dt * 16);
     const wrap = (a: number) => Math.atan2(Math.sin(a), Math.cos(a));
     for (const [b, t] of this.target) {
-      const body = b as Fighter | Snowman;
+      const body = b as Fighter | Snowman | Cat;
       body.x += (t.x - body.x) * k;
       body.y += (t.y - body.y) * k;
       if (body instanceof Fighter) {
         body.angles[0] = wrap(body.angles[0] + wrap(t.a0 - body.angles[0]) * Math.min(1, dt * 22));
         if (body.angles.length > 1) body.angles[1] = wrap(body.angles[1] + wrap(t.a1 - body.angles[1]) * Math.min(1, dt * 22));
         body.hurtFlash -= dt;
-      } else body.hurtFlash -= dt;
+      } else {
+        body.hurtFlash -= dt;
+        if (body instanceof Cat) body.walkPhase += body.vx * dt * 0.06;
+      }
     }
     this.g.clientTick(dt);
   }

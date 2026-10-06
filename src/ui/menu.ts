@@ -2,7 +2,7 @@ import { currentUser, cloudEnabled, onUserChange } from '../cloud';
 import { BOT_COLORS, Game, type FighterSpec } from '../game/game';
 import { BUILTIN_MAPS } from '../game/maps';
 import type { Difficulty } from '../game/types';
-import { WEAPONS } from '../game/weapons';
+import { SHOP_WEAPONS } from '../game/weapons';
 import { t } from '../i18n';
 import { save } from '../save';
 import { h, shareLink } from './dom';
@@ -17,7 +17,7 @@ function demoGame(): Game {
     color: BOT_COLORS[i],
     team: i,
     human: false,
-    weapon: WEAPONS[Math.floor(Math.random() * WEAPONS.length)].id,
+    weapon: SHOP_WEAPONS[Math.floor(Math.random() * SHOP_WEAPONS.length)].id,
     difficulty: diffs[i % 2],
     playerIndex: -1,
   }));
@@ -27,6 +27,26 @@ function demoGame(): Game {
 export function coinChip() {
   const el = h('div', { class: 'chip coin' }, `🪙 ${save.data.coins}`);
   return el;
+}
+
+/** Who made the game. */
+function showCredits() {
+  const row = (role: string, name: string, note = '') =>
+    h('div', { class: 'credit-row' }, h('small', { class: 'muted' }, role), h('b', {}, name), note ? h('span', { class: 'credit-note' }, `🏅 ${note}`) : null);
+  const wrap = h(
+    'div',
+    { class: 'modal-wrap' },
+    h(
+      'div',
+      { class: 'modal credits' },
+      h('h2', {}, `⭐ ${t('credits')}`),
+      row(t('creditDesigner'), 'Claude'),
+      row(t('creditScripts'), 'Claude'),
+      row(t('creditPrompt'), 'Taratorn', t('bestHelper')),
+      h('button', { class: 'btn primary', onclick: () => wrap.remove() }, t('close')),
+    ),
+  );
+  document.body.append(wrap);
 }
 
 export function shareGame() {
@@ -78,6 +98,7 @@ register('menu', (root) => {
           h('button', { class: 'btn big', onclick: () => go('settings') }, `⚙️ ${t('settings')}`),
         ),
         h('details', { class: 'howto' }, h('summary', {}, t('howTo')), h('p', {}, t('howToText'))),
+        h('button', { class: 'chip credits-btn', onclick: showCredits }, `⭐ ${t('credits')}`),
       ),
     ),
   );

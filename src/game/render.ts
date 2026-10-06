@@ -1,4 +1,4 @@
-import type { Body, Fighter, Snowman, Projectile } from './entities';
+import type { Body, Cat, Fighter, Snowman, Projectile } from './entities';
 import type { Game } from './game';
 import { THEMES } from './maps';
 import type { MapDef, Platform } from './types';
@@ -48,6 +48,36 @@ export function drawBackground(ctx: Ctx, map: MapDef, vw: number, vh: number, ca
       ctx.arc(x, y, 1.5 + hash(i + 2) * 2, 0, Math.PI * 2);
       ctx.fill();
     }
+  } else if (th.deco === 'space') {
+    // Nebula, a ringed planet and twinkling stars
+    const neb = ctx.createRadialGradient(vw * 0.25, vh * 0.3, 0, vw * 0.25, vh * 0.3, vw * 0.5);
+    neb.addColorStop(0, 'rgba(156,39,176,0.28)');
+    neb.addColorStop(1, 'rgba(156,39,176,0)');
+    ctx.fillStyle = neb;
+    ctx.fillRect(0, 0, vw, vh);
+    for (let i = 0; i < 110; i++) {
+      const tw = 0.5 + 0.5 * Math.sin(time * 2.5 + i * 1.7);
+      ctx.fillStyle = `rgba(255,255,255,${0.25 + tw * 0.7})`;
+      const x = ((hash(i) * vw - par * (0.3 + hash(i + 5))) % vw + vw) % vw;
+      const sz = hash(i + 9) > 0.9 ? 3 : 2;
+      ctx.fillRect(x, hash(i + 40) * vh, sz, sz);
+    }
+    const px = ((vw * 0.78 - par * 0.4) % (vw + 200) + vw + 200) % (vw + 200) - 100;
+    const py = vh * 0.24;
+    const pr = Math.min(vw, vh) * 0.09;
+    ctx.fillStyle = '#ff8a65';
+    ctx.beginPath();
+    ctx.arc(px, py, pr, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = 'rgba(0,0,0,0.25)';
+    ctx.beginPath();
+    ctx.arc(px + pr * 0.3, py + pr * 0.2, pr * 0.85, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(255,224,178,0.8)';
+    ctx.lineWidth = Math.max(2, pr * 0.12);
+    ctx.beginPath();
+    ctx.ellipse(px, py, pr * 1.7, pr * 0.45, -0.3, 0, Math.PI * 2);
+    ctx.stroke();
   } else {
     for (let i = 0; i < 40; i++) {
       const x = ((hash(i) * vw - par) % vw + vw) % vw;
@@ -136,8 +166,88 @@ function drawBlock(ctx: Ctx, p: Platform, time: number, gone: number) {
   }
 }
 
+/** The big spaceship in the middle of the Space map (decks are the platforms on top of it). */
+function drawSpaceship(ctx: Ctx, cx: number, deck: number, time: number) {
+  const L = cx - 360;
+  const R = cx + 360;
+  // Engine flame
+  const fl = 40 + Math.sin(time * 30) * 10;
+  ctx.fillStyle = '#ff9800';
+  ctx.beginPath();
+  ctx.moveTo(L - 30, deck + 50);
+  ctx.lineTo(L - 30 - fl * 2, deck + 80);
+  ctx.lineTo(L - 30, deck + 110);
+  ctx.fill();
+  ctx.fillStyle = '#ffeb3b';
+  ctx.beginPath();
+  ctx.moveTo(L - 30, deck + 64);
+  ctx.lineTo(L - 30 - fl, deck + 80);
+  ctx.lineTo(L - 30, deck + 96);
+  ctx.fill();
+  // Cockpit dome
+  ctx.fillStyle = 'rgba(129,212,250,0.25)';
+  ctx.strokeStyle = 'rgba(179,229,252,0.7)';
+  ctx.lineWidth = 4;
+  ctx.beginPath();
+  ctx.arc(cx, deck, 175, Math.PI, Math.PI * 2);
+  ctx.fill();
+  ctx.stroke();
+  // Hull
+  const g = ctx.createLinearGradient(0, deck, 0, deck + 150);
+  g.addColorStop(0, '#eceff1');
+  g.addColorStop(1, '#78909c');
+  ctx.fillStyle = g;
+  ctx.strokeStyle = '#37474f';
+  ctx.lineWidth = 4;
+  ctx.beginPath();
+  ctx.moveTo(L - 30, deck + 20);
+  ctx.lineTo(R, deck);
+  ctx.quadraticCurveTo(R + 170, deck + 40, R + 190, deck + 75);
+  ctx.quadraticCurveTo(R + 150, deck + 130, R - 20, deck + 150);
+  ctx.lineTo(L, deck + 150);
+  ctx.lineTo(L - 30, deck + 130);
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
+  // Wings and tail fin
+  ctx.fillStyle = '#e53935';
+  for (const [x0, dir] of [
+    [L + 40, 1],
+    [R - 160, 1],
+  ] as [number, number][]) {
+    ctx.beginPath();
+    ctx.moveTo(x0, deck + 150);
+    ctx.lineTo(x0 + 120 * dir, deck + 150);
+    ctx.lineTo(x0 - 40 * dir, deck + 220);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+  }
+  ctx.beginPath();
+  ctx.moveTo(L - 20, deck + 20);
+  ctx.lineTo(L + 60, deck + 10);
+  ctx.lineTo(L - 10, deck - 80);
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
+  // Windows and a stripe
+  ctx.fillStyle = '#1565c0';
+  ctx.fillRect(L, deck + 108, R - L + 120, 10);
+  for (let x = L + 60; x < R + 60; x += 90) {
+    ctx.fillStyle = '#263238';
+    ctx.beginPath();
+    ctx.arc(x, deck + 70, 17, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = `rgba(129,212,250,${0.6 + 0.3 * Math.sin(time * 2 + x)})`;
+    ctx.beginPath();
+    ctx.arc(x, deck + 70, 12, 0, Math.PI * 2);
+    ctx.fill();
+  }
+}
+
 export function drawPlatforms(ctx: Ctx, map: MapDef, time = 0, glassT?: number[]) {
   const th = THEMES[map.theme];
+  if (map.deco === 'spaceship') drawSpaceship(ctx, map.w / 2, 640, time);
   if (map.theme === 'lava') {
     const g = ctx.createLinearGradient(0, map.h + 120, 0, map.h + 400);
     g.addColorStop(0, '#ff6d00');
@@ -313,7 +423,160 @@ export function drawWeaponShape(ctx: Ctx, id: WeaponId, len: number, s: number, 
       ctx.fill();
       ctx.stroke();
       break;
+    case 'six7':
+      if (!out) draw67(ctx, len, s);
+      break;
+    case 'poop':
+      if (ready) drawPoop(ctx, 12 * s, 0, 10 * s);
+      break;
+    case 'treasure':
+    case 'soup':
+      drawSoupPot(ctx, 14 * s, 0, s, id === 'treasure', ready);
+      break;
+    case 'catcall':
+      // A golden bell to call the cats
+      ctx.strokeStyle = '#8d6e63';
+      ctx.lineWidth = 2 * s;
+      line(ctx, 0, 0, 10 * s, 0);
+      ctx.fillStyle = ready ? '#ffca28' : '#a1887f';
+      ctx.strokeStyle = '#6d4c00';
+      ctx.lineWidth = 1.5 * s;
+      ctx.beginPath();
+      ctx.moveTo(10 * s, -8 * s);
+      ctx.quadraticCurveTo(24 * s, -8 * s, 26 * s, 0);
+      ctx.quadraticCurveTo(24 * s, 8 * s, 10 * s, 8 * s);
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+      ctx.fillStyle = '#6d4c00';
+      ctx.beginPath();
+      ctx.arc(27 * s, 0, 2.5 * s, 0, Math.PI * 2);
+      ctx.fill();
+      break;
   }
+}
+
+/** The 67 weapon: a stick with a big "67" sign. */
+function draw67(ctx: Ctx, len: number, s: number) {
+  ctx.strokeStyle = '#5d4037';
+  ctx.lineWidth = 5 * s;
+  line(ctx, -6 * s, 0, len - 22 * s, 0);
+  ctx.fillStyle = '#ffeb3b';
+  ctx.strokeStyle = '#212121';
+  ctx.lineWidth = 2 * s;
+  roundRect(ctx, len - 26 * s, -14 * s, 30 * s, 28 * s, 5 * s);
+  ctx.fill();
+  ctx.stroke();
+  ctx.save();
+  ctx.translate(len - 11 * s, 0);
+  ctx.rotate(Math.PI / 2);
+  ctx.fillStyle = '#d50000';
+  ctx.font = `900 ${Math.round(17 * s)}px "Baloo 2", system-ui, sans-serif`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText('67', 0, 1 * s);
+  ctx.textBaseline = 'alphabetic';
+  ctx.restore();
+}
+
+function drawPoop(ctx: Ctx, x: number, y: number, r: number) {
+  ctx.fillStyle = '#6d4c41';
+  ctx.strokeStyle = '#3e2723';
+  ctx.lineWidth = Math.max(1, r * 0.12);
+  for (const [dy, k] of [
+    [0.35, 1],
+    [-0.15, 0.75],
+    [-0.6, 0.5],
+  ]) {
+    ctx.beginPath();
+    ctx.ellipse(x, y + dy * r, r * k, r * 0.42, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+  }
+  ctx.fillStyle = '#fff';
+  ctx.beginPath();
+  ctx.arc(x - r * 0.3, y, r * 0.15, 0, Math.PI * 2);
+  ctx.arc(x + r * 0.3, y, r * 0.15, 0, Math.PI * 2);
+  ctx.fill();
+}
+
+/** A bowl of yellow gang som soup (gold rim for the Treasure). */
+function drawSoupPot(ctx: Ctx, x: number, y: number, s: number, gold: boolean, ready: boolean) {
+  ctx.fillStyle = gold ? '#ffd54f' : '#90a4ae';
+  ctx.strokeStyle = gold ? '#8d6e00' : '#37474f';
+  ctx.lineWidth = 2 * s;
+  ctx.beginPath();
+  ctx.moveTo(x - 13 * s, y - 4 * s);
+  ctx.lineTo(x + 13 * s, y - 4 * s);
+  ctx.quadraticCurveTo(x + 12 * s, y + 12 * s, x, y + 12 * s);
+  ctx.quadraticCurveTo(x - 12 * s, y + 12 * s, x - 13 * s, y - 4 * s);
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
+  ctx.fillStyle = ready ? '#fbc02d' : '#c8a415';
+  ctx.beginPath();
+  ctx.ellipse(x, y - 4 * s, 12 * s, 3.5 * s, 0, 0, Math.PI * 2);
+  ctx.fill();
+  if (ready) {
+    ctx.fillStyle = '#e65100';
+    ctx.beginPath();
+    ctx.arc(x - 4 * s, y - 5 * s, 1.6 * s, 0, Math.PI * 2);
+    ctx.arc(x + 5 * s, y - 4 * s, 1.3 * s, 0, Math.PI * 2);
+    ctx.fill();
+  }
+}
+
+/** An AI cat called by Grandfather Cat. */
+function drawCat(ctx: Ctx, c: Cat) {
+  const { x, y } = c;
+  const f = c.facing;
+  const fur = c.hurtFlash > 0 ? '#ffffff' : '#ffb74d';
+  ctx.lineCap = 'round';
+  ctx.strokeStyle = '#5d4037';
+  ctx.lineWidth = 4;
+  const sw = c.onGround && Math.abs(c.vx) > 20 ? Math.sin(c.walkPhase) * 6 : 0;
+  for (const lx of [-9, 9]) line(ctx, x + lx, y - 10, x + lx + (lx < 0 ? sw : -sw), y);
+  // Tail
+  ctx.strokeStyle = '#ef6c00';
+  ctx.lineWidth = 4;
+  ctx.beginPath();
+  ctx.moveTo(x - f * 14, y - 16);
+  ctx.quadraticCurveTo(x - f * 26, y - 22, x - f * 22, y - 34);
+  ctx.stroke();
+  // Body
+  ctx.fillStyle = fur;
+  ctx.strokeStyle = '#5d4037';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.ellipse(x, y - 16, 16, 9, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.stroke();
+  // Head and ears
+  const hx = x + f * 14;
+  const hy = y - 26;
+  ctx.beginPath();
+  ctx.moveTo(hx - 8, hy - 5);
+  ctx.lineTo(hx - 6, hy - 15);
+  ctx.lineTo(hx - 1, hy - 8);
+  ctx.moveTo(hx + 8, hy - 5);
+  ctx.lineTo(hx + 6, hy - 15);
+  ctx.lineTo(hx + 1, hy - 8);
+  ctx.fill();
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.arc(hx, hy, 9, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.stroke();
+  ctx.fillStyle = '#212121';
+  ctx.beginPath();
+  ctx.arc(hx + f * 3, hy - 2, 1.6, 0, Math.PI * 2);
+  ctx.arc(hx + f * 7, hy - 2, 1.4, 0, Math.PI * 2);
+  ctx.fill();
+  // Collar in the owner's colour
+  ctx.strokeStyle = c.color;
+  ctx.lineWidth = 3;
+  line(ctx, hx - 6, hy + 7, hx + 6, hy + 7);
+  hpBar(ctx, x, y - 52, 28, c.hp / c.maxHp, c.color);
 }
 
 function drawAxe(ctx: Ctx, len: number, s: number) {
@@ -482,14 +745,41 @@ function drawFighter(ctx: Ctx, f: Fighter, time: number) {
     ctx.restore();
   }
 
-  // Head
+  // Head (Grandfather Cat gets cat ears)
   ctx.fillStyle = col;
   ctx.strokeStyle = outline;
   ctx.lineWidth = 3 * s;
+  if (f.cat) {
+    ctx.beginPath();
+    for (const d of [-1, 1]) {
+      ctx.moveTo(head[0] + d * 10 * s, head[1] - 4 * s);
+      ctx.lineTo(head[0] + d * 9 * s, head[1] - 19 * s);
+      ctx.lineTo(head[0] + d * 2 * s, head[1] - 10 * s);
+    }
+    ctx.fill();
+    ctx.stroke();
+  }
   ctx.beginPath();
   ctx.arc(head[0], head[1], 11 * s, 0, Math.PI * 2);
   ctx.fill();
   ctx.stroke();
+  if (f.cat) {
+    // White grandpa beard, whiskers and a pink nose
+    ctx.fillStyle = '#fafafa';
+    ctx.beginPath();
+    ctx.moveTo(head[0] - 7 * s, head[1] + 5 * s);
+    ctx.quadraticCurveTo(head[0] + f.facing * 2 * s, head[1] + 22 * s, head[0] + 7 * s, head[1] + 5 * s);
+    ctx.fill();
+    ctx.strokeStyle = '#212121';
+    ctx.lineWidth = 0.8 * s;
+    for (const k of [-1, 0, 1]) {
+      line(ctx, head[0] + f.facing * 6 * s, head[1] + 2 * s, head[0] + f.facing * 16 * s, head[1] + (1 + k * 3) * s);
+    }
+    ctx.fillStyle = '#f06292';
+    ctx.beginPath();
+    ctx.arc(head[0] + f.facing * 8 * s, head[1] + 1 * s, 1.6 * s, 0, Math.PI * 2);
+    ctx.fill();
+  }
   ctx.fillStyle = f.boss ? '#ff1744' : '#ffffff';
   ctx.beginPath();
   ctx.arc(head[0] + f.facing * 4 * s, head[1] - 2 * s, 3.2 * s, 0, Math.PI * 2);
@@ -626,6 +916,30 @@ function drawProjectile(ctx: Ctx, p: Projectile, time: number) {
       line(ctx, tx, ty, p.x, p.y);
       break;
     }
+    case 'six7':
+      ctx.save();
+      ctx.translate(p.x, p.y);
+      ctx.rotate(time * 14);
+      ctx.translate(-34 * p.scale, 0);
+      draw67(ctx, 60 * p.scale, p.scale);
+      ctx.restore();
+      break;
+    case 'poop':
+      drawPoop(ctx, p.x, p.y, p.r);
+      break;
+    case 'soup':
+      ctx.fillStyle = 'rgba(251,192,45,0.5)';
+      ctx.beginPath();
+      ctx.arc(p.x - p.vx * 0.02, p.y - p.vy * 0.02, p.r * 1.2, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = '#fdd835';
+      ctx.strokeStyle = '#f57f17';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+      break;
     case 'fireball': {
       const flick = 1 + Math.sin(time * 40) * 0.12;
       ctx.fillStyle = 'rgba(255,87,34,0.45)';
@@ -661,6 +975,7 @@ export function renderGame(g: Game, ctx: Ctx, vw: number, vh: number, dpr: numbe
     drawSnowball(ctx, gb.x, gb.y - 11, 12, gb.owner.color);
   }
   for (const m of g.snowmen) if (m.alive) drawSnowman(ctx, m);
+  for (const c of g.cats) if (c.alive) drawCat(ctx, c);
 
   // Weapon swing trails
   for (const f of g.fighters) {
