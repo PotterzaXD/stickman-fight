@@ -24,8 +24,11 @@ function buildSpecs(match: MatchConfig): FighterSpec[] {
   }));
 }
 
-export function resultTitle(r: Pick<MatchResult, 'mode' | 'winnerTeam' | 'winners'>): string {
-  if (r.mode === 'boss') return r.winnerTeam === BOSS_TEAM ? t('bossWon') : t('bossDefeated');
+/** Coins for beating the bosses: 500 for each boss. */
+export const BOSS_COINS = 500;
+
+export function resultTitle(r: Pick<MatchResult, 'mode' | 'winnerTeam' | 'winners'>, bosses = 1): string {
+  if (r.mode === 'boss') return r.winnerTeam === BOSS_TEAM ? t(bosses > 1 ? 'bossesWon' : 'bossWon') : t(bosses > 1 ? 'bossesDefeated' : 'bossDefeated');
   if (r.winnerTeam === null || !r.winners.length) return t('draw');
   if (r.mode === 'team') return t('teamWins', { name: teamName(r.winnerTeam) });
   return t('wins', { name: r.winners[0].name });
@@ -71,8 +74,9 @@ register('play', (root, { match, fromEditor }) => {
   };
 
   const showResult = (r: MatchResult) => {
-    // Win: 3-5 coins. Bots (or the boss) win: 1 coin.
-    const coins = r.humanWon ? 3 + Math.floor(Math.random() * 3) : 1;
+    // Win: 3-5 coins (beating the bosses: 500 per boss). Bots (or the boss) win: 1 coin.
+    const bosses = game.bosses.length;
+    const coins = r.humanWon ? (r.mode === 'boss' ? BOSS_COINS * bosses : 3 + Math.floor(Math.random() * 3)) : 1;
     save.update((d) => (d.coins += coins));
     setTimeout(() => sfx.coin(), 400);
     const ranked = [...game.fighters].sort((a, b) => Number(b.alive) - Number(a.alive) || b.kos - a.kos);
@@ -80,7 +84,7 @@ register('play', (root, { match, fromEditor }) => {
       h(
         'div',
         { class: 'modal result' },
-        h('h2', {}, resultTitle(r)),
+        h('h2', {}, resultTitle(r, bosses)),
         h('p', { class: 'coins-earned' }, `🪙 ${t('coinsEarned', { n: coins })}`, h('small', {}, ` (${save.data.coins})`)),
         h(
           'ul',
@@ -96,7 +100,7 @@ register('play', (root, { match, fromEditor }) => {
   const start = () => {
     hidePause();
     sticks?.destroy();
-    game = new Game(map, buildSpecs(match), { mode: match.mode, fallMode: save.data.settings.fallMode, bossName: t('boss_name') });
+    game = new Game(map, buildSpecs(match), { mode: match.mode, fallMode: save.data.settings.fallMode, bossName: t('boss_name'), bosses: match.bosses });
     game.onOver = showResult;
     if (import.meta.env.DEV) (window as unknown as { __game: Game }).__game = game;
     const humans = game.fighters.filter((f) => f.human);

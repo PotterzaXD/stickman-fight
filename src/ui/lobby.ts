@@ -11,6 +11,36 @@ import { go, register } from './router';
 
 export const MAX_PLAYERS = 6;
 export const MAX_BOTS = 6;
+export const MAX_BOSSES = 3;
+
+/** "Bosses: 1 2 3" buttons for Boss Fight. */
+export function bossPicker(value: number, pick: ((n: number) => void) | null) {
+  return h(
+    'div',
+    { class: 'row gap wrap' },
+    h('b', {}, `👹 ${t('bossCount')}`),
+    h(
+      'div',
+      { class: 'segs' },
+      ...Array.from({ length: MAX_BOSSES }, (_, i) => i + 1).map((n) =>
+        h('button', { class: `seg ${value === n ? 'on' : ''}`, disabled: !pick, onclick: () => pick?.(n) }, String(n)),
+      ),
+    ),
+    h('small', { class: 'muted' }, `🪙 ${t('bossReward', { n: 500 * value })}`),
+  );
+}
+
+/** Run a re-render without losing the scroll spot of the page and of the map row. */
+export function keepScroll(page: HTMLElement, paint: () => void) {
+  const body = page.querySelector('.page-body');
+  const top = body?.scrollTop ?? 0;
+  const left = page.querySelector('.map-row')?.scrollLeft ?? 0;
+  paint();
+  const nb = page.querySelector('.page-body');
+  if (nb) nb.scrollTop = top;
+  const row = page.querySelector('.map-row');
+  if (row) row.scrollLeft = left;
+}
 
 export function mapLabel(m: MapDef) {
   return m.builtin ? t(m.name as Key) : m.name;
@@ -77,6 +107,7 @@ register('lobby', (root, arg) => {
   for (const s of m.slots) if (s.weapon !== 'random' && !owned.includes(s.weapon)) s.weapon = 'sword';
   if (arg?.mapId) m.mapId = arg.mapId;
   if (!maps.some((x) => x.id === m.mapId)) m.mapId = 'arena';
+  m.bosses = Math.max(1, Math.min(MAX_BOSSES, m.bosses ?? 1));
 
   const body = h('div', { class: 'page-body' });
   const errorEl = h('p', { class: 'error' });
@@ -95,7 +126,9 @@ register('lobby', (root, arg) => {
     return '';
   };
 
-  const render = () => {
+  const render = () => keepScroll(body.parentElement ?? body, paint);
+
+  const paint = () => {
     const looks = slotLooks(m);
     const humans = m.slots.filter((s) => s.kind === 'human').length;
     const bots = m.slots.length - humans;
@@ -203,7 +236,19 @@ register('lobby', (root, arg) => {
     const err = validate();
     errorEl.textContent = err;
     body.replaceChildren(
-      h('section', {}, h('h3', {}, t('mode')), h('div', { class: 'segs' }, modeBtn('ffa', '🥊'), modeBtn('team', '🤝'), modeBtn('boss', '👹')), h('p', { class: 'muted' }, t(`${m.mode}Desc` as Key))),
+      h(
+        'section',
+        {},
+        h('h3', {}, t('mode')),
+        h('div', { class: 'segs' }, modeBtn('ffa', '🥊'), modeBtn('team', '🤝'), modeBtn('boss', '👹')),
+        h('p', { class: 'muted' }, t(`${m.mode}Desc` as Key)),
+        m.mode === 'boss'
+          ? bossPicker(m.bosses ?? 1, (n) => {
+              m.bosses = n;
+              render();
+            })
+          : null,
+      ),
       h('section', {}, h('h3', {}, t('map')), h('div', { class: 'map-row' }, ...mapCards)),
       h(
         'section',

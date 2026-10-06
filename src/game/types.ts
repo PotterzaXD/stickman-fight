@@ -27,11 +27,15 @@ export type Mode = 'ffa' | 'team' | 'boss';
 export type FallMode = 'ko' | 'bounce';
 export type ThemeId = 'day' | 'sunset' | 'night' | 'snow' | 'lava';
 
+/** Special blocks from the map editor. No kind = a normal platform. */
+export type BlockKind = 'concrete' | 'lava' | 'glass';
+
 export interface Platform {
   x: number;
   y: number;
   w: number;
   h: number;
+  kind?: BlockKind;
 }
 
 export interface MapDef {
@@ -57,4 +61,6 @@ export interface MatchConfig {
   mode: Mode;
   mapId: string;
   slots: SlotConfig[];
+  /** How many bosses in Boss Fight (1-3). */
+  bosses?: number;
 }

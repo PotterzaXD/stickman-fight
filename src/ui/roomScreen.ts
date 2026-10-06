@@ -5,10 +5,13 @@ import type { Difficulty, FallMode, Mode } from '../game/types';
 import { WEAPONS } from '../game/weapons';
 import { t, teamName, type Key } from '../i18n';
 import { MAX_ROOM, MIN_ROOM, ONLINE_COLORS, RoomHost, session, setSession, type Member, type RoomState } from '../net/room';
+import { cloudEnabled } from '../cloud';
+import { canUseFriends, friendList, onFriendsChange, refreshFriends } from '../friends';
 import { save } from '../save';
 import { h, shareLink, toast } from './dom';
+import { friendRow, inviteButton } from './friends';
 import { mapThumb } from './icons';
-import { mapLabel } from './lobby';
+import { bossPicker, keepScroll, mapLabel } from './lobby';
 import { go, register } from './router';
 
 export function roomLink(code: string) {
@@ -40,7 +43,23 @@ register('room', (root) => {
     go('online');
   };
 
-  const render = (st: RoomState | null) => {
+  // Invite friends: its own box, so friend updates don't redraw the whole room.
+  const friendsBox = h('section', {});
+  const paintFriends = () => {
+    const code = s.state?.code;
+    if (!cloudEnabled || !code) return friendsBox.replaceChildren();
+    if (!canUseFriends()) return friendsBox.replaceChildren(h('h3', {}, `👥 ${t('inviteFriends')}`), h('p', { class: 'muted small' }, t('inviteNeedGoogle')));
+    const online = friendList().filter((f) => f.online);
+    friendsBox.replaceChildren(
+      h('div', { class: 'row between' }, h('h3', {}, `👥 ${t('inviteFriends')}`), h('button', { class: 'btn small', onclick: () => go('friends') }, `👥 ${t('friends')}`)),
+      online.length ? h('div', { class: 'slots' }, ...online.map((f) => friendRow(f, inviteButton(f, code)))) : h('p', { class: 'muted small' }, t('noFriendsOnline')),
+    );
+  };
+
+  // Redraw without jumping back to the top (adding a bot or picking a weapon kept your place).
+  const render = (st: RoomState | null) => keepScroll(page, () => paint(st));
+
+  const paint = (st: RoomState | null) => {
     if (!st) {
       page.replaceChildren(h('header', { class: 'page-head' }, h('button', { class: 'btn ghost', onclick: leave }, `← ${t('leave')}`), h('h2', {}, t('room')), h('div', {})), h('div', { class: 'page-body narrow' }, h('section', {}, h('p', {}, t('joining')))));
       return;
@@ -127,6 +146,7 @@ register('room', (root) => {
           {},
           h('h3', {}, t('mode')),
           seg<Mode>(st.mode, [['ffa', `🥊 ${t('ffa')}`], ['team', `🤝 ${t('team')}`], ['boss', `👹 ${t('boss')}`]], (v) => host?.setRoom({ mode: v })),
+          st.mode === 'boss' ? bossPicker(st.bosses ?? 1, host ? (n) => host.setRoom({ bosses: n }) : null) : null,
           h('h3', {}, `${t('map')}: ${st.map ? mapLabel(st.map) : ''}`),
           host ? h('div', { class: 'map-row' }, ...maps.map((mp) => h('button', { class: `map-card ${st.mapId === mp.id ? 'on' : ''}`, onclick: () => host.setRoom({ map: mp }) }, mapThumb(mp), h('span', {}, mapLabel(mp))))) : st.map ? mapThumb(st.map) : null,
           h('h3', {}, `🕳️ ${t('fallOff')}`),
@@ -164,6 +184,7 @@ register('room', (root) => {
               })()
             : null,
         ),
+        friendsBox,
       ),
       h(
         'footer',
@@ -174,7 +195,14 @@ register('room', (root) => {
   };
 
   render(s.state);
+  paintFriends();
+  const refresh = () => canUseFriends() && void refreshFriends().catch((e) => console.warn(e));
+  refresh();
+  const friendTimer = window.setInterval(refresh, 20_000);
   const offs = [
+    onFriendsChange(paintFriends),
+    () => clearInterval(friendTimer),
+    s.on('state', paintFriends),
     s.on('state', render),
     s.on('start', () => go('netplay')),
     s.on('closed', onRoomClosed),

@@ -29,6 +29,10 @@ export abstract class Body {
   stun = 0;
   facing = 1;
   hurtFlash = 0;
+  /** Seconds left on fire (Magic Staff fireball). */
+  burnT = 0;
+  burnTick = 0;
+  burnSrc: Body | null = null;
   abstract readonly kind: 'fighter' | 'snowman';
 
   constructor(x: number, y: number, w: number, h: number, hp: number, team: number, color: string) {
@@ -212,7 +216,10 @@ export class Snowman extends Body {
   }
 }
 
-export type ProjKind = 'arrow' | 'snowball' | 'minisnow' | 'boomerang' | 'bomb';
+export type ProjKind = 'arrow' | 'snowball' | 'minisnow' | 'boomerang' | 'bomb' | 'axe' | 'shuriken' | 'laser' | 'fireball';
+
+/** Thrown weapons that fly out and come back to the hand. */
+export const returns = (k: ProjKind) => k === 'boomerang' || k === 'axe';
 
 export interface Projectile {
   kind: ProjKind;

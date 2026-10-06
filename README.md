@@ -17,13 +17,13 @@ On a computer you can test with the keyboard: WASD is P1, the arrow keys are P2 
 
 - **Free For All:** the last stickman standing wins.
 - **Teams:** 4 team colours. The last team standing wins.
-- **Boss Fight:** players, bots and snowmen team up against a giant stickman with 5,000 HP. It holds 2 random weapons, so it has 2 skills.
+- **Boss Fight:** players, bots and snowmen team up against a giant stickman with 5,000 HP. It holds 2 random weapons, so it has 2 skills. You choose how many bosses to fight: 1, 2 or 3. Each boss has its own health bar.
 
 You can have up to 6 players and 6 bots at once. Each bot has its own difficulty: CPU-easy, CPU-medium or CPU-hard. With no players, you watch the bots fight.
 
 Players and bots have 500 HP. Falling off the map is a KO. In Settings you can change it so you lose 25 HP and bounce back up instead.
 
-Winning gives 3–5 coins. When bots or the boss win, you get 1 coin.
+Winning gives 3–5 coins. When bots or the boss win, you get 1 coin. Beating the bosses in Boss Fight gives **500 coins for each boss** (1,500 for 3 bosses).
 
 ## Weapons
 
@@ -37,6 +37,10 @@ Winning gives 3–5 coins. When bots or the boss win, you get 1 coin.
 | Bomb | 350 | Bouncing bomb |
 | Katana | 400 | Teleport behind the nearest enemy |
 | Snowball | 500 | See below |
+| Axe | 450 | Spin Throw: the axe spins out, hits hard and comes back |
+| Shuriken | 550 | Triple Star: 3 ninja stars in a spread |
+| Laser Gun | 600 | Laser Beam: goes through every enemy in its way |
+| Magic Staff | 700 | Fireball: explodes and sets enemies on fire for 2 seconds |
 
 All players and bots on the device share the weapons you buy.
 
@@ -49,7 +53,15 @@ All players and bots on the device share the weapons you buy.
 
 ## Maps
 
-There are 6 built-in maps. The **Map Editor** lets you draw platforms, place spawn points, and pick a size and theme. You can share a map as a link: anyone who opens the link gets the map.
+There are 11 built-in maps: Classic Arena, Sky Islands, The Tower, Long Bridge, Snowy Peak, The Pit, Volcano, Concrete Factory, Glass Palace, Rooftops and Frozen Lake.
+
+The **Map Editor** lets you draw platforms, place spawn points, and pick a size and theme. You can share a map as a link: anyone who opens the link gets the map.
+
+Besides normal platforms, you can build with special blocks:
+
+- **Concrete:** a solid block that never breaks.
+- **Lava:** landing on it takes 40 HP and throws you up into the air.
+- **Glass:** any weapon skill that hits it breaks it, for example an arrow, a laser, a bomb, the sword's dash or the hammer's slam. Broken glass comes back after 10 seconds.
 
 ## Names
 
@@ -69,6 +81,9 @@ Tap **Online** on the main menu.
 - **Weapons:** everyone can only pick from the **host's weapons**.
 - **Teams:** in Teams mode, each player picks a team colour, and the host can change it.
 - **Snowmen:** online, each player can have up to 5 snowmen (10 offline).
+- **Bosses:** in Boss Fight, the host picks 1–3 bosses.
+- **The room keeps your place:** adding bots or changing weapons doesn't scroll the room back to the top.
+- **Invite friends:** if you are signed in with Google, the room lists your online friends with an **Invite** button.
 - **Joining late:** someone who joins during a match watches it and plays from the next round.
 - **Coins:** each device earns its own: 3–5 for a win, 1 otherwise.
 - **Leaving:** if the host leaves, the room closes. If a player leaves mid-match, a bot takes over their stickman.
@@ -81,6 +96,18 @@ How it works:
 
 The host needs a decent device and Wi-Fi for big rooms. A few mobile-data networks block direct connections; if joining fails, try the same Wi-Fi as the host.
 
+## Friends
+
+Only players signed in with Google can use friends. Tap **Friends** on the main menu.
+
+- **Friend code:** everyone gets an 8-letter friend code. When someone adds your code, you both become friends.
+- **Online:** a green dot means that friend had the game open in the last couple of minutes.
+- **Invite:** in an online room, tap **Invite** next to an online friend. They get a pop-up with **Join**, which takes them straight into your room.
+
+## First visit
+
+The first time someone opens the game on a device, a welcome message appears. After they tap **Thank you**, it doesn't show again on that device.
+
 ## Saving and Google sign-in (Supabase)
 
 Progress (coins, weapons, maps, names, settings) is always saved on the device. Signing in with Google is optional and also saves progress online, so it follows you to other devices.
@@ -89,12 +116,12 @@ The game uses the Supabase project built into `src/cloud.ts`. That project URL a
 
 One-time setup in the Supabase dashboard:
 
-1. **SQL Editor → New query:** paste [`supabase/setup.sql`](supabase/setup.sql) and click **Run**. This creates the `saves` table.
+1. **SQL Editor → New query:** paste [`supabase/setup.sql`](supabase/setup.sql) and click **Run**. This creates the `saves` table and the friends tables and functions. It is safe to run again, so if you set up the project before friends existed, run the whole file once more.
 2. **Authentication → Sign In / Providers → Google:** turn it on with the Client ID and secret from Google Cloud Console. The secret stays in Supabase, never in this repo.
 3. **Authentication → URL Configuration:**
    - **Site URL:** the Vercel link.
    - **Redirect URLs:** the Vercel link and `http://localhost:5173/**`.
-4. **Realtime:** leave public channels allowed. Rooms use the channel `sf-room-<CODE>` only for connecting.
+4. **Realtime:** leave public channels allowed. Rooms use the channel `sf-room-<CODE>` only for connecting. `setup.sql` also turns on Realtime for the `invites` table so invites pop up right away. Without it, invites still arrive within a minute.
 
 To use a different Supabase project, set `VITE_SUPABASE_URL` and `VITE_SUPABASE_KEY` (see `.env.example`).
 

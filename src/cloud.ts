@@ -32,6 +32,11 @@ export function currentUser() {
   return user;
 }
 
+/** Supabase user id while signed in with Google (friends use it). */
+export function currentUid() {
+  return uid;
+}
+
 export function onUserChange(l: (u: CloudUser | null) => void) {
   listeners.push(l);
 }

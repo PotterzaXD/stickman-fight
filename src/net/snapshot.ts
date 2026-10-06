@@ -11,9 +11,11 @@ export interface Snapshot {
   p: number[][];
   g: number[][];
   e: NetEvent[];
+  /** Broken glass right now: [platform index, seconds until it comes back]. */
+  gl?: number[][];
 }
 
-const KINDS: ProjKind[] = ['arrow', 'snowball', 'minisnow', 'boomerang', 'bomb'];
+const KINDS: ProjKind[] = ['arrow', 'snowball', 'minisnow', 'boomerang', 'bomb', 'axe', 'shuriken', 'laser', 'fireball'];
 const r1 = (v: number) => Math.round(v);
 const r2 = (v: number) => Math.round(v * 100) / 100;
 
@@ -27,7 +29,8 @@ const SHIELD = 1,
   READY1 = 64,
   BOOM0 = 128,
   BOOM1 = 256,
-  THRUST1 = 512;
+  THRUST1 = 512,
+  BURN = 1024;
 
 function ownerIndex(g: Game, o: unknown): number {
   const f = o instanceof Snowman ? o.owner : o;
@@ -51,12 +54,14 @@ export function encodeSnapshot(g: Game): Snapshot {
       if ((f.cds[1] ?? 1) <= 0) fl |= READY1;
       if (f.boomerangOut[0]) fl |= BOOM0;
       if (f.boomerangOut[1]) fl |= BOOM1;
+      if (f.burnT > 0) fl |= BURN;
       return [f.alive ? 1 : 0, r1(f.x), r1(f.y), r1(f.vx), r1(f.vy), r1(f.hp), f.facing, f.onGround ? 1 : 0, fl, r1(f.shieldHp), r2(f.angles[0]), r2(f.angVel[0]), r2(f.angles[1] ?? 0)];
     }),
     m: g.snowmen.map((s) => [s.id, ownerIndex(g, s.owner), r1(s.x), r1(s.y), r1(s.hp), s.facing, s.hurtFlash > 0 ? 1 : 0]),
     p: g.projectiles.map((p) => [KINDS.indexOf(p.kind), r1(p.x), r1(p.y), r1(p.vx), r1(p.vy), ownerIndex(g, p.owner), r2(p.scale), r1(p.r), r1(p.g)]),
     g: g.groundBalls.map((b) => [r1(b.x), r1(b.y), ownerIndex(g, b.owner), r2(b.life)]),
     e: g.events,
+    gl: g.glassT.flatMap((t, i) => (t > 0 ? [[i, r2(t)]] : [])),
   };
   g.events = [];
   return snap;
@@ -92,6 +97,7 @@ export class Mirror {
       if (f.cds.length > 1) f.cds[1] = fl & READY1 ? 0 : 1;
       f.boomerangOut[0] = !!(fl & BOOM0);
       if (f.boomerangOut.length > 1) f.boomerangOut[1] = !!(fl & BOOM1);
+      f.burnT = fl & BURN ? 1 : 0;
       f.shieldHp = shieldHp;
       f.angVel[0] = av0;
       const prev = this.target.get(f);
@@ -142,6 +148,8 @@ export class Mirror {
       const owner = g.fighters[oi] ?? g.fighters[0];
       return { x, y, owner, team: owner.team, life };
     });
+    g.glassT = g.map.platforms.map(() => 0);
+    for (const [i, t] of s.gl ?? []) if (i in g.glassT) g.glassT[i] = t;
     g.applyEvents(s.e);
   }
 
