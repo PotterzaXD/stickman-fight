@@ -2,10 +2,11 @@ import type { RealtimeChannel } from '@supabase/supabase-js';
 import { supabase } from '../cloud';
 import { TEAM_COLORS, randomBossWeapons, type FighterSpec, type MatchResult } from '../game/game';
 import { isBossMode, type Controller, type Difficulty, type FallMode, type MapDef, type Mode } from '../game/types';
-import { cleanName } from '../save';
+import { cleanName, save } from '../save';
+import { SHOP_WEAPONS } from '../game/weapons';
 import type { Snapshot } from './snapshot';
 
-export const PROTO = 3;
+export const PROTO = 4;
 export const MIN_ROOM = 2;
 export const MAX_ROOM = 20;
 export const MAX_LOCAL = 6;
@@ -43,6 +44,8 @@ export interface RoomState {
   fallMode: FallMode;
   /** Boss Fight: how many bosses (1-3). */
   bosses: number;
+  /** Healing potions on/off (starts from the host's setting). */
+  potions: boolean;
   hostWeapons: string[];
   phase: 'lobby' | 'playing';
   members: Member[];
@@ -60,6 +63,7 @@ export interface StartPayload {
   fallMode: FallMode;
   specs: NetSpec[];
   bosses: number;
+  potions: boolean;
   /** Each boss's two weapons, so every device draws the same bosses. */
   bossWeapons: string[][];
 }
@@ -85,6 +89,14 @@ type Msg =
   | Snapshot;
 
 export type JoinError = 'notFound' | 'full' | 'failed' | 'version' | 'offline';
+
+/** The Mascot boss unlocks when you own every weapon sold in the shop. */
+export function mascotUnlocked(owned: string[]) {
+  return SHOP_WEAPONS.every((w) => owned.includes(w.id));
+}
+export function mascotProgress(owned: string[]) {
+  return { n: SHOP_WEAPONS.filter((w) => owned.includes(w.id)).length, total: SHOP_WEAPONS.length };
+}
 
 const CODE_CHARS = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
 export function newCode() {
@@ -325,6 +337,7 @@ export class RoomHost extends Emitter<RoomEvents> {
         map,
         fallMode: 'ko',
         bosses: 1,
+        potions: save.data.settings.potions,
         hostWeapons,
         phase: 'lobby',
         members,
@@ -434,10 +447,13 @@ export class RoomHost extends Emitter<RoomEvents> {
     if (mem) this.patch(mem, p);
   }
 
-  setRoom(p: Partial<Pick<RoomState, 'mode' | 'fallMode' | 'size' | 'bosses'>> & { map?: MapDef }) {
+  setRoom(p: Partial<Pick<RoomState, 'mode' | 'fallMode' | 'size' | 'bosses' | 'potions'>> & { map?: MapDef }) {
     if (p.mode) this.state.mode = p.mode;
     if (p.bosses) this.state.bosses = Math.max(1, Math.min(3, Math.round(p.bosses)));
     if (p.fallMode) this.state.fallMode = p.fallMode;
+    if (typeof p.potions === 'boolean') this.state.potions = p.potions;
+    // The Mascot needs the host to own every shop weapon.
+    if (p.mode === 'mascot' && !mascotUnlocked(this.state.hostWeapons)) this.state.mode = 'boss';
     if (p.size) this.state.size = Math.max(Math.max(MIN_ROOM, this.state.members.length), Math.min(MAX_ROOM, p.size));
     if (p.map) {
       this.state.map = p.map;
@@ -521,7 +537,7 @@ export class RoomHost extends Emitter<RoomEvents> {
     this.leftIds = [];
     st.phase = 'playing';
     const bosses = st.mode === 'boss' ? st.bosses : 0;
-    this.lastStart = { map: st.map, mode: st.mode, fallMode: st.fallMode, specs, bosses, bossWeapons: Array.from({ length: bosses }, randomBossWeapons) };
+    this.lastStart = { map: st.map, mode: st.mode, fallMode: st.fallMode, specs, bosses, potions: st.potions !== false, bossWeapons: Array.from({ length: bosses }, randomBossWeapons) };
     for (const p of this.peers.values()) sendJson(p.rel, { t: 'start', start: this.lastStart });
     this.changed();
     this.emit('start', this.lastStart);

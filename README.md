@@ -25,6 +25,8 @@ On a computer you can test with the keyboard: WASD is P1, the arrow keys are P2 
 
   Beating him gives **1,000 coins** every time. The first win also gives you **The Grandfather Cat Treasure** (see Weapons).
 
+- **Mascot:** the white stickman from the game icon (all white, no eyes, a white stick). It has 50,000 HP, touching it does 50 damage, and its Giant Stick Slam does 299. It unlocks when you own **every shop weapon**; online, the host needs them. Beating it gives **5,000 coins** every time, and the first win gives the **Mascot Stick**.
+
 You can have up to 6 players and 6 bots at once. Each bot has its own difficulty: CPU-easy, CPU-medium or CPU-hard. With no players, you watch the bots fight.
 
 Players and bots have 500 HP. Falling off the map is a KO. In Settings you can change it so you lose 25 HP and bounce back up instead.
@@ -49,6 +51,10 @@ Winning gives 3–5 coins. When bots or the boss win, you get 1 coin. Beating th
 | Magic Staff | 700 | Fireball: explodes and sets enemies on fire for 2 seconds |
 | 67 Weapon | 670 | Throws the 67 weapon for 67 damage and it comes back. Normal hits do 34. Cooldown 10 seconds |
 | Poop Bomb | 299 | Throws poo for 6 damage. Cooldown 1 second. Normal hits do 20 |
+| Ice Wand | 650 | Ice Bolt: 35 damage and freezes the enemy for 1.2 seconds |
+| Thunder Hammer | 800 | Lightning strikes the nearest enemy (70) and shocks anyone close (35) |
+| Banana | 250 | Throw a banana: the enemy slips (25). A missed banana stays as a peel for 8 seconds |
+| Mascot Stick | Reward | Not sold. Beat the Mascot to get it. Stick Slam: leap and slam for 120 |
 | The Grandfather Cat Treasure | Reward | Not sold. Beat Grandfather Cat to get it. Its skills take turns: Sud Gang Som (12 damage, then 6 a second for 5 seconds), then Call Cat AI (3 cats with 60 HP that do 6 damage) |
 
 All players and bots on the device share the weapons you buy.
@@ -59,6 +65,31 @@ All players and bots on the device share the weapons you buy.
 - If it misses, it stays on the ground for 6 seconds. An enemy who touches it takes 60 damage and gets flung away.
 - A new snowball appears in your hand right away. Throw it at your own snowball on the ground to build a **snowman ally**.
 - Snowmen have 250 HP and fight on their own. Each player can have up to 10.
+
+## Death finishers
+
+How a stickman goes down depends on what knocked it out:
+
+| What hit it | Finisher |
+|---|---|
+| Sword, Spear, Bow, Boomerang, Bomb, Laser Gun, Poop Bomb, Grandfather Cat Treasure, Mascot | Ragdoll (goes floppy and tumbles) |
+| Hammer skill (Ground Slam), Mascot / Mascot Stick slam | Ragdoll + fling |
+| Bomb skill, Poop Bomb skill | The original pop |
+| Axe (hit or throw), Laser Gun skill | Cut in half |
+| Shuriken (hit or throw), Magic Staff hit | Flung away |
+| Magic Staff fireball, Treasure / Grandfather Cat soup, burning | Burned into ashes |
+| 67 Weapon | Flies into the sky |
+| AI cats | Trips and falls |
+| Ice Wand | Frozen, then shatters into ice |
+| Thunder Hammer | Skeleton flash, then smoke |
+| Banana | Slips and spins away |
+| Falling into the void | Just falls: no pop, no finisher |
+
+Anything not in the table (Katana, Snowball, snowmen, lava) keeps the original pop.
+
+## Potions
+
+In **Settings** you can turn healing potions on or off (on by default). When they are on, every KO has a 25% chance to drop a potion, and every 10 seconds there's a 25% chance one falls from the sky. Touching a potion heals 25% of your max HP. Online, the host turns potions on or off in the room.
 
 ## Maps
 

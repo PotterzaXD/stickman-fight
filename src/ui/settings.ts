@@ -73,6 +73,13 @@ register('settings', (root) => {
         h('section', {}, h('h3', {}, `🏷️ ${t('yourName')}`), nameInput(0)),
         h('section', {}, h('h3', {}, `🌐 ${t('language')}`), seg<Lang>(s.lang, [['en', 'English'], ['th', 'ไทย']], (v) => (save.data.settings.lang = v))),
         h('section', {}, h('h3', {}, `🕳️ ${t('fallOff')}`), seg(s.fallMode, [['ko', t('fallKO')], ['bounce', t('fallBounce')]], (v) => (save.data.settings.fallMode = v))),
+        h(
+          'section',
+          {},
+          h('h3', {}, `🧪 ${t('potions')}`),
+          seg(s.potions ? 'on' : 'off', [['on', t('on')], ['off', t('off')]], (v) => (save.data.settings.potions = v === 'on')),
+          h('p', { class: 'muted small' }, t('potionsDesc')),
+        ),
         h('section', {}, h('h3', {}, `🔊 ${t('sound')}`), seg(s.sound ? 'on' : 'off', [['on', t('on')], ['off', t('off')]], (v) => (save.data.settings.sound = v === 'on'))),
         h('section', {}, h('h3', {}, `☁️ ${t('account')}`), accountBox()),
         h('section', {}, h('button', { class: 'btn', onclick: shareGame }, `🔗 ${t('share')}`)),

@@ -1,4 +1,4 @@
-export type WeaponId = 'sword' | 'spear' | 'hammer' | 'bow' | 'boomerang' | 'bomb' | 'katana' | 'snowball' | 'axe' | 'shuriken' | 'laser' | 'staff' | 'six7' | 'poop' | 'treasure' | 'soup' | 'catcall';
+export type WeaponId = 'sword' | 'spear' | 'hammer' | 'bow' | 'boomerang' | 'bomb' | 'katana' | 'snowball' | 'axe' | 'shuriken' | 'laser' | 'staff' | 'six7' | 'poop' | 'treasure' | 'soup' | 'catcall' | 'ice' | 'thunder' | 'banana' | 'stick' | 'mascotstick';
 
 export interface WeaponDef {
   id: WeaponId;
@@ -13,7 +13,7 @@ export interface WeaponDef {
   cooldown: number;
   /** Bots keep their distance with these. */
   ranged: boolean;
-  /** Not sold in the shop: 'boss' = only Grandfather Cat holds it, 'reward' = won by beating Grandfather Cat. */
+  /** Not sold in the shop: 'boss' = only a boss holds it, 'reward' = won by beating a boss. */
   special?: 'boss' | 'reward';
 }
 
@@ -35,6 +35,11 @@ export const WEAPONS: WeaponDef[] = [
   { id: 'treasure', price: 0, length: 40, damage: 14, turn: 13, cooldown: 2.5, ranged: true, special: 'reward' },
   { id: 'soup', price: 0, length: 40, damage: 24, turn: 10, cooldown: 2.5, ranged: true, special: 'boss' },
   { id: 'catcall', price: 0, length: 26, damage: 10, turn: 10, cooldown: 8, ranged: true, special: 'boss' },
+  { id: 'ice', price: 650, length: 62, damage: 18, turn: 13, cooldown: 2.5, ranged: true },
+  { id: 'thunder', price: 800, length: 80, damage: 36, turn: 9, cooldown: 4, ranged: false },
+  { id: 'banana', price: 250, length: 26, damage: 12, turn: 14, cooldown: 1.8, ranged: true },
+  { id: 'stick', price: 0, length: 90, damage: 50, turn: 10, cooldown: 6, ranged: false, special: 'boss' },
+  { id: 'mascotstick', price: 0, length: 90, damage: 30, turn: 11, cooldown: 6, ranged: false, special: 'reward' },
 ];
 
 /** Weapons you can buy in the shop or roll at random (no boss or reward weapons). */

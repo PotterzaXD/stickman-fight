@@ -1,5 +1,6 @@
 import type { Body, Cat, Fighter, Snowman, Projectile } from './entities';
 import type { Game } from './game';
+import { drawCorpse } from './finish';
 import { THEMES } from './maps';
 import type { MapDef, Platform } from './types';
 import type { WeaponId } from './weapons';
@@ -433,6 +434,56 @@ export function drawWeaponShape(ctx: Ctx, id: WeaponId, len: number, s: number, 
     case 'soup':
       drawSoupPot(ctx, 14 * s, 0, s, id === 'treasure', ready);
       break;
+    case 'stick':
+    case 'mascotstick':
+      // The Mascot's plain white stick
+      ctx.strokeStyle = 'rgba(0,0,0,0.75)';
+      ctx.lineWidth = 7 * s;
+      line(ctx, -6 * s, 0, len, 0);
+      ctx.strokeStyle = '#ffffff';
+      ctx.lineWidth = 4.5 * s;
+      line(ctx, -6 * s, 0, len, 0);
+      break;
+    case 'ice':
+      ctx.strokeStyle = '#90caf9';
+      ctx.lineWidth = 4 * s;
+      line(ctx, -8 * s, 0, len - 12 * s, 0);
+      ctx.fillStyle = ready ? '#e1f5fe' : '#90a4ae';
+      ctx.strokeStyle = '#0277bd';
+      ctx.lineWidth = 1.5 * s;
+      ctx.beginPath();
+      ctx.moveTo(len - 16 * s, 0);
+      ctx.lineTo(len - 8 * s, -8 * s);
+      ctx.lineTo(len + 4 * s, 0);
+      ctx.lineTo(len - 8 * s, 8 * s);
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+      break;
+    case 'thunder':
+      ctx.strokeStyle = '#5d4037';
+      ctx.lineWidth = 5 * s;
+      line(ctx, -4 * s, 0, len - 10 * s, 0);
+      ctx.fillStyle = '#3949ab';
+      ctx.strokeStyle = '#1a237e';
+      ctx.lineWidth = 2 * s;
+      roundRect(ctx, len - 16 * s, -17 * s, 24 * s, 34 * s, 4 * s);
+      ctx.fill();
+      ctx.stroke();
+      ctx.fillStyle = ready ? '#ffeb3b' : '#9fa8da';
+      ctx.beginPath();
+      ctx.moveTo(len - 2 * s, -12 * s);
+      ctx.lineTo(len - 9 * s, 1 * s);
+      ctx.lineTo(len - 3 * s, 1 * s);
+      ctx.lineTo(len - 7 * s, 12 * s);
+      ctx.lineTo(len + 2 * s, -2 * s);
+      ctx.lineTo(len - 4 * s, -2 * s);
+      ctx.closePath();
+      ctx.fill();
+      break;
+    case 'banana':
+      if (ready) drawBanana(ctx, 12 * s, 0, 11 * s, 0);
+      break;
     case 'catcall':
       // A golden bell to call the cats
       ctx.strokeStyle = '#8d6e63';
@@ -454,6 +505,70 @@ export function drawWeaponShape(ctx: Ctx, id: WeaponId, len: number, s: number, 
       ctx.fill();
       break;
   }
+}
+
+function drawBanana(ctx: Ctx, x: number, y: number, r: number, rot: number) {
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.rotate(rot);
+  ctx.fillStyle = '#fdd835';
+  ctx.strokeStyle = '#8d6e00';
+  ctx.lineWidth = Math.max(1, r * 0.12);
+  ctx.beginPath();
+  ctx.arc(0, -r * 0.4, r, 0.25 * Math.PI, 0.85 * Math.PI);
+  ctx.arc(0, -r * 1.1, r * 1.35, 0.78 * Math.PI, 0.3 * Math.PI, true);
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
+  ctx.fillStyle = '#5d4037';
+  ctx.fillRect(r * 0.55, -r * 0.05, r * 0.25, r * 0.25);
+  ctx.restore();
+}
+
+function drawPotion(ctx: Ctx, x: number, y: number, time: number) {
+  const bob = Math.sin(time * 4 + x) * 3;
+  const by = y - 14 + bob;
+  ctx.fillStyle = 'rgba(105,240,174,0.35)';
+  ctx.beginPath();
+  ctx.arc(x, by, 17, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = '#e53935';
+  ctx.strokeStyle = '#4e0d0d';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.arc(x, by + 2, 9, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.stroke();
+  ctx.fillStyle = '#eceff1';
+  ctx.fillRect(x - 3.5, by - 13, 7, 7);
+  ctx.strokeRect(x - 3.5, by - 13, 7, 7);
+  ctx.fillStyle = '#8d6e63';
+  ctx.fillRect(x - 4.5, by - 16, 9, 4);
+  ctx.fillStyle = 'rgba(255,255,255,0.7)';
+  ctx.beginPath();
+  ctx.arc(x - 3, by - 1, 2.5, 0, Math.PI * 2);
+  ctx.fill();
+}
+
+/** A jagged lightning bolt (same shape on every device). */
+function drawBolt(ctx: Ctx, b: { x1: number; y1: number; x2: number; y2: number; life: number }) {
+  const n = 9;
+  ctx.globalAlpha = Math.min(1, b.life / 0.15);
+  for (const [w, c] of [
+    [10, 'rgba(255,241,118,0.5)'],
+    [4, '#ffffff'],
+  ] as [number, string][]) {
+    ctx.strokeStyle = c;
+    ctx.lineWidth = w;
+    ctx.beginPath();
+    for (let i = 0; i <= n; i++) {
+      const k = i / n;
+      const off = i === 0 || i === n ? 0 : (hash(i + b.x2) - 0.5) * 50;
+      ctx.lineTo(b.x1 + (b.x2 - b.x1) * k + off, b.y1 + (b.y2 - b.y1) * k);
+    }
+    ctx.stroke();
+  }
+  ctx.globalAlpha = 1;
 }
 
 /** The 67 weapon: a stick with a big "67" sign. */
@@ -694,8 +809,8 @@ function hpBar(ctx: Ctx, x: number, y: number, w: number, frac: number, color: s
 function drawFighter(ctx: Ctx, f: Fighter, time: number) {
   const s = f.scale;
   const { x, y } = f;
-  const outline = f.boss ? '#ff1744' : 'rgba(0,0,0,0.8)';
-  const col = f.hurtFlash > 0 ? '#ffffff' : f.color;
+  const outline = f.boss && !f.mascot ? '#ff1744' : 'rgba(0,0,0,0.8)';
+  const col = f.frozenT > 0 ? '#b3e5fc' : f.hurtFlash > 0 ? (f.mascot ? '#ffcdd2' : '#ffffff') : f.color;
   ctx.lineCap = 'round';
   ctx.lineJoin = 'round';
 
@@ -780,14 +895,17 @@ function drawFighter(ctx: Ctx, f: Fighter, time: number) {
     ctx.arc(head[0] + f.facing * 8 * s, head[1] + 1 * s, 1.6 * s, 0, Math.PI * 2);
     ctx.fill();
   }
-  ctx.fillStyle = f.boss ? '#ff1744' : '#ffffff';
-  ctx.beginPath();
-  ctx.arc(head[0] + f.facing * 4 * s, head[1] - 2 * s, 3.2 * s, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.fillStyle = '#000';
-  ctx.beginPath();
-  ctx.arc(head[0] + f.facing * 5 * s, head[1] - 2 * s, 1.6 * s, 0, Math.PI * 2);
-  ctx.fill();
+  // The Mascot has no eyes.
+  if (!f.mascot) {
+    ctx.fillStyle = f.boss ? '#ff1744' : '#ffffff';
+    ctx.beginPath();
+    ctx.arc(head[0] + f.facing * 4 * s, head[1] - 2 * s, 3.2 * s, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#000';
+    ctx.beginPath();
+    ctx.arc(head[0] + f.facing * 5 * s, head[1] - 2 * s, 1.6 * s, 0, Math.PI * 2);
+    ctx.fill();
+  }
   if (f.stun > 0.25 && !f.boss) {
     ctx.fillStyle = '#ffeb3b';
     for (let i = 0; i < 3; i++) {
@@ -927,6 +1045,28 @@ function drawProjectile(ctx: Ctx, p: Projectile, time: number) {
     case 'poop':
       drawPoop(ctx, p.x, p.y, p.r);
       break;
+    case 'icebolt': {
+      const a = Math.atan2(p.vy, p.vx);
+      ctx.save();
+      ctx.translate(p.x, p.y);
+      ctx.rotate(a);
+      ctx.fillStyle = '#e1f5fe';
+      ctx.strokeStyle = '#0288d1';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(12, 0);
+      ctx.lineTo(-4, -6);
+      ctx.lineTo(-14, 0);
+      ctx.lineTo(-4, 6);
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+      ctx.restore();
+      break;
+    }
+    case 'banana':
+      drawBanana(ctx, p.x, p.y, p.r, time * 14);
+      break;
     case 'soup':
       ctx.fillStyle = 'rgba(251,192,45,0.5)';
       ctx.beginPath();
@@ -976,6 +1116,12 @@ export function renderGame(g: Game, ctx: Ctx, vw: number, vh: number, dpr: numbe
   }
   for (const m of g.snowmen) if (m.alive) drawSnowman(ctx, m);
   for (const c of g.cats) if (c.alive) drawCat(ctx, c);
+  for (const pe of g.peels) {
+    if (pe.life < 1.5 && Math.floor(pe.life * 8) % 2 === 0) continue;
+    drawBanana(ctx, pe.x, pe.y - 4, 9, 0.3);
+  }
+  for (const po of g.potions) drawPotion(ctx, po.x, po.y, g.time);
+  for (const c of g.corpses) drawCorpse(ctx, c, g.time);
 
   // Weapon swing trails
   for (const f of g.fighters) {
@@ -993,6 +1139,7 @@ export function renderGame(g: Game, ctx: Ctx, vw: number, vh: number, dpr: numbe
   for (const f of order) drawFighter(ctx, f, g.time);
   for (const b of g.bodies()) if (b.alive && b.burnT > 0) drawFlames(ctx, b, g.time);
   for (const p of g.projectiles) drawProjectile(ctx, p, g.time);
+  for (const b of g.bolts) drawBolt(ctx, b);
 
   for (const r of g.rings) {
     ctx.strokeStyle = r.color;

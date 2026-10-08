@@ -5,7 +5,8 @@ export interface SaveData {
   coins: number;
   owned: string[];
   customMaps: MapDef[];
-  settings: { lang: Lang; fallMode: FallMode; sound: boolean };
+  /** potions: healing potions drop in matches (on by default). */
+  settings: { lang: Lang; fallMode: FallMode; sound: boolean; potions: boolean };
   lastMatch?: MatchConfig;
   /** Your name for online rooms. */
   name: string;
@@ -29,7 +30,7 @@ function defaults(): SaveData {
     coins: 0,
     owned: [...FREE_WEAPONS],
     customMaps: [],
-    settings: { lang: thai ? 'th' : 'en', fallMode: 'ko', sound: true },
+    settings: { lang: thai ? 'th' : 'en', fallMode: 'ko', sound: true, potions: true },
     name: '',
     localNames: [],
     updatedAt: 0,
@@ -49,6 +50,7 @@ export function normalize(raw: unknown): SaveData {
       lang: r.settings?.lang === 'th' || r.settings?.lang === 'en' ? r.settings.lang : d.settings.lang,
       fallMode: r.settings?.fallMode === 'bounce' ? 'bounce' : 'ko',
       sound: r.settings?.sound !== false,
+      potions: r.settings?.potions !== false,
     },
     lastMatch: r.lastMatch,
     name: cleanName(r.name),

@@ -244,6 +244,21 @@ export class BotBrain {
         case 'treasure':
           if (f.nextCats || dist < 750) angle = ballisticAngle(dx, dy, 850, 1400);
           break;
+        case 'ice':
+          if (dist < 1000) angle = ballisticAngle(dx, dy, 1200, 200);
+          break;
+        case 'thunder':
+          if (dist < 700 * s) angle = Math.atan2(dy, dx);
+          break;
+        case 'banana':
+          if (dist < 700) angle = ballisticAngle(dx, dy, 850, 1400);
+          break;
+        case 'stick':
+          if (dist < 420 * s * 0.5 + 200 && f.onGround) angle = Math.PI / 2;
+          break;
+        case 'mascotstick':
+          if (dist < 230 && f.onGround) angle = Math.PI / 2;
+          break;
       }
       if (angle !== null) {
         it.skill = angle + err;

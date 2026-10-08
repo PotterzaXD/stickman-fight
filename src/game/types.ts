@@ -23,10 +23,10 @@ export interface Intent {
 }
 
 export type Difficulty = 'easy' | 'medium' | 'hard';
-export type Mode = 'ffa' | 'team' | 'boss' | 'cat';
+export type Mode = 'ffa' | 'team' | 'boss' | 'cat' | 'mascot';
 
-/** Boss Fight and Grandfather Cat: everyone teams up against the boss. */
-export const isBossMode = (m: Mode) => m === 'boss' || m === 'cat';
+/** Boss Fight, Grandfather Cat and the Mascot: everyone teams up against the boss. */
+export const isBossMode = (m: Mode) => m === 'boss' || m === 'cat' || m === 'mascot';
 export type FallMode = 'ko' | 'bounce';
 export type ThemeId = 'day' | 'sunset' | 'night' | 'snow' | 'lava' | 'space';
 

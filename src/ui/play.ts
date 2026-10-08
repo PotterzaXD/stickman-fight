@@ -27,25 +27,30 @@ function buildSpecs(match: MatchConfig): FighterSpec[] {
 /** Coins for beating the bosses: 500 for each boss. Grandfather Cat: 1,000. */
 export const BOSS_COINS = 500;
 export const CAT_COINS = 1000;
+export const MASCOT_COINS = 5000;
 
 /**
  * Give this device its coins after a match (and The Grandfather Cat Treasure the first time
  * Grandfather Cat is beaten). Returns the lines to show on the result screen.
  */
 export function giveReward(mode: Mode, won: boolean, bosses: number): HTMLElement[] {
-  const coins = !won ? 1 : mode === 'cat' ? CAT_COINS : mode === 'boss' ? BOSS_COINS * bosses : 3 + Math.floor(Math.random() * 3);
+  const coins = !won ? 1 : mode === 'mascot' ? MASCOT_COINS : mode === 'cat' ? CAT_COINS : mode === 'boss' ? BOSS_COINS * bosses : 3 + Math.floor(Math.random() * 3);
   const treasure = won && mode === 'cat' && !save.data.owned.includes('treasure');
+  const stick = won && mode === 'mascot' && !save.data.owned.includes('mascotstick');
   save.update((d) => {
     d.coins += coins;
     if (treasure) d.owned.push('treasure');
+    if (stick) d.owned.push('mascotstick');
   });
   setTimeout(() => sfx.coin(), 400);
   const out = [h('p', { class: 'coins-earned' }, `🪙 ${t('coinsEarned', { n: coins })}`, h('small', {}, ` (${save.data.coins})`))];
   if (treasure) out.push(h('p', { class: 'treasure-got' }, t('treasureGot')));
+  if (stick) out.push(h('p', { class: 'treasure-got' }, t('mascotStickGot')));
   return out;
 }
 
 export function resultTitle(r: Pick<MatchResult, 'mode' | 'winnerTeam' | 'winners'>, bosses = 1): string {
+  if (r.mode === 'mascot') return r.winnerTeam === BOSS_TEAM ? t('mascotWon') : t('mascotDefeated');
   if (r.mode === 'cat') return r.winnerTeam === BOSS_TEAM ? t('catWon') : t('catDefeated');
   if (r.mode === 'boss') return r.winnerTeam === BOSS_TEAM ? t(bosses > 1 ? 'bossesWon' : 'bossWon') : t(bosses > 1 ? 'bossesDefeated' : 'bossDefeated');
   if (r.winnerTeam === null || !r.winners.length) return t('draw');
@@ -117,7 +122,10 @@ register('play', (root, { match, fromEditor }) => {
   const start = () => {
     hidePause();
     sticks?.destroy();
-    game = new Game(map, buildSpecs(match), { mode: match.mode, fallMode: save.data.settings.fallMode, bossName: t(match.mode === 'cat' ? 'cat_name' : 'boss_name'), bosses: match.bosses });
+    game = new Game(map, buildSpecs(match), { mode: match.mode, fallMode: save.data.settings.fallMode, bossName: t(match.mode === 'mascot' ? 'mascot_name' : match.mode === 'cat' ? 'cat_name' : 'boss_name'),
+      bosses: match.bosses,
+      potions: save.data.settings.potions,
+    });
     game.onOver = showResult;
     if (import.meta.env.DEV) (window as unknown as { __game: Game }).__game = game;
     const humans = game.fighters.filter((f) => f.human);
