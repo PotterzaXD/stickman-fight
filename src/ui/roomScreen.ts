@@ -4,7 +4,7 @@ import { allMaps } from '../game/maps';
 import type { Difficulty, FallMode, Mode } from '../game/types';
 import { WEAPONS } from '../game/weapons';
 import { t, teamName, type Key } from '../i18n';
-import { MAX_ROOM, MIN_ROOM, ONLINE_COLORS, RoomHost, session, setSession, type Member, type RoomState } from '../net/room';
+import { MAX_ROOM, MIN_ROOM, ONLINE_COLORS, RoomHost, mascotProgress, mascotUnlocked, session, setSession, type Member, type RoomState } from '../net/room';
 import { cloudEnabled } from '../cloud';
 import { canUseFriends, friendList, onFriendsChange, refreshFriends } from '../friends';
 import { save } from '../save';
@@ -145,13 +145,19 @@ register('room', (root) => {
           'section',
           {},
           h('h3', {}, t('mode')),
-          seg<Mode>(st.mode, [['ffa', `🥊 ${t('ffa')}`], ['team', `🤝 ${t('team')}`], ['boss', `👹 ${t('boss')}`], ['cat', `🐱 ${t('cat')}`]], (v) => host?.setRoom({ mode: v })),
+          seg<Mode>(st.mode, [['ffa', `🥊 ${t('ffa')}`], ['team', `🤝 ${t('team')}`], ['boss', `👹 ${t('boss')}`], ['cat', `🐱 ${t('cat')}`], ['mascot', `${mascotUnlocked(st.hostWeapons) ? '⚪' : '🔒'} ${t('mascot')}`]], (v) => {
+            if (v === 'mascot' && !mascotUnlocked(st.hostWeapons)) return toast(t('hostMascotLocked', mascotProgress(st.hostWeapons)));
+            host?.setRoom({ mode: v });
+          }),
+          st.mode === 'mascot' ? h('small', { class: 'muted' }, `🪙🏆 ${t('mascotReward')}`) : null,
           st.mode === 'cat' ? h('small', { class: 'muted' }, `🪙🏆 ${t('catReward')}`) : null,
           st.mode === 'boss' ? bossPicker(st.bosses ?? 1, host ? (n) => host.setRoom({ bosses: n }) : null) : null,
           h('h3', {}, `${t('map')}: ${st.map ? mapLabel(st.map) : ''}`),
           host ? h('div', { class: 'map-row' }, ...maps.map((mp) => h('button', { class: `map-card ${st.mapId === mp.id ? 'on' : ''}`, onclick: () => host.setRoom({ map: mp }) }, mapThumb(mp), h('span', {}, mapLabel(mp))))) : st.map ? mapThumb(st.map) : null,
           h('h3', {}, `🕳️ ${t('fallOff')}`),
           seg<FallMode>(st.fallMode, [['ko', t('fallKO')], ['bounce', t('fallBounce')]], (v) => host?.setRoom({ fallMode: v })),
+          h('h3', {}, `🧪 ${t('potions')}`),
+          seg<'on' | 'off'>(st.potions === false ? 'off' : 'on', [['on', t('on')], ['off', t('off')]], (v) => host?.setRoom({ potions: v === 'on' })),
         ),
         h(
           'section',

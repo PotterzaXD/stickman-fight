@@ -98,7 +98,8 @@ register('netplay', (root) => {
       fallMode: start.fallMode,
       maxSnowmen: ONLINE_SNOWMEN,
       record: !!host,
-      bossName: t(start.mode === 'cat' ? 'cat_name' : 'boss_name'),
+      bossName: t(start.mode === 'mascot' ? 'mascot_name' : start.mode === 'cat' ? 'cat_name' : 'boss_name'),
+      potions: start.potions,
       bosses: start.bosses,
       bossWeapons: start.bossWeapons,
     });

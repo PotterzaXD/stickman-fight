@@ -7,6 +7,8 @@ import { NAME_MAX, cleanName, save } from '../save';
 import { h } from './dom';
 import { mapThumb } from './icons';
 import { coinChip } from './menu';
+import { mascotProgress, mascotUnlocked } from '../net/room';
+import { toast } from './dom';
 import { go, register } from './router';
 
 export const MAX_PLAYERS = 6;
@@ -120,7 +122,8 @@ register('lobby', (root, arg) => {
 
   const validate = (): string => {
     const n = m.slots.length;
-    if (m.mode === 'boss' || m.mode === 'cat') return n >= 1 ? '' : t('needOne');
+    if (m.mode === 'mascot' && !mascotUnlocked(save.data.owned)) return t('mascotLocked', mascotProgress(save.data.owned));
+    if (m.mode === 'boss' || m.mode === 'cat' || m.mode === 'mascot') return n >= 1 ? '' : t('needOne');
     if (n < 2) return t('needTwo');
     if (m.mode === 'team' && new Set(m.slots.map((s) => s.team)).size < 2) return t('needTwoTeams');
     return '';
@@ -139,11 +142,13 @@ register('lobby', (root, arg) => {
         {
           class: `seg ${m.mode === mode ? 'on' : ''}`,
           onclick: () => {
+            // The Mascot stays locked until you own every shop weapon.
+            if (mode === 'mascot' && !mascotUnlocked(save.data.owned)) return toast(t('mascotLocked', mascotProgress(save.data.owned)));
             m.mode = mode;
             render();
           },
         },
-        `${icon} ${t(mode)}`,
+        `${mode === 'mascot' && !mascotUnlocked(save.data.owned) ? '🔒' : icon} ${t(mode)}`,
       );
 
     const mapCards = maps.map((mp) =>
@@ -240,9 +245,10 @@ register('lobby', (root, arg) => {
         'section',
         {},
         h('h3', {}, t('mode')),
-        h('div', { class: 'segs' }, modeBtn('ffa', '🥊'), modeBtn('team', '🤝'), modeBtn('boss', '👹'), modeBtn('cat', '🐱')),
+        h('div', { class: 'segs' }, modeBtn('ffa', '🥊'), modeBtn('team', '🤝'), modeBtn('boss', '👹'), modeBtn('cat', '🐱'), modeBtn('mascot', '⚪')),
         h('p', { class: 'muted' }, t(`${m.mode}Desc` as Key)),
         m.mode === 'cat' ? h('small', { class: 'muted' }, `🪙🏆 ${t('catReward')}`) : null,
+        m.mode === 'mascot' ? h('small', { class: 'muted' }, `🪙🏆 ${t('mascotReward')}`) : null,
         m.mode === 'boss'
           ? bossPicker(m.bosses ?? 1, (n) => {
               m.bosses = n;

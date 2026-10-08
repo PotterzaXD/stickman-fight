@@ -1,6 +1,7 @@
 import type { Controller, Intent, Vec } from './types';
 import type { WeaponDef } from './weapons';
 import type { BotBrain } from './ai';
+import type { Finish } from './finish';
 
 export const GRAVITY = 2400;
 export const JUMP_V = 960;
@@ -10,6 +11,7 @@ export const SNOWMAN_HP = 250;
 export const BOSS_HP = 5000;
 export const MAX_SNOWMEN = 10;
 export const CAT_BOSS_HP = 10000;
+export const MASCOT_HP = 50000;
 
 let nextId = 1;
 
@@ -37,6 +39,8 @@ export abstract class Body {
   /** Burn damage and seconds between ticks (fireball: 8 every 0.5 s, gang som soup: 10 every 1 s). */
   burnDmg = 8;
   burnEvery = 0.5;
+  /** Seconds left frozen by the Ice Wand (can't move). */
+  frozenT = 0;
   abstract readonly kind: 'fighter' | 'snowman' | 'cat';
 
   constructor(x: number, y: number, w: number, h: number, hp: number, team: number, color: string) {
@@ -74,6 +78,8 @@ export interface FighterOpts {
   boss?: boolean;
   /** The Grandfather Cat boss. */
   cat?: boolean;
+  /** The white Mascot boss from the game icon. */
+  mascot?: boolean;
 }
 
 export class Fighter extends Body {
@@ -83,6 +89,13 @@ export class Fighter extends Body {
   boss: boolean;
   /** Grandfather Cat (drawn with cat ears and whiskers). */
   cat: boolean;
+  /** The white Mascot boss (no eyes). */
+  mascot: boolean;
+  /** How this stickman was knocked out (the death finisher). */
+  finish: Finish = 'pop';
+  /** Next slam on landing: damage, radius and finisher (hammer, Mascot stick). */
+  slamDmg = 0;
+  slamR = 0;
   /** The Grandfather Cat Treasure takes turns: soup, then cats, then soup... */
   nextCats = false;
   scale: number;
@@ -121,11 +134,12 @@ export class Fighter extends Body {
 
   constructor(o: FighterOpts) {
     const scale = o.boss ? 2.6 : 1;
-    super(o.x, o.y, 30 * scale, 80 * scale, o.cat ? CAT_BOSS_HP : o.boss ? BOSS_HP : PLAYER_HP, o.team, o.color);
+    super(o.x, o.y, 30 * scale, 80 * scale, o.mascot ? MASCOT_HP : o.cat ? CAT_BOSS_HP : o.boss ? BOSS_HP : PLAYER_HP, o.team, o.color);
     this.name = o.name;
     this.human = o.human;
     this.boss = !!o.boss;
     this.cat = !!o.cat;
+    this.mascot = !!o.mascot;
     this.scale = scale;
     this.dmgMult = o.boss ? 1.5 : 1;
     this.speed = o.boss ? 300 : 380;
@@ -258,7 +272,9 @@ export type ProjKind =
   | 'fireball'
   | 'six7'
   | 'poop'
-  | 'soup';
+  | 'soup'
+  | 'icebolt'
+  | 'banana';
 
 /** Thrown weapons that fly out and come back to the hand. */
 export const returns = (k: ProjKind) => k === 'boomerang' || k === 'axe' || k === 'six7';

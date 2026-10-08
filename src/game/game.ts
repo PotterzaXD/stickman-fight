@@ -15,6 +15,7 @@ import {
   type Ring,
   returns,
 } from './entities';
+import { MELEE_FINISH, PROJ_FINISH, makeCorpse, updateCorpses, type Corpse, type Finish } from './finish';
 import { THEMES, pickSpawns } from './maps';
 import { isBossMode, type Difficulty, type FallMode, type MapDef, type Mode } from './types';
 import { SHOP_WEAPONS, weapon } from './weapons';
@@ -59,7 +60,46 @@ export interface GameOpts {
   bosses?: number;
   /** Weapon ids for each boss (online: the host picks them so every device matches). */
   bossWeapons?: string[][];
+  /** Healing potions drop (on KO and from the sky). */
+  potions?: boolean;
 }
+
+/** Potions: 25% chance on each KO and every 10 seconds from the sky. Heal 25% of max HP. */
+export const POTION_CHANCE = 0.25;
+export const POTION_HEAL = 0.25;
+const POTION_EVERY = 10;
+const POTION_LIFE = 15;
+
+export interface Potion {
+  id: number;
+  x: number;
+  y: number;
+  vy: number;
+  life: number;
+}
+
+/** A banana peel lying on the ground. */
+export interface Peel {
+  x: number;
+  y: number;
+  owner: Fighter;
+  team: number;
+  life: number;
+}
+
+/** A lightning bolt from the Thunder Hammer (only a picture). */
+export interface Bolt {
+  x1: number;
+  y1: number;
+  x2: number;
+  y2: number;
+  life: number;
+}
+
+/** The Mascot: touching it hurts, and its stick slam. */
+export const MASCOT_TOUCH = 50;
+export const MASCOT_SLAM = 299;
+export const MASCOT_STICK_SLAM = 120;
 
 /** Seconds until broken glass comes back. */
 export const GLASS_BACK = 10;
@@ -87,7 +127,8 @@ export type NetEvent =
   | ['b', number, number, string, number, number]
   | ['t', number, number, string, string, number]
   | ['r', number, number, number, number, string]
-  | ['s', string];
+  | ['s', string]
+  | ['z', number, number, number, number];
 
 const sign = (v: number) => (v > 0 ? 1 : v < 0 ? -1 : 0);
 const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v));
@@ -116,6 +157,14 @@ export class Game {
   record: boolean;
   events: NetEvent[] = [];
   cats: Cat[] = [];
+  /** Bodies left behind by death finishers. */
+  corpses: Corpse[] = [];
+  potions: Potion[] = [];
+  peels: Peel[] = [];
+  bolts: Bolt[] = [];
+  potionsOn: boolean;
+  private potionClock = POTION_EVERY;
+  private potionId = 1;
   /** Gravity on this map (the Space theme has low gravity). */
   gravity: number;
   /** For each platform: seconds until its glass comes back (0 = whole). */
@@ -132,6 +181,7 @@ export class Game {
     this.record = !!opts.record;
     this.glassT = map.platforms.map(() => 0);
     this.gravity = GRAVITY * (THEMES[map.theme]?.gravity ?? 1);
+    this.potionsOn = !!opts.potions && !opts.demo;
     const spawns = pickSpawns(map, specs.length + (opts.mode === 'boss' ? 1 : 0));
     specs.forEach((s, i) => {
       const sp = spawns[i];
@@ -180,6 +230,23 @@ export class Game {
       });
       cat.brain = new BotBrain('boss');
       this.fighters.push(cat);
+    }
+    if (opts.mode === 'mascot') {
+      // The Mascot from the game icon: all white, a white stick, 50,000 HP.
+      const top = [...map.platforms].filter((p) => p.kind !== 'lava').sort((p, q) => q.w - p.w)[0];
+      const m = new Fighter({
+        name: opts.bossName ?? 'Mascot',
+        color: '#ffffff',
+        team: BOSS_TEAM,
+        human: false,
+        weapons: [weapon('stick')],
+        x: top ? top.x + top.w / 2 : map.w / 2,
+        y: (top?.y ?? map.h / 2) - 300,
+        boss: true,
+        mascot: true,
+      });
+      m.brain = new BotBrain('boss');
+      this.fighters.push(m);
     }
   }
 
@@ -233,6 +300,7 @@ export class Game {
       else if (e[0] === 't') this.text(e[1], e[2], e[3], e[4], e[5]);
       else if (e[0] === 'r') this.rings.push({ x: e[1], y: e[2], r: 10, maxR: e[3], life: e[4], max: e[4], color: e[5] });
       else if (e[0] === 's' && e[1] in sfx) (sfx as unknown as Record<string, () => void>)[e[1]]();
+      else if (e[0] === 'z') this.bolts.push({ x1: e[1], y1: e[2], x2: e[3], y2: e[4], life: 0.3 });
     }
   }
 
@@ -249,6 +317,13 @@ export class Game {
 
   update(dt: number) {
     this.time += dt;
+    // Frozen by the Ice Wand: can't move until it melts.
+    for (const b of this.bodies()) {
+      if (b.frozenT <= 0) continue;
+      b.frozenT -= dt;
+      b.stun = Math.max(b.stun, b.frozenT);
+      if (b.onGround) b.vx *= 0.8;
+    }
     for (const f of this.fighters) if (f.alive) this.updateFighter(f, dt);
     for (const s of this.snowmen) {
       if (!s.alive) continue;
@@ -269,6 +344,8 @@ export class Game {
     this.updateProjectiles(dt);
     this.updateGroundBalls(dt);
     this.updateBurns(dt);
+    this.updatePeels(dt);
+    this.updatePotions(dt);
     this.updateGlass(dt);
     this.checkOffMap();
     this.snowmen = this.snowmen.filter((s) => s.alive);
@@ -333,6 +410,7 @@ export class Game {
       f.slamming = false;
       this.shockwave(f);
     }
+    if (f.mascot) this.mascotTouch(f);
     if (f.onGround) f.walkPhase += f.vx * dt * 0.045;
 
     const swinging = Math.abs(f.angVel[0]) > 3.5 || f.dashT > 0 || f.thrustT > 0;
@@ -422,7 +500,7 @@ export class Game {
       b.hurtFlash = 0.1;
       this.text(b.x + (Math.random() - 0.5) * 20, b.y - b.h - 10, String(b.burnDmg), '#ff9800', 18);
       this.burst(b.x, b.cy, '#ff9800', 4, 160);
-      if (b.hp <= 0) this.kill(b, b.burnSrc);
+      if (b.hp <= 0) this.kill(b, b.burnSrc, 'ashes');
     }
   }
 
@@ -436,7 +514,8 @@ export class Game {
 
   // ---------- combat ----------
 
-  damage(target: Body, amount: number, src: Body | null, kx: number, ky: number) {
+  /** `how`: the death finisher if this hit knocks a stickman out (none = the original pop). */
+  damage(target: Body, amount: number, src: Body | null, kx: number, ky: number, how?: Finish) {
     if (!target.alive || amount <= 0) return;
     amount = Math.round(amount);
     if (target instanceof Fighter && target.shielding) {
@@ -464,19 +543,28 @@ export class Game {
     this.burst(target.x, target.cy, target.color, 5 + Math.floor(amount / 10), 260);
     this.shake = Math.min(14, this.shake + amount / 30);
     this.play('hit');
-    if (target.hp <= 0) this.kill(target, src);
+    if (target.hp <= 0) this.kill(target, src, how);
   }
 
-  kill(b: Body, src: Body | null) {
+  kill(b: Body, src: Body | null, how: Finish = 'pop') {
     if (!b.alive) return;
     b.alive = false;
     b.hp = 0;
-    this.burst(b.x, b.cy, b.color, 26, 520);
-    this.burst(b.x, b.cy, '#ffffff', 10, 380);
+    const fighter = b instanceof Fighter;
+    if (fighter) b.finish = how;
+    // The original pop for snowmen, cats and 'pop' kills. Fell into the void: nothing at all.
+    if (!fighter || how === 'pop') {
+      this.burst(b.x, b.cy, b.color, 26, 520);
+      this.burst(b.x, b.cy, '#ffffff', 10, 380);
+    } else if (how !== 'void') {
+      const c = makeCorpse(b, how);
+      if (c) this.corpses.push(c);
+    }
     if (b.kind === 'fighter') {
       this.text(b.x, b.y - b.h - 30, 'KO!', '#ffeb3b', 34);
-      this.shake = Math.min(18, this.shake + 8);
+      if (how !== 'void') this.shake = Math.min(18, this.shake + 8);
       this.play('ko');
+      if (how !== 'void' && this.potionsOn && Math.random() < POTION_CHANCE) this.dropPotion(b.x, b.cy);
     }
     const killer = src instanceof Snowman || src instanceof Cat ? src.owner : src;
     if (killer instanceof Fighter && killer !== b && b.kind === 'fighter') killer.kos++;
@@ -495,7 +583,7 @@ export class Game {
         const dash = f.dashT > 0;
         const thrust = f.thrustT > 0 && i === f.thrustSlot;
         if (speed < 3.5 && !dash && !thrust) continue;
-        const dmg = dash ? 60 * f.dmgMult : thrust ? 70 * f.dmgMult : def.damage * f.dmgMult * clamp(speed / 12, 0.5, 1.3);
+        const dmg = f.mascot ? MASCOT_TOUCH : dash ? 60 * f.dmgMult : thrust ? 70 * f.dmgMult : def.damage * f.dmgMult * clamp(speed / 12, 0.5, 1.3);
         const h = f.hand(i);
         const tp = f.tip(i);
         const pts = [0.25, 0.5, 0.75, 1].map((k) => ({ x: h.x + (tp.x - h.x) * k, y: h.y + (tp.y - h.y) * k }));
@@ -506,7 +594,7 @@ export class Game {
           f.hitCd.set(e.id, this.time + (dash || thrust ? 0.5 : 0.35));
           const dir = sign(e.x - f.x) || f.facing;
           const force = dash || thrust ? 1.4 : 1;
-          this.damage(e, dmg, f, dir * (220 + dmg * 8) * force, -(260 + dmg * 5) * force);
+          this.damage(e, dmg, f, dir * (220 + dmg * 8) * force, -(260 + dmg * 5) * force, MELEE_FINISH[def.id]);
         }
       }
     }
@@ -541,6 +629,8 @@ export class Game {
         this.play('throw');
         break;
       case 'hammer':
+        f.slamDmg = 0;
+        f.slamR = 0;
         if (f.onGround) this.shockwave(f);
         else {
           f.slamming = true;
@@ -611,7 +701,129 @@ export class Game {
         else this.throwSoup(f, i, tip.x, tip.y, angle, TREASURE_SOUP.dmg, TREASURE_SOUP.burn);
         f.nextCats = !f.nextCats;
         break;
+      case 'ice':
+        this.spawnProj('icebolt', f, tip.x, tip.y, angle, 1200, 200, 35 * m, i);
+        break;
+      case 'banana':
+        this.spawnProj('banana', f, tip.x, tip.y, angle, 850, 1400, 25 * m, i);
+        break;
+      case 'thunder':
+        this.thunder(f);
+        break;
+      case 'stick':
+      case 'mascotstick': {
+        // Giant stick slam: leap up, then smash down.
+        const big = def.id === 'stick';
+        f.slamDmg = big ? MASCOT_SLAM : MASCOT_STICK_SLAM;
+        f.slamR = big ? 460 : 220;
+        f.slamming = true;
+        if (f.onGround) {
+          f.vy = big ? -1150 : -950;
+          f.onGround = false;
+        } else f.vy = 1800;
+        this.play('jump');
+        break;
+      }
     }
+  }
+
+  /** The Mascot hurts everyone who touches it. */
+  private mascotTouch(f: Fighter) {
+    for (const e of this.bodies()) {
+      if (!e.alive || e.team === f.team) continue;
+      if (Math.abs(e.x - f.x) > (f.w + e.w) / 2 || e.y < f.y - f.h || e.y - e.h > f.y) continue;
+      if ((f.hitCd.get(-e.id) ?? 0) > this.time) continue;
+      f.hitCd.set(-e.id, this.time + 0.8);
+      this.damage(e, MASCOT_TOUCH, f, (sign(e.x - f.x) || 1) * 650, -500, 'ragdoll');
+    }
+  }
+
+  /** Thunder Hammer: lightning strikes the nearest enemy and shocks anyone close to it. */
+  private thunder(f: Fighter) {
+    const t = nearestEnemy(this, f, 750 * f.scale);
+    if (!t) {
+      this.text(f.x, f.y - f.h - 20, '⚡?', '#fff176', 22);
+      return;
+    }
+    const top = Math.min(t.y - 700, this.cam.y - 600);
+    this.bolts.push({ x1: t.x, y1: top, x2: t.x, y2: t.cy, life: 0.3 });
+    if (this.record) this.events.push(['z', Math.round(t.x), Math.round(top), Math.round(t.x), Math.round(t.cy)]);
+    this.burst(t.x, t.cy, '#fff176', 18, 420);
+    this.shake = Math.min(18, this.shake + 10);
+    this.play('boom');
+    const m = f.dmgMult;
+    for (const e of this.bodies()) {
+      if (!e.alive || e.team === f.team) continue;
+      if (e === t) this.damage(e, 70 * m, f, (sign(e.x - f.x) || 1) * 300, -500, 'zap');
+      else if (Math.hypot(e.x - t.x, e.cy - t.cy) < 110) this.damage(e, 35 * m, f, (sign(e.x - t.x) || 1) * 300, -400, 'zap');
+    }
+  }
+
+  private dropPotion(x: number, y: number) {
+    this.potions.push({ id: this.potionId++, x, y, vy: -400, life: POTION_LIFE });
+  }
+
+  private updatePotions(dt: number) {
+    if (!this.potionsOn) return;
+    this.potionClock -= dt;
+    if (this.potionClock <= 0) {
+      this.potionClock = POTION_EVERY;
+      const safe = this.map.platforms.filter((p, i) => p.kind !== 'lava' && this.solid(i) && p.w >= 60);
+      if (safe.length && Math.random() < POTION_CHANCE) {
+        const p = safe[Math.floor(Math.random() * safe.length)];
+        this.potions.push({ id: this.potionId++, x: p.x + 20 + Math.random() * (p.w - 40), y: Math.min(-100, this.cam.y - 700), vy: 0, life: POTION_LIFE + 5 });
+      }
+    }
+    for (const po of this.potions) {
+      po.life -= dt;
+      const prevY = po.y;
+      po.vy = Math.min(po.vy + this.gravity * 0.6 * dt, 900);
+      po.y += po.vy * dt;
+      if (po.vy >= 0) {
+        this.map.platforms.forEach((p, i) => {
+          if (!this.solid(i) || po.x < p.x || po.x > p.x + p.w) return;
+          if (prevY <= p.y + 2 && po.y >= p.y) {
+            po.y = p.y;
+            po.vy = 0;
+          }
+        });
+      }
+      if (po.y > this.map.h + 400) po.life = 0;
+      if (po.life <= 0) continue;
+      for (const f of this.fighters) {
+        if (!f.alive || f.boss || f.hp >= f.maxHp || !f.contains(po.x, po.y - 14, 14)) continue;
+        const heal = Math.min(f.maxHp - f.hp, Math.round(f.maxHp * POTION_HEAL));
+        f.hp += heal;
+        this.text(f.x, f.y - f.h - 20, `+${heal}`, '#69f0ae', 26);
+        this.burst(po.x, po.y - 14, '#69f0ae', 14, 260);
+        this.play('coin');
+        po.life = 0;
+        break;
+      }
+    }
+    this.potions = this.potions.filter((p) => p.life > 0);
+  }
+
+  /** Banana peels on the ground: enemies who step on one slip. */
+  private updatePeels(dt: number) {
+    const bodies = this.bodies();
+    for (const pe of this.peels) {
+      pe.life -= dt;
+      if (pe.life <= 0) continue;
+      for (const e of bodies) {
+        if (!e.alive || e.team === pe.team || !e.onGround || !e.contains(pe.x, pe.y - 6, 10)) continue;
+        this.slip(e, pe.owner, 30, sign(e.vx) || 1);
+        pe.life = 0;
+        break;
+      }
+    }
+    this.peels = this.peels.filter((p) => p.life > 0);
+  }
+
+  private slip(e: Body, by: Body, dmg: number, dir: number) {
+    this.damage(e, dmg, by, dir * 500, -750, 'slip');
+    if (e.alive) e.stun = Math.max(e.stun, 0.9);
+    this.text(e.x, e.y - e.h - 30, '🍌', '#fdd835', 26);
   }
 
   /** Sud Gang Som: throw a splash of yellow gang som soup. */
@@ -645,7 +857,7 @@ export class Game {
   catBite(c: Cat, e: Body) {
     c.attackT = 0.8;
     const dir = sign(e.x - c.x) || c.facing;
-    this.damage(e, c.touchDmg, c, dir * 260, -220);
+    this.damage(e, c.touchDmg, c, dir * 260, -220, 'trip');
   }
 
   /** Soup lands: a yellow splash that hurts and burns every enemy close by. */
@@ -659,7 +871,7 @@ export class Game {
     for (const e of this.bodies()) {
       if (!e.alive || e.team === p.team) continue;
       if (Math.hypot(e.x - p.x, e.cy - p.y) > R + e.w / 2) continue;
-      this.damage(e, p.dmg, p.owner, (sign(e.x - p.x) || 1) * 300, -300);
+      this.damage(e, p.dmg, p.owner, (sign(e.x - p.x) || 1) * 300, -300, 'ashes');
       if (!e.alive) continue;
       // A hair over 5 s so the 5th tick still lands.
       e.burnT = SOUP_BURN_S + 0.05;
@@ -673,8 +885,8 @@ export class Game {
   spawnProj(kind: ProjKind, owner: Body, x: number, y: number, angle: number, speed: number, g: number, dmg: number, slot: number) {
     const scale = owner instanceof Fighter ? owner.scale : 1;
     const big = kind === 'boomerang' || kind === 'bomb' || kind === 'axe' || kind === 'fireball' || kind === 'six7' || kind === 'soup';
-    const r = { arrow: 5, snowball: 11, minisnow: 8, boomerang: 16, bomb: 11, axe: 22, shuriken: 8, laser: 6, fireball: 14, six7: 24, poop: 10, soup: 14 }[kind] * (big ? scale : 1);
-    const life = { arrow: 2, snowball: 3, minisnow: 3, boomerang: 3.5, bomb: 1.5, axe: 3.5, shuriken: 2, laser: 0.7, fireball: 2, six7: 3.5, poop: 3, soup: 3 }[kind];
+    const r = { arrow: 5, snowball: 11, minisnow: 8, boomerang: 16, bomb: 11, axe: 22, shuriken: 8, laser: 6, fireball: 14, six7: 24, poop: 10, soup: 14, icebolt: 9, banana: 10 }[kind] * (big ? scale : 1);
+    const life = { arrow: 2, snowball: 3, minisnow: 3, boomerang: 3.5, bomb: 1.5, axe: 3.5, shuriken: 2, laser: 0.7, fireball: 2, six7: 3.5, poop: 3, soup: 3, icebolt: 2, banana: 3 }[kind];
     this.projectiles.push({
       kind,
       x,
@@ -744,18 +956,18 @@ export class Game {
         const dir = sign(p.vx) || 1;
         if (p.kind === 'boomerang') {
           p.hit.add(e.id);
-          this.damage(e, p.dmg, p.owner, dir * 450, -350);
+          this.damage(e, p.dmg, p.owner, dir * 450, -350, PROJ_FINISH[p.kind]);
           continue;
         }
         if (p.kind === 'axe' || p.kind === 'six7') {
           p.hit.add(e.id);
-          this.damage(e, p.dmg, p.owner, dir * 600, -450);
+          this.damage(e, p.dmg, p.owner, dir * 600, -450, PROJ_FINISH[p.kind]);
           continue;
         }
         if (p.kind === 'laser') {
           // The beam goes through everyone in its way.
           p.hit.add(e.id);
-          this.damage(e, p.dmg, p.owner, dir * 380, -220);
+          this.damage(e, p.dmg, p.owner, dir * 380, -220, PROJ_FINISH[p.kind]);
           this.burst(p.x, p.y, '#ff1744', 6, 220);
           continue;
         }
@@ -763,10 +975,15 @@ export class Game {
         else if (p.kind === 'bomb') this.explode(p);
         else if (p.kind === 'soup') this.splash(p);
         else if (p.kind === 'poop') {
-          this.damage(e, p.dmg, p.owner, dir * 220, -200);
+          this.damage(e, p.dmg, p.owner, dir * 220, -200, PROJ_FINISH[p.kind]);
           this.burst(p.x, p.y, '#6d4c41', 10, 240);
-        } else {
-          this.damage(e, p.dmg, p.owner, dir * (p.kind === 'arrow' ? 420 : 300), -260);
+        } else if (p.kind === 'icebolt') {
+          this.damage(e, p.dmg, p.owner, dir * 200, -150, 'shatter');
+          if (e.alive) e.frozenT = 1.2;
+          this.burst(p.x, p.y, '#b3e5fc', 12, 260);
+        } else if (p.kind === 'banana') this.slip(e, p.owner, p.dmg, dir);
+        else {
+          this.damage(e, p.dmg, p.owner, dir * (p.kind === 'arrow' ? 420 : 300), -260, PROJ_FINISH[p.kind]);
           if (p.kind !== 'arrow') this.burst(p.x, p.y, '#ffffff', 8, 220);
         }
         p.dead = true;
@@ -813,6 +1030,12 @@ export class Game {
           }
           if (p.kind === 'poop') {
             this.burst(p.x, Math.min(p.y, pl.y), '#6d4c41', 8, 200);
+            p.dead = true;
+            break;
+          }
+          if (p.kind === 'banana') {
+            // Lands as a peel that stays for 8 seconds.
+            if (p.vy > 0 && p.y < pl.y + 14 && p.owner instanceof Fighter) this.peels.push({ x: p.x, y: pl.y, owner: p.owner, team: p.team, life: 8 });
             p.dead = true;
             break;
           }
@@ -896,7 +1119,7 @@ export class Game {
       if (d > R + e.w / 2) continue;
       const k = 1 - Math.min(1, d / (R * 1.3));
       const n = d || 1;
-      this.damage(e, p.dmg * (0.4 + 0.6 * k), p.owner, (dx / n) * 900 * (0.4 + k), -700 * (0.5 + k));
+      this.damage(e, p.dmg * (0.4 + 0.6 * k), p.owner, (dx / n) * 900 * (0.4 + k), -700 * (0.5 + k), PROJ_FINISH[p.kind]);
       if (burn && e.alive) {
         e.burnT = 2;
         e.burnTick = 0.5;
@@ -908,7 +1131,11 @@ export class Game {
   }
 
   private shockwave(f: Fighter) {
-    const R = 230 * f.scale;
+    // Hammer: 80 damage. The Mascot's stick slam: 299 (its reward stick: 120).
+    const R = f.slamR || 230 * f.scale;
+    const dmg = f.slamDmg || 80 * f.dmgMult;
+    f.slamDmg = 0;
+    f.slamR = 0;
     this.ring(f.x, f.y, R, 0.35, '#bcaaa4');
     this.burst(f.x, f.y, '#a1887f', 20, 420);
     this.shake = Math.min(18, this.shake + 12);
@@ -918,7 +1145,7 @@ export class Game {
       if (!e.alive || e.team === f.team) continue;
       const dx = e.x - f.x;
       if (Math.abs(dx) > R + e.w / 2 || Math.abs(e.y - f.y) > 140 * f.scale) continue;
-      this.damage(e, 80 * f.dmgMult, f, (sign(dx) || 1) * 700, -900);
+      this.damage(e, dmg, f, (sign(dx) || 1) * 700, -900, 'fling');
     }
   }
 
@@ -932,7 +1159,7 @@ export class Game {
       if (b instanceof Snowman || b instanceof Cat) this.kill(b, null);
       else if (b instanceof Fighter) {
         if (b.boss) this.bounce(b, 250);
-        else if (this.fallMode === 'ko') this.kill(b, null);
+        else if (this.fallMode === 'ko') this.kill(b, null, 'void');
         else this.bounce(b, 25);
       }
     }
@@ -953,7 +1180,7 @@ export class Game {
     f.hp -= dmg;
     this.text(f.x, this.map.h - 40, `-${dmg}`, '#ff5252', 30);
     this.play('jump');
-    if (f.hp <= 0) this.kill(f, null);
+    if (f.hp <= 0) this.kill(f, null, 'void');
   }
 
   // ---------- end of match ----------
@@ -995,8 +1222,9 @@ export class Game {
 
   // ---------- effects ----------
 
-  burst(x: number, y: number, color: string, n: number, speed: number) {
-    if (this.record) this.events.push(['b', Math.round(x), Math.round(y), color, n, speed]);
+  /** `send` = false: only on this device (effects every device makes by itself). */
+  burst(x: number, y: number, color: string, n: number, speed: number, send = true) {
+    if (this.record && send) this.events.push(['b', Math.round(x), Math.round(y), color, n, speed]);
     if (this.particles.length > 700) return;
     for (let i = 0; i < n; i++) {
       const a = Math.random() * Math.PI * 2;
@@ -1030,6 +1258,9 @@ export class Game {
       r.r = r.maxR * (1 - r.life / r.max);
     }
     this.rings = this.rings.filter((r) => r.life > 0);
+    for (const b of this.bolts) b.life -= dt;
+    this.bolts = this.bolts.filter((b) => b.life > 0);
+    updateCorpses(this, dt);
     this.shake = Math.max(0, this.shake - 40 * dt);
   }
 

@@ -1,5 +1,6 @@
 import { Cat, Fighter, Snowman, type ProjKind, type Projectile } from '../game/entities';
 import type { Game, NetEvent } from '../game/game';
+import { FINISHES, makeCorpse } from '../game/finish';
 
 /** One frame of the match as the host sees it, packed into small arrays of numbers. */
 export interface Snapshot {
@@ -11,13 +12,16 @@ export interface Snapshot {
   p: number[][];
   g: number[][];
   e: NetEvent[];
+  /** Potions [id, x, y] and banana peels [x, y, life]. */
+  po?: number[][];
+  pe?: number[][];
   /** AI cats: [id, owner, x, y, hp, facing, hurt, maxHp, vx]. */
   c?: number[][];
   /** Broken glass right now: [platform index, seconds until it comes back]. */
   gl?: number[][];
 }
 
-const KINDS: ProjKind[] = ['arrow', 'snowball', 'minisnow', 'boomerang', 'bomb', 'axe', 'shuriken', 'laser', 'fireball', 'six7', 'poop', 'soup'];
+const KINDS: ProjKind[] = ['arrow', 'snowball', 'minisnow', 'boomerang', 'bomb', 'axe', 'shuriken', 'laser', 'fireball', 'six7', 'poop', 'soup', 'icebolt', 'banana'];
 const r1 = (v: number) => Math.round(v);
 const r2 = (v: number) => Math.round(v * 100) / 100;
 
@@ -32,7 +36,8 @@ const SHIELD = 1,
   BOOM0 = 128,
   BOOM1 = 256,
   THRUST1 = 512,
-  BURN = 1024;
+  BURN = 1024,
+  FROZEN = 2048;
 
 function ownerIndex(g: Game, o: unknown): number {
   const f = o instanceof Snowman || o instanceof Cat ? o.owner : o;
@@ -57,12 +62,15 @@ export function encodeSnapshot(g: Game): Snapshot {
       if (f.boomerangOut[0]) fl |= BOOM0;
       if (f.boomerangOut[1]) fl |= BOOM1;
       if (f.burnT > 0) fl |= BURN;
-      return [f.alive ? 1 : 0, r1(f.x), r1(f.y), r1(f.vx), r1(f.vy), r1(f.hp), f.facing, f.onGround ? 1 : 0, fl, r1(f.shieldHp), r2(f.angles[0]), r2(f.angVel[0]), r2(f.angles[1] ?? 0)];
+      if (f.frozenT > 0) fl |= FROZEN;
+      return [f.alive ? 1 : 0, r1(f.x), r1(f.y), r1(f.vx), r1(f.vy), r1(f.hp), f.facing, f.onGround ? 1 : 0, fl, r1(f.shieldHp), r2(f.angles[0]), r2(f.angVel[0]), r2(f.angles[1] ?? 0), FINISHES.indexOf(f.finish)];
     }),
     m: g.snowmen.map((s) => [s.id, ownerIndex(g, s.owner), r1(s.x), r1(s.y), r1(s.hp), s.facing, s.hurtFlash > 0 ? 1 : 0]),
     p: g.projectiles.map((p) => [KINDS.indexOf(p.kind), r1(p.x), r1(p.y), r1(p.vx), r1(p.vy), ownerIndex(g, p.owner), r2(p.scale), r1(p.r), r1(p.g)]),
     g: g.groundBalls.map((b) => [r1(b.x), r1(b.y), ownerIndex(g, b.owner), r2(b.life)]),
     e: g.events,
+    po: g.potions.map((p) => [p.id, r1(p.x), r1(p.y)]),
+    pe: g.peels.map((p) => [r1(p.x), r1(p.y), r2(p.life)]),
     c: g.cats.map((c) => [c.id, ownerIndex(g, c.owner), r1(c.x), r1(c.y), r1(c.hp), c.facing, c.hurtFlash > 0 ? 1 : 0, c.maxHp, r1(c.vx)]),
     gl: g.glassT.flatMap((t, i) => (t > 0 ? [[i, r2(t)]] : [])),
   };
@@ -84,7 +92,17 @@ export class Mirror {
     s.f.forEach((a, i) => {
       const f = g.fighters[i];
       if (!f) return;
-      const [alive, x, y, vx, vy, hp, facing, ground, fl, shieldHp, a0, av0, a1] = a;
+      const [alive, x, y, vx, vy, hp, facing, ground, fl, shieldHp, a0, av0, a1, fin] = a;
+      if (f.alive && alive !== 1) {
+        // Just knocked out: play the same death finisher here.
+        f.x = x;
+        f.y = y;
+        f.vx = vx;
+        f.vy = vy;
+        f.finish = FINISHES[fin] ?? 'pop';
+        const c = makeCorpse(f, f.finish);
+        if (c) g.corpses.push(c);
+      }
       f.alive = alive === 1;
       f.vx = vx;
       f.vy = vy;
@@ -102,6 +120,7 @@ export class Mirror {
       f.boomerangOut[0] = !!(fl & BOOM0);
       if (f.boomerangOut.length > 1) f.boomerangOut[1] = !!(fl & BOOM1);
       f.burnT = fl & BURN ? 1 : 0;
+      f.frozenT = fl & FROZEN ? 1 : 0;
       f.shieldHp = shieldHp;
       f.angVel[0] = av0;
       const prev = this.target.get(f);
@@ -171,6 +190,8 @@ export class Mirror {
       this.target.delete(c);
     }
     g.cats = cats;
+    g.potions = (s.po ?? []).map(([id, x, y]) => ({ id, x, y, vy: 0, life: 1 }));
+    g.peels = (s.pe ?? []).map(([x, y, life]) => ({ x, y, life, owner: g.fighters[0], team: -1 }));
 
     g.projectiles = s.p.map(([k, x, y, vx, vy, oi, scale, r, gr]) => {
       const owner = g.fighters[oi] ?? g.fighters[0];
