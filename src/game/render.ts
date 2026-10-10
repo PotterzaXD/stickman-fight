@@ -1,5 +1,6 @@
 import type { Body, Cat, Fighter, Snowman, Projectile } from './entities';
-import type { Game } from './game';
+import { BOSS_TEAM, type Game } from './game';
+import { t } from '../i18n';
 import { drawCorpse } from './finish';
 import { THEMES } from './maps';
 import type { MapDef, Platform } from './types';
@@ -79,6 +80,42 @@ export function drawBackground(ctx: Ctx, map: MapDef, vw: number, vh: number, ca
     ctx.beginPath();
     ctx.ellipse(px, py, pr * 1.7, pr * 0.45, -0.3, 0, Math.PI * 2);
     ctx.stroke();
+  } else if (th.deco === 'beach') {
+    // Sun, the sea on the horizon and a few clouds
+    const sx = vw * 0.8 - par * 0.2;
+    const sy = vh * 0.18;
+    const sr = Math.min(vw, vh) * 0.07;
+    ctx.fillStyle = 'rgba(255,241,118,0.35)';
+    ctx.beginPath();
+    ctx.arc(sx, sy, sr * 1.6, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#ffee58';
+    ctx.beginPath();
+    ctx.arc(sx, sy, sr, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = 'rgba(255,255,255,0.8)';
+    for (let i = 0; i < 4; i++) {
+      const x = ((hash(i + 20) * (vw + 300) - par - time * 6) % (vw + 300) + vw + 300) % (vw + 300) - 150;
+      const y = vh * (0.08 + hash(i + 23) * 0.2);
+      const r = 16 + hash(i + 25) * 20;
+      ctx.beginPath();
+      ctx.arc(x, y, r, 0, Math.PI * 2);
+      ctx.arc(x + r, y + 5, r * 0.8, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    const sea = vh * 0.55;
+    const sg = ctx.createLinearGradient(0, sea, 0, vh);
+    sg.addColorStop(0, '#0288d1');
+    sg.addColorStop(1, '#4fc3f7');
+    ctx.fillStyle = sg;
+    ctx.fillRect(0, sea, vw, vh - sea);
+    ctx.strokeStyle = 'rgba(255,255,255,0.55)';
+    ctx.lineWidth = 2;
+    for (let i = 0; i < 14; i++) {
+      const x = ((hash(i + 60) * vw - par * 0.6 + Math.sin(time + i) * 10) % vw + vw) % vw;
+      const y = sea + 12 + hash(i + 61) * (vh - sea - 20);
+      line(ctx, x, y, x + 18 + hash(i) * 20, y);
+    }
   } else {
     for (let i = 0; i < 40; i++) {
       const x = ((hash(i) * vw - par) % vw + vw) % vw;
@@ -249,6 +286,23 @@ function drawSpaceship(ctx: Ctx, cx: number, deck: number, time: number) {
 export function drawPlatforms(ctx: Ctx, map: MapDef, time = 0, glassT?: number[]) {
   const th = THEMES[map.theme];
   if (map.deco === 'spaceship') drawSpaceship(ctx, map.w / 2, 640, time);
+  if (map.theme === 'beach') {
+    // The sea under the map
+    const g = ctx.createLinearGradient(0, map.h + 60, 0, map.h + 500);
+    g.addColorStop(0, '#29b6f6');
+    g.addColorStop(1, '#01579b');
+    ctx.fillStyle = g;
+    ctx.fillRect(-3000, map.h + 80, map.w + 6000, 3000);
+    ctx.strokeStyle = 'rgba(255,255,255,0.7)';
+    ctx.lineWidth = 5;
+    ctx.beginPath();
+    for (let x = -3000; x < map.w + 3000; x += 40) ctx.lineTo(x, map.h + 80 + Math.sin(x * 0.05 + time * 2) * 8);
+    ctx.stroke();
+  }
+  if (map.deco === 'palms') {
+    const sand = map.platforms[0];
+    if (sand) for (const [px, lean] of [[sand.x + 70, -1], [sand.x + sand.w - 90, 1]] as [number, number][]) drawPalm(ctx, px, sand.y, lean, time);
+  }
   if (map.theme === 'lava') {
     const g = ctx.createLinearGradient(0, map.h + 120, 0, map.h + 400);
     g.addColorStop(0, '#ff6d00');
@@ -271,6 +325,47 @@ export function drawPlatforms(ctx: Ctx, map: MapDef, time = 0, glassT?: number[]
     ctx.lineWidth = 2;
     roundRect(ctx, p.x, p.y, p.w, p.h, Math.min(10, p.h / 2));
     ctx.stroke();
+  }
+}
+
+/** A palm tree on the Beach. */
+function drawPalm(ctx: Ctx, x: number, y: number, lean: number, time: number) {
+  ctx.lineCap = 'round';
+  ctx.strokeStyle = '#8d6e63';
+  ctx.lineWidth = 16;
+  const tx = x + lean * 50;
+  const ty = y - 240;
+  ctx.beginPath();
+  ctx.moveTo(x, y);
+  ctx.quadraticCurveTo(x + lean * 6, y - 140, tx, ty);
+  ctx.stroke();
+  ctx.strokeStyle = '#6d4c41';
+  ctx.lineWidth = 3;
+  for (let k = 1; k < 8; k++) {
+    const q = k / 8;
+    const bx = x + (tx - x) * q * q;
+    const by = y + (ty - y) * q;
+    line(ctx, bx - 8, by, bx + 8, by - 3);
+  }
+  ctx.fillStyle = '#43a047';
+  ctx.strokeStyle = '#1b5e20';
+  ctx.lineWidth = 2;
+  for (let k = 0; k < 6; k++) {
+    const a = -Math.PI / 2 + (k - 2.5) * 0.55 + Math.sin(time * 1.5 + k) * 0.05;
+    const ex = tx + Math.cos(a) * 110;
+    const ey = ty + Math.sin(a) * 60 + 40;
+    ctx.beginPath();
+    ctx.moveTo(tx, ty);
+    ctx.quadraticCurveTo((tx + ex) / 2 + Math.cos(a - 1) * 30, (ty + ey) / 2 - 40, ex, ey);
+    ctx.quadraticCurveTo((tx + ex) / 2, (ty + ey) / 2 - 5, tx, ty);
+    ctx.fill();
+    ctx.stroke();
+  }
+  ctx.fillStyle = '#795548';
+  for (const d of [-10, 8, -2]) {
+    ctx.beginPath();
+    ctx.arc(tx + d, ty + 12 + Math.abs(d) * 0.4, 9, 0, Math.PI * 2);
+    ctx.fill();
   }
 }
 
@@ -484,6 +579,153 @@ export function drawWeaponShape(ctx: Ctx, id: WeaponId, len: number, s: number, 
     case 'banana':
       if (ready) drawBanana(ctx, 12 * s, 0, 11 * s, 0);
       break;
+    case 'firesword':
+      ctx.fillStyle = '#4e342e';
+      ctx.fillRect(-2 * s, -3 * s, 12 * s, 6 * s);
+      ctx.strokeStyle = '#ff6d00';
+      ctx.lineWidth = 4 * s;
+      line(ctx, 10 * s, -9 * s, 10 * s, 9 * s);
+      ctx.fillStyle = ready ? '#ff7043' : '#a1887f';
+      ctx.strokeStyle = '#bf360c';
+      ctx.lineWidth = 1.5 * s;
+      ctx.beginPath();
+      ctx.moveTo(12 * s, -5 * s);
+      ctx.lineTo(len - 12 * s, -5 * s);
+      ctx.lineTo(len, 0);
+      ctx.lineTo(len - 12 * s, 5 * s);
+      ctx.lineTo(12 * s, 5 * s);
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+      // Flames along the blade
+      ctx.fillStyle = ready ? '#ffeb3b' : '#ffcc80';
+      for (let k = 0; k < 4; k++) {
+        const fx = 18 * s + ((len - 30 * s) * k) / 3;
+        ctx.beginPath();
+        ctx.moveTo(fx - 4 * s, -5 * s);
+        ctx.quadraticCurveTo(fx, -14 * s, fx + 3 * s, -5 * s);
+        ctx.fill();
+      }
+      break;
+    case 'recall':
+      // Just a tiny box
+      ctx.fillStyle = ready ? '#9575cd' : '#7e57c2';
+      ctx.strokeStyle = '#311b92';
+      ctx.lineWidth = 1.5 * s;
+      roundRect(ctx, 4 * s, -7 * s, 14 * s, 14 * s, 2 * s);
+      ctx.fill();
+      ctx.stroke();
+      ctx.strokeStyle = 'rgba(255,255,255,0.6)';
+      line(ctx, 4 * s, -2 * s, 18 * s, -2 * s);
+      if (ready) {
+        ctx.fillStyle = 'rgba(179,136,255,0.35)';
+        ctx.beginPath();
+        ctx.arc(11 * s, 0, 12 * s, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      break;
+    case 'dart':
+      ctx.strokeStyle = '#6d4c41';
+      ctx.lineWidth = 2.5 * s;
+      line(ctx, 0, 0, len - 6 * s, 0);
+      ctx.fillStyle = '#e53935';
+      ctx.beginPath();
+      ctx.moveTo(-2 * s, 0);
+      ctx.lineTo(6 * s, -6 * s);
+      ctx.lineTo(8 * s, 0);
+      ctx.lineTo(6 * s, 6 * s);
+      ctx.closePath();
+      ctx.fill();
+      ctx.fillStyle = ready ? '#76ff03' : '#9e9e9e';
+      ctx.beginPath();
+      ctx.moveTo(len - 8 * s, -3 * s);
+      ctx.lineTo(len + 2 * s, 0);
+      ctx.lineTo(len - 8 * s, 3 * s);
+      ctx.closePath();
+      ctx.fill();
+      break;
+    case 'glove': {
+      // A spring arm with a big red glove on the end
+      ctx.strokeStyle = '#9e9e9e';
+      ctx.lineWidth = 2 * s;
+      ctx.beginPath();
+      const n = 8;
+      for (let k = 0; k <= n; k++) ctx.lineTo(((len - 14 * s) * k) / n, k % 2 ? -4 * s : 4 * s);
+      ctx.stroke();
+      ctx.fillStyle = '#e53935';
+      ctx.strokeStyle = '#7f0000';
+      ctx.lineWidth = 1.5 * s;
+      ctx.beginPath();
+      ctx.ellipse(len - 4 * s, 0, 12 * s, 10 * s, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.ellipse(len - 8 * s, -9 * s, 5 * s, 4 * s, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+      ctx.fillStyle = '#fafafa';
+      ctx.fillRect(len - 18 * s, -6 * s, 4 * s, 12 * s);
+      break;
+    }
+    case 'magnet':
+      ctx.strokeStyle = '#5d4037';
+      ctx.lineWidth = 4 * s;
+      line(ctx, -4 * s, 0, len - 22 * s, 0);
+      ctx.strokeStyle = '#e53935';
+      ctx.lineWidth = 8 * s;
+      ctx.beginPath();
+      ctx.arc(len - 14 * s, 0, 11 * s, Math.PI / 2, Math.PI * 1.5);
+      ctx.moveTo(len - 14 * s, -11 * s);
+      ctx.lineTo(len - 2 * s, -11 * s);
+      ctx.moveTo(len - 14 * s, 11 * s);
+      ctx.lineTo(len - 2 * s, 11 * s);
+      ctx.stroke();
+      ctx.strokeStyle = ready ? '#eceff1' : '#9e9e9e';
+      line(ctx, len - 4 * s, -11 * s, len + 3 * s, -11 * s);
+      line(ctx, len - 4 * s, 11 * s, len + 3 * s, 11 * s);
+      break;
+    case 'rocket':
+      ctx.fillStyle = '#558b2f';
+      ctx.strokeStyle = '#1b5e20';
+      ctx.lineWidth = 1.5 * s;
+      roundRect(ctx, -10 * s, -7 * s, len, 14 * s, 4 * s);
+      ctx.fill();
+      ctx.stroke();
+      ctx.fillStyle = '#33691e';
+      ctx.fillRect(2 * s, 6 * s, 6 * s, 10 * s);
+      if (ready) {
+        ctx.fillStyle = '#e53935';
+        ctx.beginPath();
+        ctx.moveTo(len - 10 * s, -6 * s);
+        ctx.lineTo(len + 6 * s, 0);
+        ctx.lineTo(len - 10 * s, 6 * s);
+        ctx.closePath();
+        ctx.fill();
+      }
+      break;
+    case 'trident':
+      ctx.strokeStyle = '#ffb300';
+      ctx.lineWidth = 4 * s;
+      line(ctx, -14 * s, 0, len - 14 * s, 0);
+      ctx.lineWidth = 3 * s;
+      ctx.beginPath();
+      ctx.moveTo(len - 4 * s, -10 * s);
+      ctx.lineTo(len - 16 * s, -10 * s);
+      ctx.lineTo(len - 16 * s, 10 * s);
+      ctx.lineTo(len - 4 * s, 10 * s);
+      ctx.moveTo(len - 16 * s, 0);
+      ctx.lineTo(len + 2 * s, 0);
+      ctx.stroke();
+      ctx.fillStyle = ready ? '#fff176' : '#ffca28';
+      for (const py of [-10, 0, 10]) {
+        const tipx = py === 0 ? len + 2 * s : len - 4 * s;
+        ctx.beginPath();
+        ctx.moveTo(tipx, (py - 3) * s);
+        ctx.lineTo(tipx + 7 * s, py * s);
+        ctx.lineTo(tipx, (py + 3) * s);
+        ctx.fill();
+      }
+      break;
     case 'catcall':
       // A golden bell to call the cats
       ctx.strokeStyle = '#8d6e63';
@@ -639,6 +881,104 @@ function drawSoupPot(ctx: Ctx, x: number, y: number, s: number, gold: boolean, r
     ctx.arc(x + 5 * s, y - 4 * s, 1.3 * s, 0, Math.PI * 2);
     ctx.fill();
   }
+}
+
+/** A fish called by the Fishy boss: it flops about and bites. */
+function drawFishMinion(ctx: Ctx, c: Cat, time: number) {
+  const { x, y } = c;
+  const f = c.facing;
+  const flop = Math.sin(time * 14 + c.id) * 0.15;
+  ctx.save();
+  ctx.translate(x, y - 14);
+  ctx.rotate(flop);
+  ctx.fillStyle = c.hurtFlash > 0 ? '#ffffff' : '#29b6f6';
+  ctx.strokeStyle = '#01579b';
+  ctx.lineWidth = 2;
+  // Tail
+  ctx.beginPath();
+  ctx.moveTo(-f * 12, 0);
+  ctx.lineTo(-f * 24, -9);
+  ctx.lineTo(-f * 24, 9);
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
+  // Body
+  ctx.beginPath();
+  ctx.ellipse(0, 0, 16, 10, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.stroke();
+  // Fin, eye and a biting mouth
+  ctx.fillStyle = '#0288d1';
+  ctx.beginPath();
+  ctx.moveTo(-f * 4, -9);
+  ctx.lineTo(f * 2, -16);
+  ctx.lineTo(f * 6, -8);
+  ctx.fill();
+  ctx.fillStyle = '#ffffff';
+  ctx.beginPath();
+  ctx.arc(f * 8, -3, 3.2, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = '#000';
+  ctx.beginPath();
+  ctx.arc(f * 9, -3, 1.6, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.strokeStyle = '#01579b';
+  ctx.beginPath();
+  const open = c.attackT > 0.5 ? 5 : 1.5;
+  ctx.moveTo(f * 16, 2 - open);
+  ctx.lineTo(f * 10, 3);
+  ctx.lineTo(f * 16, 3 + open);
+  ctx.stroke();
+  ctx.restore();
+  hpBar(ctx, x, y - 44, 26, c.hp / c.maxHp, c.color);
+}
+
+/** The purple boss ally from Recall Memory: purple lines, a black head, no weapon. */
+function drawMemoryAlly(ctx: Ctx, c: Cat) {
+  const { x, y } = c;
+  const f = c.facing;
+  const k = c.h / 128;
+  const P = (dx: number, dy: number): [number, number] => [x + f * dx * k, y - dy * k];
+  ctx.globalAlpha = c.life < 1.5 ? Math.max(0, c.life / 1.5) : 1;
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+  const purple = c.hurtFlash > 0 ? '#e1bee7' : '#a64dff';
+  ctx.strokeStyle = purple;
+  ctx.lineWidth = 6 * k;
+  const sw = c.onGround && Math.abs(c.vx) > 20 ? Math.sin(c.walkPhase) * 10 : 0;
+  const hip = P(0, 52);
+  const neck = P(0, 96);
+  const sh = P(0, 88);
+  ctx.beginPath();
+  // Legs with little feet turned out
+  ctx.moveTo(...P(-14 - sw, 0));
+  ctx.lineTo(...P(-7 - sw, 3));
+  ctx.lineTo(...hip);
+  ctx.lineTo(...P(7 + sw, 3));
+  ctx.lineTo(...P(15 + sw, 0));
+  // Body
+  ctx.moveTo(...hip);
+  ctx.lineTo(...neck);
+  // Short arm down to one side, and a bent arm on the other (it punches when it hits)
+  ctx.moveTo(...sh);
+  ctx.lineTo(...P(-22, 74));
+  ctx.moveTo(...sh);
+  if (c.attackT > 0.5) ctx.lineTo(...P(34, 84));
+  else {
+    ctx.lineTo(...P(12, 76));
+    ctx.lineTo(...P(18, 64));
+  }
+  ctx.stroke();
+  // Head: black inside, thick purple ring
+  const [hx, hy] = P(0, 112);
+  ctx.fillStyle = '#0b0b14';
+  ctx.lineWidth = 5 * k;
+  ctx.beginPath();
+  ctx.arc(hx, hy, 15 * k, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.stroke();
+  ctx.globalAlpha = 1;
+  hpBar(ctx, x, y - c.h - 18, 44, c.hp / c.maxHp, c.owner.color);
 }
 
 /** An AI cat called by Grandfather Cat. */
@@ -806,7 +1146,166 @@ function hpBar(ctx: Ctx, x: number, y: number, w: number, frac: number, color: s
   ctx.fillRect(x - w / 2 - 2, y - 2, 3, 9);
 }
 
+/** Buffalo walks on four legs, with big horns. */
+function drawBuffalo(ctx: Ctx, f: Fighter) {
+  const { x, y } = f;
+  const d = f.facing;
+  const col = f.frozenT > 0 ? '#b3e5fc' : f.hurtFlash > 0 ? '#ffffff' : '#4e342e';
+  const dark = '#1b0f0a';
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+  // Legs (back pair, then front pair)
+  const sw = f.onGround && Math.abs(f.vx) > 20 ? Math.sin(f.walkPhase * 0.7) * 16 : f.onGround ? 0 : 10;
+  ctx.strokeStyle = dark;
+  ctx.lineWidth = 16;
+  for (const [lx, ph] of [
+    [-55, 1],
+    [-30, -1],
+    [35, -1],
+    [60, 1],
+  ] as [number, number][]) {
+    line(ctx, x + d * lx, y - 60, x + d * (lx + sw * ph), y - 6);
+  }
+  ctx.strokeStyle = col;
+  ctx.lineWidth = 11;
+  for (const [lx, ph] of [
+    [-55, 1],
+    [-30, -1],
+    [35, -1],
+    [60, 1],
+  ] as [number, number][]) {
+    line(ctx, x + d * lx, y - 60, x + d * (lx + sw * ph), y - 6);
+  }
+  // Hooves
+  ctx.fillStyle = dark;
+  for (const [lx, ph] of [
+    [-55, 1],
+    [-30, -1],
+    [35, -1],
+    [60, 1],
+  ] as [number, number][]) {
+    ctx.fillRect(x + d * (lx + sw * ph) - 8, y - 8, 16, 8);
+  }
+  // Tail
+  ctx.strokeStyle = dark;
+  ctx.lineWidth = 5;
+  ctx.beginPath();
+  ctx.moveTo(x - d * 88, y - 100);
+  ctx.quadraticCurveTo(x - d * 108, y - 80, x - d * 100, y - 58);
+  ctx.stroke();
+  // Body and shoulder hump
+  ctx.fillStyle = col;
+  ctx.strokeStyle = dark;
+  ctx.lineWidth = 4;
+  ctx.beginPath();
+  ctx.ellipse(x - d * 8, y - 88, 92, 42, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.ellipse(x + d * 40, y - 112, 44, 34, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.stroke();
+  // Head: lowered when charging or butting
+  const down = f.buttAnim > 0 || f.dashT > 0;
+  const hx = x + d * (down ? 104 : 92);
+  const hy = y - (down ? 62 : 92);
+  ctx.beginPath();
+  ctx.ellipse(hx, hy, 32, 27, d * (down ? 0.5 : 0.15), 0, Math.PI * 2);
+  ctx.fill();
+  ctx.stroke();
+  // Muzzle and nostrils
+  ctx.fillStyle = '#8d6e63';
+  ctx.beginPath();
+  ctx.ellipse(hx + d * 22, hy + 10, 14, 11, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.stroke();
+  ctx.fillStyle = dark;
+  ctx.beginPath();
+  ctx.arc(hx + d * 26, hy + 8, 2.5, 0, Math.PI * 2);
+  ctx.arc(hx + d * 20, hy + 12, 2.5, 0, Math.PI * 2);
+  ctx.fill();
+  // Big curved horns
+  for (const side of [-1, 1]) {
+    ctx.strokeStyle = '#3e2723';
+    ctx.lineWidth = 12;
+    ctx.beginPath();
+    ctx.moveTo(hx - d * 6 + side * 4, hy - 18);
+    ctx.quadraticCurveTo(hx - d * (side > 0 ? 50 : 20), hy - 44, hx + d * (side > 0 ? -34 : 26), hy - 64);
+    ctx.stroke();
+    ctx.strokeStyle = '#eeeeee';
+    ctx.lineWidth = 7;
+    ctx.stroke();
+  }
+  // Angry red eye
+  ctx.fillStyle = '#ff1744';
+  ctx.beginPath();
+  ctx.arc(hx + d * 8, hy - 8, 5, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = '#000';
+  ctx.beginPath();
+  ctx.arc(hx + d * 9, hy - 8, 2.4, 0, Math.PI * 2);
+  ctx.fill();
+}
+
+/** The Fishy boss's head: a big blue fish face. */
+function drawFishHead(ctx: Ctx, hx: number, hy: number, s: number, d: number, col: string, outline: string) {
+  ctx.fillStyle = col;
+  ctx.strokeStyle = outline;
+  ctx.lineWidth = 3 * s;
+  // Top fin
+  ctx.beginPath();
+  ctx.moveTo(hx - d * 10 * s, hy - 9 * s);
+  ctx.lineTo(hx - d * 2 * s, hy - 24 * s);
+  ctx.lineTo(hx + d * 8 * s, hy - 10 * s);
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
+  // Head
+  ctx.beginPath();
+  ctx.ellipse(hx + d * 3 * s, hy, 16 * s, 12 * s, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.stroke();
+  // Gills
+  ctx.strokeStyle = 'rgba(0,0,0,0.35)';
+  ctx.lineWidth = 1.5 * s;
+  for (const k of [0, 4]) {
+    ctx.beginPath();
+    ctx.arc(hx - d * (6 - k) * s, hy + 1 * s, 7 * s, -0.9, 0.9);
+    ctx.stroke();
+  }
+  // Big eye and fish lips
+  ctx.fillStyle = '#ffffff';
+  ctx.beginPath();
+  ctx.arc(hx + d * 8 * s, hy - 3 * s, 4.5 * s, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = '#ff1744';
+  ctx.beginPath();
+  ctx.arc(hx + d * 9 * s, hy - 3 * s, 2.2 * s, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = '#f48fb1';
+  ctx.beginPath();
+  ctx.ellipse(hx + d * 18 * s, hy + 5 * s, 3 * s, 4 * s, 0, 0, Math.PI * 2);
+  ctx.fill();
+}
+
+/** Green bubbles over someone poisoned. */
+function drawPoison(ctx: Ctx, b: Body, time: number) {
+  for (let i = 0; i < 3; i++) {
+    const ph = (time * 1.5 + i / 3) % 1;
+    const x = b.x + Math.sin(i * 2.7 + time * 3) * b.w * 0.3;
+    const y = b.y - b.h - 4 - ph * 22;
+    ctx.globalAlpha = 1 - ph;
+    ctx.strokeStyle = '#76ff03';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(x, y, 3 + ph * 3, 0, Math.PI * 2);
+    ctx.stroke();
+  }
+  ctx.globalAlpha = 1;
+}
+
 function drawFighter(ctx: Ctx, f: Fighter, time: number) {
+  if (f.buffalo) return drawBuffalo(ctx, f);
   const s = f.scale;
   const { x, y } = f;
   const outline = f.boss && !f.mascot ? '#ff1744' : 'rgba(0,0,0,0.8)';
@@ -874,10 +1373,13 @@ function drawFighter(ctx: Ctx, f: Fighter, time: number) {
     ctx.fill();
     ctx.stroke();
   }
-  ctx.beginPath();
-  ctx.arc(head[0], head[1], 11 * s, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.stroke();
+  if (f.fish) drawFishHead(ctx, head[0], head[1], s, f.facing, col, outline);
+  else {
+    ctx.beginPath();
+    ctx.arc(head[0], head[1], 11 * s, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+  }
   if (f.cat) {
     // White grandpa beard, whiskers and a pink nose
     ctx.fillStyle = '#fafafa';
@@ -895,8 +1397,8 @@ function drawFighter(ctx: Ctx, f: Fighter, time: number) {
     ctx.arc(head[0] + f.facing * 8 * s, head[1] + 1 * s, 1.6 * s, 0, Math.PI * 2);
     ctx.fill();
   }
-  // The Mascot has no eyes.
-  if (!f.mascot) {
+  // The Mascot has no eyes (and the Fishy boss has fish eyes).
+  if (!f.mascot && !f.fish) {
     ctx.fillStyle = f.boss ? '#ff1744' : '#ffffff';
     ctx.beginPath();
     ctx.arc(head[0] + f.facing * 4 * s, head[1] - 2 * s, 3.2 * s, 0, Math.PI * 2);
@@ -1080,6 +1582,117 @@ function drawProjectile(ctx: Ctx, p: Projectile, time: number) {
       ctx.fill();
       ctx.stroke();
       break;
+    case 'fireslash': {
+      // A curved air slash of fire
+      const a = Math.atan2(p.vy, p.vx);
+      const R = p.r * 1.6;
+      ctx.save();
+      ctx.translate(p.x, p.y);
+      ctx.rotate(a);
+      for (const [w, c] of [
+        [1, 'rgba(255,87,34,0.55)'],
+        [0.65, '#ff9800'],
+        [0.35, '#ffeb3b'],
+      ] as [number, string][]) {
+        ctx.fillStyle = c;
+        ctx.beginPath();
+        ctx.arc(-R * 0.6, 0, R, -1.15, 1.15);
+        ctx.arc(-R * 0.6 - R * 0.45 * w, 0, R * (1 - 0.25 * w), 1.05, -1.05, true);
+        ctx.closePath();
+        ctx.fill();
+      }
+      ctx.restore();
+      break;
+    }
+    case 'dart': {
+      const a = Math.atan2(p.vy, p.vx);
+      ctx.save();
+      ctx.translate(p.x, p.y);
+      ctx.rotate(a);
+      ctx.strokeStyle = '#6d4c41';
+      ctx.lineWidth = 2.5;
+      line(ctx, -20, 0, 0, 0);
+      ctx.fillStyle = '#76ff03';
+      ctx.beginPath();
+      ctx.moveTo(8, 0);
+      ctx.lineTo(-2, -3.5);
+      ctx.lineTo(-2, 3.5);
+      ctx.fill();
+      ctx.fillStyle = '#e53935';
+      ctx.beginPath();
+      ctx.moveTo(-16, 0);
+      ctx.lineTo(-24, -6);
+      ctx.lineTo(-22, 0);
+      ctx.lineTo(-24, 6);
+      ctx.closePath();
+      ctx.fill();
+      ctx.restore();
+      break;
+    }
+    case 'memorybox':
+      ctx.save();
+      ctx.translate(p.x, p.y);
+      ctx.rotate(time * 18);
+      ctx.fillStyle = 'rgba(179,136,255,0.4)';
+      ctx.fillRect(-p.r * 1.5, -p.r * 1.5, p.r * 3, p.r * 3);
+      ctx.fillStyle = '#9575cd';
+      ctx.strokeStyle = '#311b92';
+      ctx.lineWidth = 2;
+      ctx.fillRect(-p.r, -p.r, p.r * 2, p.r * 2);
+      ctx.strokeRect(-p.r, -p.r, p.r * 2, p.r * 2);
+      ctx.restore();
+      break;
+    case 'rocket': {
+      const a = Math.atan2(p.vy, p.vx);
+      ctx.save();
+      ctx.translate(p.x, p.y);
+      ctx.rotate(a);
+      ctx.fillStyle = Math.floor(time * 30) % 2 ? '#ffeb3b' : '#ff6d00';
+      ctx.beginPath();
+      ctx.moveTo(-14, -5);
+      ctx.lineTo(-30 - Math.random() * 10, 0);
+      ctx.lineTo(-14, 5);
+      ctx.fill();
+      ctx.fillStyle = '#eceff1';
+      ctx.strokeStyle = '#37474f';
+      ctx.lineWidth = 1.5;
+      roundRect(ctx, -16, -6, 24, 12, 3);
+      ctx.fill();
+      ctx.stroke();
+      ctx.fillStyle = '#e53935';
+      ctx.beginPath();
+      ctx.moveTo(8, -6);
+      ctx.lineTo(18, 0);
+      ctx.lineTo(8, 6);
+      ctx.closePath();
+      ctx.fill();
+      ctx.restore();
+      break;
+    }
+    case 'wave': {
+      // A rolling wave of water
+      const d = Math.sign(p.vx) || 1;
+      const H = p.r * 1.6;
+      ctx.save();
+      ctx.translate(p.x, p.y + 45);
+      ctx.scale(d, 1);
+      ctx.fillStyle = 'rgba(41,182,246,0.75)';
+      ctx.strokeStyle = '#ffffff';
+      ctx.lineWidth = 4;
+      ctx.beginPath();
+      ctx.moveTo(-p.r * 1.8, 0);
+      ctx.quadraticCurveTo(-p.r * 0.6, -H * 0.4, 0, -H);
+      ctx.quadraticCurveTo(p.r * 0.7, -H * 1.05, p.r * 0.8, -H * 0.6);
+      ctx.quadraticCurveTo(p.r * 0.3, -H * 0.7, p.r * 0.5, 0);
+      ctx.closePath();
+      ctx.fill();
+      ctx.beginPath();
+      ctx.moveTo(-p.r * 0.2, -H * 0.85);
+      ctx.quadraticCurveTo(p.r * 0.5, -H * 1.1, p.r * 0.8, -H * 0.6);
+      ctx.stroke();
+      ctx.restore();
+      break;
+    }
     case 'fireball': {
       const flick = 1 + Math.sin(time * 40) * 0.12;
       ctx.fillStyle = 'rgba(255,87,34,0.45)';
@@ -1115,7 +1728,12 @@ export function renderGame(g: Game, ctx: Ctx, vw: number, vh: number, dpr: numbe
     drawSnowball(ctx, gb.x, gb.y - 11, 12, gb.owner.color);
   }
   for (const m of g.snowmen) if (m.alive) drawSnowman(ctx, m);
-  for (const c of g.cats) if (c.alive) drawCat(ctx, c);
+  for (const c of g.cats) {
+    if (!c.alive) continue;
+    if (c.variant === 'fish') drawFishMinion(ctx, c, g.time);
+    else if (c.variant === 'memory') drawMemoryAlly(ctx, c);
+    else drawCat(ctx, c);
+  }
   for (const pe of g.peels) {
     if (pe.life < 1.5 && Math.floor(pe.life * 8) % 2 === 0) continue;
     drawBanana(ctx, pe.x, pe.y - 4, 9, 0.3);
@@ -1138,6 +1756,7 @@ export function renderGame(g: Game, ctx: Ctx, vw: number, vh: number, dpr: numbe
   const order = g.fighters.filter((f) => f.alive).sort((a, b) => Number(a.human) - Number(b.human) || Number(b.boss) - Number(a.boss));
   for (const f of order) drawFighter(ctx, f, g.time);
   for (const b of g.bodies()) if (b.alive && b.burnT > 0) drawFlames(ctx, b, g.time);
+  for (const b of g.bodies()) if (b.alive && b.poisonT > 0) drawPoison(ctx, b, g.time);
   for (const p of g.projectiles) drawProjectile(ctx, p, g.time);
   for (const b of g.bolts) drawBolt(ctx, b);
 
@@ -1170,7 +1789,9 @@ export function renderGame(g: Game, ctx: Ctx, vw: number, vh: number, dpr: numbe
 
   // Boss health bars across the top (one per boss)
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-  for (const [k, boss] of g.bosses.entries()) {
+  // (On the Beach, bosses on your side that went down in the cutscene drop off the list.)
+  const bars = g.bosses.filter((b) => b.alive || b.team === BOSS_TEAM);
+  for (const [k, boss] of bars.entries()) {
     const w = Math.min(520, vw * 0.5);
     const x = vw / 2 - w / 2;
     const y = 54 + k * 26;
@@ -1184,5 +1805,22 @@ export function renderGame(g: Game, ctx: Ctx, vw: number, vh: number, dpr: numbe
     ctx.textAlign = 'center';
     ctx.fillStyle = '#fff';
     ctx.fillText(`${boss.name}  ${Math.max(0, Math.ceil(boss.hp))} / ${boss.maxHp}`, vw / 2, y + 12);
+  }
+
+  // Big words across the screen (the Beach and its cutscene)
+  if (g.caption) {
+    const c = g.caption;
+    const text = t(c.key, { name: g.fighters[c.who]?.name ?? '' });
+    const size = Math.round(Math.min(40, Math.max(22, vw / 22)));
+    ctx.globalAlpha = Math.min(1, c.t * 3);
+    ctx.font = `900 ${size}px "Baloo 2", system-ui, sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.lineWidth = 6;
+    ctx.strokeStyle = 'rgba(0,0,0,0.85)';
+    const ty = 70 + bars.length * 26 + size;
+    ctx.strokeText(text, vw / 2, ty, vw - 32);
+    ctx.fillStyle = '#ffffff';
+    ctx.fillText(text, vw / 2, ty, vw - 32);
+    ctx.globalAlpha = 1;
   }
 }

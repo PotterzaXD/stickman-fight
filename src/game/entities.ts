@@ -12,6 +12,8 @@ export const BOSS_HP = 5000;
 export const MAX_SNOWMEN = 10;
 export const CAT_BOSS_HP = 10000;
 export const MASCOT_HP = 50000;
+export const BUFFALO_HP = 8000;
+export const FISH_HP = 9999;
 
 let nextId = 1;
 
@@ -41,6 +43,10 @@ export abstract class Body {
   burnEvery = 0.5;
   /** Seconds left frozen by the Ice Wand (can't move). */
   frozenT = 0;
+  /** Poison Dart: seconds left poisoned, 10 damage every second. */
+  poisonT = 0;
+  poisonTick = 0;
+  poisonSrc: Body | null = null;
   abstract readonly kind: 'fighter' | 'snowman' | 'cat';
 
   constructor(x: number, y: number, w: number, h: number, hp: number, team: number, color: string) {
@@ -80,6 +86,12 @@ export interface FighterOpts {
   cat?: boolean;
   /** The white Mascot boss from the game icon. */
   mascot?: boolean;
+  /** The Buffalo boss (no normal attack: horn charge and head butt). */
+  buffalo?: boolean;
+  /** The Fishy boss from the Beach. */
+  fish?: boolean;
+  /** Starting HP (Sandbox), instead of the normal amount. */
+  hp?: number;
 }
 
 export class Fighter extends Body {
@@ -91,6 +103,20 @@ export class Fighter extends Body {
   cat: boolean;
   /** The white Mascot boss (no eyes). */
   mascot: boolean;
+  buffalo: boolean;
+  fish: boolean;
+  /** Fire Sword's Inferno Slash: the arm sweeps through the slash. */
+  slashT = 0;
+  slashAngle = 0;
+  slashSlot = 0;
+  /** Buffalo's Head Butt: butts left, seconds to the next one, and the head-down picture. */
+  buttN = 0;
+  buttT = 0;
+  buttAnim = 0;
+  /** Recall Memory: seconds until the boss ally can be called again. */
+  summonCd = 0;
+  /** The Fishy boss takes turns: 0 tidal waves, 1 call fish, 2 trident strike. */
+  fishNext = 0;
   /** How this stickman was knocked out (the death finisher). */
   finish: Finish = 'pop';
   /** Next slam on landing: damage, radius and finisher (hammer, Mascot stick). */
@@ -100,6 +126,8 @@ export class Fighter extends Body {
   nextCats = false;
   scale: number;
   dmgMult: number;
+  /** Sandbox: every hit does this much more (1 = normal). */
+  power = 1;
   speed: number;
   weapons: WeaponDef[];
   angles: number[];
@@ -134,12 +162,16 @@ export class Fighter extends Body {
 
   constructor(o: FighterOpts) {
     const scale = o.boss ? 2.6 : 1;
-    super(o.x, o.y, 30 * scale, 80 * scale, o.mascot ? MASCOT_HP : o.cat ? CAT_BOSS_HP : o.boss ? BOSS_HP : PLAYER_HP, o.team, o.color);
+    const hp = o.hp ?? (o.mascot ? MASCOT_HP : o.cat ? CAT_BOSS_HP : o.buffalo ? BUFFALO_HP : o.fish ? FISH_HP : o.boss ? BOSS_HP : PLAYER_HP);
+    // Buffalo walks on four legs: wide and low.
+    super(o.x, o.y, o.buffalo ? 190 : 30 * scale, o.buffalo ? 150 : 80 * scale, hp, o.team, o.color);
     this.name = o.name;
     this.human = o.human;
     this.boss = !!o.boss;
     this.cat = !!o.cat;
     this.mascot = !!o.mascot;
+    this.buffalo = !!o.buffalo;
+    this.fish = !!o.fish;
     this.scale = scale;
     this.dmgMult = o.boss ? 1.5 : 1;
     this.speed = o.boss ? 300 : 380;
@@ -163,7 +195,8 @@ export class Fighter extends Body {
 
   reach(i: number): number {
     const w = this.weapons[i];
-    return w.length * this.scale * (this.thrustT > 0 && w.id === 'spear' && i === this.thrustSlot ? 2.4 : 1);
+    const thrust = this.thrustT > 0 && i === this.thrustSlot;
+    return w.length * this.scale * (thrust && w.id === 'spear' ? 2.4 : thrust && w.id === 'glove' ? 3.2 : thrust && w.id === 'trident' ? 1.8 : 1);
   }
 
   tip(i: number): Vec {
@@ -241,22 +274,37 @@ export class Snowman extends Body {
   }
 }
 
-/** An AI cat called by Grandfather Cat (or the Treasure). Runs at enemies and hurts them on touch. */
+/** What a helper looks like: a cat, a fish from the Fishy boss, or the purple boss ally from Recall Memory. */
+export type CatVariant = 'cat' | 'fish' | 'memory';
+export const CAT_VARIANTS: CatVariant[] = ['cat', 'fish', 'memory'];
+/** Recall Memory's boss ally: 1,000 HP, 30 damage, fades away after 20 seconds. */
+export const MEMORY_ALLY = { hp: 1000, dmg: 30, life: 20 };
+
+/**
+ * A little helper that runs at enemies and hurts them on touch: an AI cat called by Grandfather Cat
+ * (or the Treasure), a fish called by the Fishy boss, or the Recall Memory boss ally.
+ */
 export class Cat extends Body {
   readonly kind = 'cat' as const;
   owner: Fighter;
   touchDmg: number;
+  variant: CatVariant;
+  /** Seconds left before it fades away (Recall Memory ally). Infinity = stays. */
+  life = Infinity;
   thinkT = 0;
   attackT = 0;
   moveX = 0;
   target: Body | null = null;
   walkPhase = 0;
 
-  constructor(owner: Fighter, x: number, y: number, hp: number, touchDmg: number) {
-    super(x, y, 34, 30, hp, owner.team, owner.color);
+  constructor(owner: Fighter, x: number, y: number, hp: number, touchDmg: number, variant: CatVariant = 'cat') {
+    // The boss ally is bigger than a stickman (80) but smaller than the bosses (208).
+    super(x, y, variant === 'memory' ? 46 : 34, variant === 'memory' ? 128 : 30, hp, owner.team, owner.color);
     this.owner = owner;
     this.touchDmg = touchDmg;
     this.facing = owner.facing;
+    this.variant = variant;
+    if (variant === 'memory') this.life = MEMORY_ALLY.life;
   }
 }
 
@@ -274,7 +322,12 @@ export type ProjKind =
   | 'poop'
   | 'soup'
   | 'icebolt'
-  | 'banana';
+  | 'banana'
+  | 'fireslash'
+  | 'dart'
+  | 'memorybox'
+  | 'rocket'
+  | 'wave';
 
 /** Thrown weapons that fly out and come back to the hand. */
 export const returns = (k: ProjKind) => k === 'boomerang' || k === 'axe' || k === 'six7';
@@ -299,6 +352,8 @@ export interface Projectile {
   dead: boolean;
   /** Gang som soup: burn damage each second for 5 seconds. */
   burnDmg?: number;
+  /** Tidal waves: which way it pushes. */
+  dir?: number;
 }
 
 export interface GroundBall {

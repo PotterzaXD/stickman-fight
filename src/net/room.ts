@@ -1,12 +1,12 @@
 import type { RealtimeChannel } from '@supabase/supabase-js';
 import { supabase } from '../cloud';
 import { TEAM_COLORS, randomBossWeapons, type FighterSpec, type MatchResult } from '../game/game';
-import { isBossMode, type Controller, type Difficulty, type FallMode, type MapDef, type Mode } from '../game/types';
+import { BEACH_MAP, BEACH_MODES, isBossMode, type Controller, type Difficulty, type FallMode, type MapDef, type Mode } from '../game/types';
 import { cleanName, save } from '../save';
-import { SHOP_WEAPONS } from '../game/weapons';
+import { MASCOT_WEAPONS } from '../game/weapons';
 import type { Snapshot } from './snapshot';
 
-export const PROTO = 4;
+export const PROTO = 5;
 export const MIN_ROOM = 2;
 export const MAX_ROOM = 20;
 export const MAX_LOCAL = 6;
@@ -47,6 +47,8 @@ export interface RoomState {
   /** Healing potions on/off (starts from the host's setting). */
   potions: boolean;
   hostWeapons: string[];
+  /** The host has beaten the Mascot alone, so Buffalo is unlocked. */
+  hostBuffalo?: boolean;
   phase: 'lobby' | 'playing';
   members: Member[];
 }
@@ -73,6 +75,8 @@ export interface NetResult {
   winnerTeam: number | null;
   /** Indexes into the match's fighters. */
   winners: number[];
+  /** The Beach: the Fishy boss was beaten. */
+  fish?: boolean;
 }
 
 type Msg =
@@ -92,10 +96,10 @@ export type JoinError = 'notFound' | 'full' | 'failed' | 'version' | 'offline';
 
 /** The Mascot boss unlocks when you own every weapon sold in the shop. */
 export function mascotUnlocked(owned: string[]) {
-  return SHOP_WEAPONS.every((w) => owned.includes(w.id));
+  return MASCOT_WEAPONS.every((id) => owned.includes(id));
 }
 export function mascotProgress(owned: string[]) {
-  return { n: SHOP_WEAPONS.filter((w) => owned.includes(w.id)).length, total: SHOP_WEAPONS.length };
+  return { n: MASCOT_WEAPONS.filter((id) => owned.includes(id)).length, total: MASCOT_WEAPONS.length };
 }
 
 const CODE_CHARS = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
@@ -339,6 +343,7 @@ export class RoomHost extends Emitter<RoomEvents> {
         bosses: 1,
         potions: save.data.settings.potions,
         hostWeapons,
+        hostBuffalo: save.data.achievements.includes('buffalo'),
         phase: 'lobby',
         members,
       });
@@ -454,11 +459,14 @@ export class RoomHost extends Emitter<RoomEvents> {
     if (typeof p.potions === 'boolean') this.state.potions = p.potions;
     // The Mascot needs the host to own every shop weapon.
     if (p.mode === 'mascot' && !mascotUnlocked(this.state.hostWeapons)) this.state.mode = 'boss';
+    if (p.mode === 'buffalo' && !this.state.hostBuffalo) this.state.mode = 'boss';
     if (p.size) this.state.size = Math.max(Math.max(MIN_ROOM, this.state.members.length), Math.min(MAX_ROOM, p.size));
     if (p.map) {
       this.state.map = p.map;
       this.state.mapId = p.map.id;
     }
+    // The Beach only has Free For All, Teams and Boss Fight.
+    if (this.state.mapId === BEACH_MAP && !BEACH_MODES.includes(this.state.mode)) this.state.mode = 'boss';
     this.changed();
   }
 
@@ -552,7 +560,7 @@ export class RoomHost extends Emitter<RoomEvents> {
   }
 
   endMatch(r: MatchResult, fighters: unknown[]) {
-    const result: NetResult = { mode: r.mode, winnerTeam: r.winnerTeam, winners: r.winners.map((f) => fighters.indexOf(f)) };
+    const result: NetResult = { mode: r.mode, winnerTeam: r.winnerTeam, winners: r.winners.map((f) => fighters.indexOf(f)), fish: r.fish };
     for (const p of this.peers.values()) sendJson(p.rel, { t: 'over', result });
   }
 

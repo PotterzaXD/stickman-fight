@@ -5,6 +5,7 @@ import type { Difficulty } from '../game/types';
 import { SHOP_WEAPONS } from '../game/weapons';
 import { t } from '../i18n';
 import { save } from '../save';
+import { grant } from '../achievements';
 import { h, shareLink } from './dom';
 import { startLoop } from './loop';
 import { go, register } from './router';
@@ -52,6 +53,8 @@ export function shareGame() {
 }
 
 register('menu', (root) => {
+  // Catch up on Collector for weapons owned before achievements existed.
+  grant([]);
   const canvas = h('canvas', { class: 'bg-canvas' });
   let game = demoGame();
   let restartAt = 0;
@@ -92,6 +95,8 @@ register('menu', (root) => {
           h('button', { class: 'btn big online with-friends', onclick: () => go('online') }, `🌐 ${t('online')}`),
           h('button', { class: 'btn big friends', onclick: () => go('friends') }, `👥 ${t('friends')}`),
           h('button', { class: 'btn big', onclick: () => go('shop') }, `🛒 ${t('shop')}`),
+          h('button', { class: 'btn big', onclick: () => go('sandbox') }, `🧪 ${t('sandbox')}`),
+          h('button', { class: 'btn big', onclick: () => go('achievements') }, `🏆 ${t('achievements')}`),
           h('button', { class: 'btn big', onclick: () => go('maps') }, `🗺️ ${t('editor')}`),
           h('button', { class: 'btn big', onclick: () => go('settings') }, `⚙️ ${t('settings')}`),
         ),

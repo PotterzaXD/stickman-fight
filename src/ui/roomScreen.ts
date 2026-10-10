@@ -11,7 +11,8 @@ import { save } from '../save';
 import { h, shareLink, toast } from './dom';
 import { friendRow, inviteButton } from './friends';
 import { mapThumb } from './icons';
-import { bossPicker, keepScroll, mapLabel } from './lobby';
+import { beachNotes, bossPicker, keepScroll, mapLabel } from './lobby';
+import { BEACH_MAP, BEACH_MODES } from '../game/types';
 import { go, register } from './router';
 
 export function roomLink(code: string) {
@@ -145,13 +146,28 @@ register('room', (root) => {
           'section',
           {},
           h('h3', {}, t('mode')),
-          seg<Mode>(st.mode, [['ffa', `🥊 ${t('ffa')}`], ['team', `🤝 ${t('team')}`], ['boss', `👹 ${t('boss')}`], ['cat', `🐱 ${t('cat')}`], ['mascot', `${mascotUnlocked(st.hostWeapons) ? '⚪' : '🔒'} ${t('mascot')}`]], (v) => {
-            if (v === 'mascot' && !mascotUnlocked(st.hostWeapons)) return toast(t('hostMascotLocked', mascotProgress(st.hostWeapons)));
-            host?.setRoom({ mode: v });
-          }),
+          seg<Mode>(
+            st.mode,
+            [
+              ['ffa', `🥊 ${t('ffa')}`],
+              ['team', `🤝 ${t('team')}`],
+              ['boss', `👹 ${t('boss')}`],
+              ['cat', `🐱 ${t('cat')}`],
+              ['mascot', `${mascotUnlocked(st.hostWeapons) ? '⚪' : '🔒'} ${t('mascot')}`],
+              ['buffalo', `${st.hostBuffalo ? '🐃' : '🔒'} ${t('buffalo')}`],
+            ],
+            (v) => {
+              if (v === 'mascot' && !mascotUnlocked(st.hostWeapons)) return toast(t('hostMascotLocked', mascotProgress(st.hostWeapons)));
+              if (v === 'buffalo' && !st.hostBuffalo) return toast(t('hostBuffaloLocked'));
+              if (st.mapId === BEACH_MAP && !BEACH_MODES.includes(v)) return toast(t('beachOnly'));
+              host?.setRoom({ mode: v });
+            },
+          ),
+          st.mode === 'buffalo' ? h('small', { class: 'muted' }, `🪙🏆 ${t('buffaloReward')}`) : null,
+          ...beachNotes(st.mapId, st.mode),
           st.mode === 'mascot' ? h('small', { class: 'muted' }, `🪙🏆 ${t('mascotReward')}`) : null,
           st.mode === 'cat' ? h('small', { class: 'muted' }, `🪙🏆 ${t('catReward')}`) : null,
-          st.mode === 'boss' ? bossPicker(st.bosses ?? 1, host ? (n) => host.setRoom({ bosses: n }) : null) : null,
+          st.mode === 'boss' ? bossPicker(st.bosses ?? 1, host ? (n) => host.setRoom({ bosses: n }) : null, st.mapId === BEACH_MAP) : null,
           h('h3', {}, `${t('map')}: ${st.map ? mapLabel(st.map) : ''}`),
           host ? h('div', { class: 'map-row' }, ...maps.map((mp) => h('button', { class: `map-card ${st.mapId === mp.id ? 'on' : ''}`, onclick: () => host.setRoom({ map: mp }) }, mapThumb(mp), h('span', {}, mapLabel(mp))))) : st.map ? mapThumb(st.map) : null,
           h('h3', {}, `🕳️ ${t('fallOff')}`),

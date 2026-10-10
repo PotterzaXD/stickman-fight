@@ -17,6 +17,8 @@ import './ui/online';
 import './ui/roomScreen';
 import './ui/netplay';
 import './ui/friends';
+import './ui/achievements';
+import './ui/sandbox';
 import { session, setSession } from './net/room';
 
 const app = document.getElementById('app')!;

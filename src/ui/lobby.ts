@@ -1,6 +1,7 @@
 import { BOT_COLORS, PLAYER_COLORS, TEAM_COLORS } from '../game/game';
 import { allMaps } from '../game/maps';
-import type { Difficulty, MapDef, MatchConfig, Mode, SlotConfig } from '../game/types';
+import { BEACH_MAP, BEACH_MODES, type Difficulty, type MapDef, type MatchConfig, type Mode, type SlotConfig } from '../game/types';
+import { hasAch } from '../achievements';
 import { WEAPONS } from '../game/weapons';
 import { t, teamName, type Key } from '../i18n';
 import { NAME_MAX, cleanName, save } from '../save';
@@ -16,7 +17,7 @@ export const MAX_BOTS = 6;
 export const MAX_BOSSES = 3;
 
 /** "Bosses: 1 2 3" buttons for Boss Fight. */
-export function bossPicker(value: number, pick: ((n: number) => void) | null) {
+export function bossPicker(value: number, pick: ((n: number) => void) | null, beach = false) {
   return h(
     'div',
     { class: 'row gap wrap' },
@@ -28,8 +29,16 @@ export function bossPicker(value: number, pick: ((n: number) => void) | null) {
         h('button', { class: `seg ${value === n ? 'on' : ''}`, disabled: !pick, onclick: () => pick?.(n) }, String(n)),
       ),
     ),
-    h('small', { class: 'muted' }, `🪙 ${t('bossReward', { n: 500 * value })}`),
+    // On the Beach the bosses are on your side, so they pay nothing.
+    beach ? null : h('small', { class: 'muted' }, `🪙 ${t('bossReward', { n: 500 * value })}`),
   );
+}
+
+/** What happens on the Beach in this mode. */
+export function beachNotes(mapId: string, mode: Mode): HTMLElement[] {
+  if (mapId !== BEACH_MAP) return [];
+  const how = mode === 'boss' ? t('beachBossNote') : t('beachFfaNote', { mode: t(mode === 'team' ? 'team' : 'ffa') });
+  return [h('p', { class: 'beach-note' }, t('beachNote'), h('br', {}), h('small', {}, how))];
 }
 
 /** Run a re-render without losing the scroll spot of the page and of the map row. */
@@ -110,6 +119,8 @@ register('lobby', (root, arg) => {
   if (arg?.mapId) m.mapId = arg.mapId;
   if (!maps.some((x) => x.id === m.mapId)) m.mapId = 'arena';
   m.bosses = Math.max(1, Math.min(MAX_BOSSES, m.bosses ?? 1));
+  if (m.mode === 'sandbox' || (m.mode === 'buffalo' && !hasAch('buffalo'))) m.mode = 'ffa';
+  if (m.mapId === BEACH_MAP && !BEACH_MODES.includes(m.mode)) m.mode = 'boss';
 
   const body = h('div', { class: 'page-body' });
   const errorEl = h('p', { class: 'error' });
@@ -123,7 +134,9 @@ register('lobby', (root, arg) => {
   const validate = (): string => {
     const n = m.slots.length;
     if (m.mode === 'mascot' && !mascotUnlocked(save.data.owned)) return t('mascotLocked', mascotProgress(save.data.owned));
-    if (m.mode === 'boss' || m.mode === 'cat' || m.mode === 'mascot') return n >= 1 ? '' : t('needOne');
+    if (m.mode === 'buffalo' && !hasAch('buffalo')) return t('buffaloLocked');
+    if (m.mapId === BEACH_MAP && !BEACH_MODES.includes(m.mode)) return t('beachOnly');
+    if (m.mode === 'boss' || m.mode === 'cat' || m.mode === 'mascot' || m.mode === 'buffalo') return n >= 1 ? '' : t('needOne');
     if (n < 2) return t('needTwo');
     if (m.mode === 'team' && new Set(m.slots.map((s) => s.team)).size < 2) return t('needTwoTeams');
     return '';
@@ -144,11 +157,14 @@ register('lobby', (root, arg) => {
           onclick: () => {
             // The Mascot stays locked until you own every shop weapon.
             if (mode === 'mascot' && !mascotUnlocked(save.data.owned)) return toast(t('mascotLocked', mascotProgress(save.data.owned)));
+            // Buffalo unlocks when you beat the Mascot all by yourself.
+            if (mode === 'buffalo' && !hasAch('buffalo')) return toast(t('buffaloLocked'));
+            if (m.mapId === BEACH_MAP && !BEACH_MODES.includes(mode)) return toast(t('beachOnly'));
             m.mode = mode;
             render();
           },
         },
-        `${mode === 'mascot' && !mascotUnlocked(save.data.owned) ? '🔒' : icon} ${t(mode)}`,
+        `${(mode === 'mascot' && !mascotUnlocked(save.data.owned)) || (mode === 'buffalo' && !hasAch('buffalo')) ? '🔒' : icon} ${t(mode)}`,
       );
 
     const mapCards = maps.map((mp) =>
@@ -158,6 +174,11 @@ register('lobby', (root, arg) => {
           class: `map-card ${m.mapId === mp.id ? 'on' : ''}`,
           onclick: () => {
             m.mapId = mp.id;
+            // The Beach only has Free For All, Teams and Boss Fight.
+            if (mp.id === BEACH_MAP && !BEACH_MODES.includes(m.mode)) {
+              m.mode = 'boss';
+              toast(t('beachOnly'));
+            }
             render();
           },
         },
@@ -245,15 +266,21 @@ register('lobby', (root, arg) => {
         'section',
         {},
         h('h3', {}, t('mode')),
-        h('div', { class: 'segs' }, modeBtn('ffa', '🥊'), modeBtn('team', '🤝'), modeBtn('boss', '👹'), modeBtn('cat', '🐱'), modeBtn('mascot', '⚪')),
+        h('div', { class: 'segs' }, modeBtn('ffa', '🥊'), modeBtn('team', '🤝'), modeBtn('boss', '👹'), modeBtn('cat', '🐱'), modeBtn('mascot', '⚪'), modeBtn('buffalo', '🐃')),
         h('p', { class: 'muted' }, t(`${m.mode}Desc` as Key)),
+        m.mode === 'buffalo' ? h('small', { class: 'muted' }, `🪙🏆 ${t('buffaloReward')}`) : null,
+        ...beachNotes(m.mapId, m.mode),
         m.mode === 'cat' ? h('small', { class: 'muted' }, `🪙🏆 ${t('catReward')}`) : null,
         m.mode === 'mascot' ? h('small', { class: 'muted' }, `🪙🏆 ${t('mascotReward')}`) : null,
         m.mode === 'boss'
-          ? bossPicker(m.bosses ?? 1, (n) => {
-              m.bosses = n;
-              render();
-            })
+          ? bossPicker(
+              m.bosses ?? 1,
+              (n) => {
+                m.bosses = n;
+                render();
+              },
+              m.mapId === BEACH_MAP,
+            )
           : null,
       ),
       h('section', {}, h('h3', {}, t('map')), h('div', { class: 'map-row' }, ...mapCards)),

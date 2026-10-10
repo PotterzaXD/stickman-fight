@@ -6,7 +6,7 @@ import { Mirror, encodeSnapshot } from '../net/snapshot';
 import { sfx } from '../sfx';
 import { h } from './dom';
 import { startLoop } from './loop';
-import { giveReward, resultTitle } from './play';
+import { bossNameFor, bossNames, giveReward, resultTitle } from './play';
 import { onRoomClosed } from './roomScreen';
 import { go, register } from './router';
 
@@ -62,7 +62,7 @@ register('netplay', (root) => {
     overlay.classList.remove('hidden');
   };
 
-  const showResult = (r: Pick<MatchResult, 'mode' | 'winnerTeam' | 'winners'>) => {
+  const showResult = (r: Pick<MatchResult, 'mode' | 'winnerTeam' | 'winners'> & { fish?: boolean }) => {
     menuOpen = true;
     // Coins only for devices that had someone in this match: win 3-5 (beating the bosses: 500 per boss), otherwise 1.
     // Grandfather Cat: 1,000 coins and the Treasure for every device that played.
@@ -70,7 +70,15 @@ register('netplay', (root) => {
     const bosses = game.bosses.length;
     if (localIdx.length) {
       const won = r.winners.some((f) => localIdx.includes(game.fighters.indexOf(f))) && r.winnerTeam !== 99;
-      coinLine = giveReward(r.mode, won, bosses);
+      const others = game.fighters.filter((f) => !f.boss);
+      coinLine = giveReward({
+        mode: r.mode,
+        won,
+        bosses,
+        fish: !!r.fish,
+        beachBoss: game.beach && r.mode === 'boss',
+        solo: others.length === 1 && localIdx.includes(game.fighters.indexOf(others[0])),
+      });
       if (won) sfx.win();
     }
     const ranked = [...game.fighters].sort((a, b) => Number(b.alive) - Number(a.alive) || b.kos - a.kos);
@@ -78,7 +86,7 @@ register('netplay', (root) => {
       h(
         'div',
         { class: 'modal result' },
-        h('h2', {}, resultTitle(r, bosses)),
+        h('h2', {}, resultTitle(r, bosses, game.beach)),
         ...coinLine,
         h('ul', { class: 'scores' }, ...ranked.map((f) => h('li', {}, h('span', { class: 'dot', style: `background:${f.color}` }), h('b', {}, f.name), h('span', { class: 'muted' }, `${f.alive ? '🏆' : '💀'}${host ? ` ${f.kos} KO` : ''}`)))),
         host
@@ -98,7 +106,8 @@ register('netplay', (root) => {
       fallMode: start.fallMode,
       maxSnowmen: ONLINE_SNOWMEN,
       record: !!host,
-      bossName: t(start.mode === 'mascot' ? 'mascot_name' : start.mode === 'cat' ? 'cat_name' : 'boss_name'),
+      bossName: bossNameFor(start.mode),
+      bossNames: bossNames(),
       potions: start.potions,
       bosses: start.bosses,
       bossWeapons: start.bossWeapons,
@@ -181,7 +190,7 @@ register('netplay', (root) => {
   const offs = [
     s.on('start', (st) => build(st)),
     s.on('snapshot', (snap) => mirror?.apply(snap)),
-    s.on('over', (r: NetResult) => showResult({ mode: r.mode, winnerTeam: r.winnerTeam, winners: r.winners.map((i) => game.fighters[i]).filter(Boolean) })),
+    s.on('over', (r: NetResult) => showResult({ mode: r.mode, winnerTeam: r.winnerTeam, winners: r.winners.map((i) => game.fighters[i]).filter(Boolean), fish: r.fish })),
     s.on('state', (st) => st.phase === 'lobby' && go('room')),
     s.on('closed', onRoomClosed),
   ];

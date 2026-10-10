@@ -25,7 +25,15 @@ On a computer you can test with the keyboard: WASD is P1, the arrow keys are P2 
 
   Beating him gives **1,000 coins** every time. The first win also gives you **The Grandfather Cat Treasure** (see Weapons).
 
-- **Mascot:** the white stickman from the game icon (all white, no eyes, a white stick). It has 50,000 HP, touching it does 50 damage, and its Giant Stick Slam does 299. It unlocks when you own **every shop weapon**; online, the host needs them. Beating it gives **5,000 coins** every time, and the first win gives the **Mascot Stick**.
+- **Mascot:** the white stickman from the game icon (all white, no eyes, a white stick). It has 50,000 HP, touching it does 50 damage, and its Giant Stick Slam does 299. It unlocks when you own every shop weapon from before the Fire Sword update (the newer weapons aren't needed); online, the host needs them. Beating it gives **5,000 coins** every time, and the first win gives the **Mascot Stick**.
+
+- **Buffalo:** a giant buffalo with 8,000 HP. It has no normal attack, only 2 skills:
+  - **Horn Charge:** runs head first across the platform and hits everyone in its way (120).
+  - **Head Butt:** butts with its head 2 times (90 each).
+
+  Buffalo unlocks when you beat the Mascot **all by yourself** (no other players or bots), which also gives the **What an Buffalo** achievement. Online, the host needs it unlocked. Beating Buffalo gives **3,000 coins** every time.
+
+- **Sandbox** (its own button on the main menu): add any players, bots and bosses (Boss, Grandfather Cat, Mascot, Buffalo, Fishy boss), put them on teams, and change each one's HP and power. You can try every weapon there. Sandbox matches never change your coins.
 
 You can have up to 6 players and 6 bots at once. Each bot has its own difficulty: CPU-easy, CPU-medium or CPU-hard. With no players, you watch the bots fight.
 
@@ -55,6 +63,12 @@ Winning gives 3–5 coins. When bots or the boss win, you get 1 coin. Beating th
 | Thunder Hammer | 800 | Lightning strikes the nearest enemy (70) and shocks anyone close (35) |
 | Banana | 250 | Throw a banana: the enemy slips (25). A missed banana stays as a peel for 8 seconds |
 | Mascot Stick | Reward | Not sold. Beat the Mascot to get it. Stick Slam: leap and slam for 120 |
+| Fire Sword | 500 | Hits do 35 and set the enemy on fire for 8 seconds (5 a second). **Inferno Slash:** a slash and a curved air slash of fire that hits everyone in its path for 50 and burns them for 10 seconds (10 a second) |
+| Recall Memory | 1,000 | A tiny box. Hits do 20. Its skill calls the purple boss ally (1,000 HP, hits for 30). It fades away after 20 seconds if it's still alive. You can call it every 21 seconds; while it recharges, the skill is **Strike** (50 damage, every 5 seconds) |
+| Poison Dart | 400 | Hits and thrown darts do 15 and poison the enemy for 5 seconds (10 a second) |
+| Boxing Glove | 350 | Mega Punch: the glove springs out for 45 and sends them flying |
+| Magnet | 450 | Pulls every enemy close by toward you (15) |
+| Rocket Launcher | 750 | A rocket that flies straight and explodes (85) |
 | The Grandfather Cat Treasure | Reward | Not sold. Beat Grandfather Cat to get it. Its skills take turns: Sud Gang Som (12 damage, then 6 a second for 5 seconds), then Call Cat AI (3 cats with 60 HP that do 6 damage) |
 
 All players and bots on the device share the weapons you buy.
@@ -77,7 +91,8 @@ How a stickman goes down depends on what knocked it out:
 | Bomb skill, Poop Bomb skill | The original pop |
 | Axe (hit or throw), Laser Gun skill | Cut in half |
 | Shuriken (hit or throw), Magic Staff hit | Flung away |
-| Magic Staff fireball, Treasure / Grandfather Cat soup, burning | Burned into ashes |
+| Magic Staff fireball, Treasure / Grandfather Cat soup, burning, Fire Sword | Burned into ashes |
+| Boxing Glove, Rocket Launcher, Recall Memory's Strike, Buffalo | Flung away |
 | 67 Weapon | Flies into the sky |
 | AI cats | Trips and falls |
 | Ice Wand | Frozen, then shatters into ice |
@@ -87,13 +102,42 @@ How a stickman goes down depends on what knocked it out:
 
 Anything not in the table (Katana, Snowball, snowmen, lava) keeps the original pop.
 
+## The Beach and the Fishy boss
+
+The **Beach** map has sand, palm trees and the sea. The **Fishy boss** (9,999 HP) lives there and shows up in every match on it. On the Beach you can only play Free For All, Teams or Boss Fight.
+
+- **Free For All / Teams:** everyone teams up against the Fishy boss first. When it goes down, the match turns back into Free For All (or Teams).
+- **Boss Fight:** your bosses are on your side. A cutscene plays first: the boss hits the Fishy boss for 1,000 damage. With 2 or 3 bosses, the Fishy boss calls fish to beat the other bosses. Then it beats the boss with a Trident Strike, and you fight the Fishy boss with 8,999 HP left.
+
+The Fishy boss hits with its trident for 30. Its skills take turns:
+
+- **Tidal Waves:** waves roll out both ways and push everyone away. No damage.
+- **Call Fish:** fish with 50 HP that bite for 20.
+- **Trident Strike:** 99 damage, and half the time lightning strikes for 30 more.
+
+Beating the Fishy boss gives **1,000 coins**.
+
+## Achievements
+
+Tap **🏆 Achievements** on the main menu.
+
+| Achievement | How to get it |
+|---|---|
+| What an Buffalo | Beat the Mascot all by yourself (unlocks Buffalo) |
+| Collector | Own every weapon, including the Mascot Stick |
+| Boss Slayer | Win a Boss Fight |
+| Sorry, Grandpa | Beat Grandfather Cat |
+| Icon Breaker | Beat the Mascot |
+| Bull Rider | Beat Buffalo |
+| Fish Fry | Beat the Fishy boss |
+
 ## Potions
 
 In **Settings** you can turn healing potions on or off (on by default). When they are on, every KO has a 25% chance to drop a potion, and every 10 seconds there's a 25% chance one falls from the sky. Touching a potion heals 25% of your max HP. Online, the host turns potions on or off in the room.
 
 ## Maps
 
-There are 12 built-in maps: Classic Arena, Sky Islands, The Tower, Long Bridge, Snowy Peak, The Pit, Volcano, Concrete Factory, Glass Palace, Rooftops, Frozen Lake and **Space**.
+There are 13 built-in maps: Classic Arena, Sky Islands, The Tower, Long Bridge, Snowy Peak, The Pit, Volcano, Concrete Factory, Glass Palace, Rooftops, Frozen Lake, **Space** and the **Beach**.
 
 Space has a big spaceship in the middle to fight on, and low gravity: everyone jumps higher and falls slower. Any map you make with the Space theme in the editor gets low gravity too.
 

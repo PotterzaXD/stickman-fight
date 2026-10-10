@@ -814,3 +814,46 @@ select {
 .credit-row b {
   font-size: 22px;
 }
+
+/* ---------- the Beach, Sandbox and Achievements ---------- */
+.beach-note {
+  margin: 6px 0 0;
+  padding: 8px 12px;
+  border-radius: 12px;
+  background: #e1f5fe;
+  color: #01579b;
+  font-weight: 700;
+}
+.hp-box {
+  border: 2px solid var(--line);
+  border-radius: 10px;
+  padding: 4px 8px;
+  width: 92px;
+  font-weight: 700;
+  background: #fff;
+}
+.ach-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.ach {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 10px 14px;
+  border-radius: 14px;
+  background: #f5f8fc;
+  opacity: 0.7;
+}
+.ach.have {
+  background: #fff8e1;
+  opacity: 1;
+  box-shadow: inset 0 0 0 2px #ffca28;
+}
+.ach-icon {
+  font-size: 30px;
+}
+.ach p {
+  margin: 2px 0 0;
+}
