@@ -259,6 +259,36 @@ export class BotBrain {
         case 'mascotstick':
           if (dist < 230 && f.onGround) angle = Math.PI / 2;
           break;
+        case 'firesword':
+          if (dist < 750) angle = Math.atan2(dy, dx);
+          break;
+        case 'recall':
+          // Call the boss ally whenever it's ready; otherwise Strike when close.
+          if (f.summonCd <= 0) angle = -Math.PI / 2;
+          else if (dist < 450) angle = Math.atan2(dy, dx);
+          break;
+        case 'dart':
+          if (dist < 1000) angle = ballisticAngle(dx, dy, 1500, 300);
+          break;
+        case 'glove':
+          if (dist < f.weapons[i].length * s * 3.2 + 30) angle = Math.atan2(dy, dx);
+          break;
+        case 'magnet':
+          if (dist < 460 * s && dist > 120) angle = Math.atan2(dy, dx);
+          break;
+        case 'rocket':
+          if (dist < 1200) angle = Math.atan2(dy, dx);
+          break;
+        case 'horns':
+          if (Math.abs(dy) < 140 && Math.abs(dx) < 900 && f.onGround) angle = dx > 0 ? 0 : Math.PI;
+          break;
+        case 'headbutt':
+          if (Math.abs(dx) < f.w / 2 + 120 && Math.abs(dy) < 160) angle = dx > 0 ? 0 : Math.PI;
+          break;
+        case 'trident':
+          // Call Fish any time; the waves and the strike when someone is close.
+          if (f.fishNext === 1 || dist < 600) angle = Math.atan2(dy, dx);
+          break;
       }
       if (angle !== null) {
         it.skill = angle + err;
@@ -331,12 +361,14 @@ export function updateCat(c: Cat, dt: number, g: Game) {
     const np = nearestPlatform(g, c.x, c.y);
     if (np) c.moveX = sign(np.x + np.w / 2 - c.x);
   }
+  // The boss ally walks a bit slower; fish flop about quickly.
+  const speed = c.variant === 'memory' ? 280 : c.variant === 'fish' ? 360 : 330;
   if (c.stun > 0) c.vx *= Math.max(0, 1 - 2 * dt);
-  else c.vx += (c.moveX * 330 - c.vx) * Math.min(1, (c.onGround ? 10 : 4) * dt);
+  else c.vx += (c.moveX * speed - c.vx) * Math.min(1, (c.onGround ? 10 : 4) * dt);
   if (c.moveX) c.facing = sign(c.moveX);
   const t = c.target && c.target.alive ? c.target : null;
   if (t && c.onGround && t.cy < c.y - 90 && rand() < dt * 2.5) {
-    c.vy = -900;
+    c.vy = c.variant === 'memory' ? -1000 : -900;
     c.onGround = false;
   }
   if (c.attackT > 0) return;

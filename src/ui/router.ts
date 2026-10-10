@@ -12,6 +12,8 @@ export interface Routes {
   room: undefined;
   netplay: undefined;
   friends: undefined;
+  achievements: undefined;
+  sandbox: undefined;
 }
 
 export type Screen<K extends keyof Routes> = (root: HTMLElement, arg: Routes[K]) => (() => void) | void;

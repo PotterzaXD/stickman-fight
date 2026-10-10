@@ -2,9 +2,12 @@ import { BotBrain, nearestEnemy, nearestPlatform, updateCat, updateSnowman } fro
 import {
   Body,
   Cat,
+  FISH_HP,
   Fighter,
   GRAVITY,
   MAX_SNOWMEN,
+  MEMORY_ALLY,
+  type CatVariant,
   SHIELD_MAX,
   Snowman,
   type FloatText,
@@ -17,8 +20,9 @@ import {
 } from './entities';
 import { MELEE_FINISH, PROJ_FINISH, makeCorpse, updateCorpses, type Corpse, type Finish } from './finish';
 import { THEMES, pickSpawns } from './maps';
-import { isBossMode, type Difficulty, type FallMode, type MapDef, type Mode } from './types';
+import { BEACH_MAP, BEACH_MODES, isBossMode, type BossKind, type Difficulty, type FallMode, type MapDef, type Mode, type SandboxBoss } from './types';
 import { SHOP_WEAPONS, weapon } from './weapons';
+import type { Key } from '../i18n';
 import { sfx } from '../sfx';
 
 export const PLAYER_COLORS = ['#e53935', '#1e88e5', '#43a047', '#fdd835', '#8e24aa', '#fb8c00'];
@@ -36,6 +40,9 @@ export interface FighterSpec {
   difficulty: Difficulty;
   /** 0-5 for humans (which joystick), -1 for bots. */
   playerIndex: number;
+  /** Sandbox: starting HP and damage in percent. */
+  hp?: number;
+  power?: number;
 }
 
 export interface MatchResult {
@@ -44,6 +51,8 @@ export interface MatchResult {
   winners: Fighter[];
   humanWon: boolean;
   hadHumans: boolean;
+  /** The Beach: the Fishy boss was beaten in this match. */
+  fish: boolean;
 }
 
 export interface GameOpts {
@@ -62,6 +71,10 @@ export interface GameOpts {
   bossWeapons?: string[][];
   /** Healing potions drop (on KO and from the sky). */
   potions?: boolean;
+  /** Names for each kind of boss (in this device's language). */
+  bossNames?: Partial<Record<BossKind, string>>;
+  /** Sandbox: bosses added to the match. */
+  extraBosses?: SandboxBoss[];
 }
 
 /** Potions: 25% chance on each KO and every 10 seconds from the sky. Heal 25% of max HP. */
@@ -113,6 +126,26 @@ export const TREASURE_CATS = { count: 3, hp: 60, dmg: 6, max: 6 };
 export const SOUP = { dmg: 20, burn: 10 };
 export const TREASURE_SOUP = { dmg: 12, burn: 6 };
 const SOUP_BURN_S = 5;
+
+/** Fire Sword: hits burn 5 a second for 8 s. Inferno Slash: 50, then 10 a second for 10 s. */
+export const FIRE_SWORD = { burnS: 8, burn: 5, slash: 50, slashBurnS: 10, slashBurn: 10 };
+/** Poison Dart: 15 on hit, then 10 a second for 5 s. */
+export const POISON = { hit: 15, dmg: 10, s: 5 };
+/** Recall Memory: the boss ally comes back every 21 s; Strike does 50. */
+export const RECALL = { summonCd: 21, strike: 50 };
+/** Buffalo: Horn Charge and two Head Butts. */
+export const BUFFALO = { charge: 120, butt: 90 };
+/** The Fishy boss: trident hits, Trident Strike (+ lightning half the time), and the fish it calls. */
+export const FISHY = { melee: 30, strike: 99, lightning: 30, fish: { count: 4, hp: 50, dmg: 20, max: 12 } };
+/** Damage the normal boss does to the Fishy boss in the Beach cutscene. */
+export const CUTSCENE_DMG = 1000;
+
+/** Big words across the screen (cutscene and the Beach). `who` = a fighter index for {name}. */
+export interface Caption {
+  key: Key;
+  who: number;
+  t: number;
+}
 
 /** Two different random weapons for a boss. */
 export function randomBossWeapons(): string[] {
@@ -171,6 +204,19 @@ export class Game {
   glassT: number[];
   private endT = -1;
   private camReady = false;
+  /** The Beach: the Fishy boss is in this match. */
+  beach = false;
+  fish: Fighter | null = null;
+  /** Free For All / Teams on the Beach: everyone fights the Fishy boss first. */
+  fishPhase = false;
+  fishBeaten = false;
+  private homeTeams = new Map<Fighter, number>();
+  /** Boss Fight on the Beach: the Fishy boss takes out the bosses before the fight starts. */
+  cut: { t: number; hits: number; nextHit: number; called: number; strikeAt: number; endAt: number; ticks: number; nextTick: number } | null = null;
+  private cutMain: Fighter | null = null;
+  private cutOthers: Fighter[] = [];
+  private cutMove = new Map<Fighter, number>();
+  caption: Caption | null = null;
 
   constructor(map: MapDef, specs: FighterSpec[], opts: GameOpts) {
     this.map = map;
@@ -185,13 +231,16 @@ export class Game {
     const spawns = pickSpawns(map, specs.length + (opts.mode === 'boss' ? 1 : 0));
     specs.forEach((s, i) => {
       const sp = spawns[i];
-      const f = new Fighter({ name: s.name, color: s.color, team: s.team, human: s.human, weapons: [weapon(s.weapon)], x: sp.x, y: sp.y - 2 });
+      const f = new Fighter({ name: s.name, color: s.color, team: s.team, human: s.human, weapons: [weapon(s.weapon)], x: sp.x, y: sp.y - 2, hp: s.hp });
+      if (s.power) f.power = s.power / 100;
       f.facing = sp.x < map.w / 2 ? 1 : -1;
       if (!s.human) f.brain = new BotBrain(s.difficulty);
       this.fighters.push(f);
     });
+    this.beach = map.id === BEACH_MAP && BEACH_MODES.includes(this.mode) && !this.demo;
     if (opts.mode === 'boss') {
       // Boss: a giant stickman holding two different random weapons. Up to 3 of them.
+      // On the Beach they are on your side (the Fishy boss beats them in the cutscene).
       const n = clamp(Math.round(opts.bosses ?? 1), 1, 3);
       const wide = [...map.platforms].filter((p) => p.kind !== 'lava').sort((p, q) => q.w - p.w);
       for (let k = 0; k < n; k++) {
@@ -203,7 +252,7 @@ export class Game {
         const boss = new Fighter({
           name: `${opts.bossName ?? 'Boss'}${n > 1 ? ` ${k + 1}` : ''}`,
           color: '#263238',
-          team: BOSS_TEAM,
+          team: this.beach ? 0 : BOSS_TEAM,
           human: false,
           weapons: ids.map((id) => weapon(id)),
           x,
@@ -248,6 +297,187 @@ export class Game {
       m.brain = new BotBrain('boss');
       this.fighters.push(m);
     }
+    const names = opts.bossNames ?? {};
+    if (opts.mode === 'buffalo') this.addBoss('buffalo', names.buffalo ?? opts.bossName ?? 'Buffalo', BOSS_TEAM, 0);
+    // Sandbox: any bosses, on any team, with any HP.
+    (opts.extraBosses ?? []).forEach((b, k) => {
+      const f = this.addBoss(b.kind, names[b.kind] ?? b.kind, b.team, k, b.hp);
+      if (b.power) f.power = b.power / 100;
+    });
+    if (this.beach) {
+      this.fish = this.addBoss('fish', names.fish ?? 'Fishy', BOSS_TEAM, 0);
+      if (this.mode === 'boss') {
+        // Stand away from the boss so it has to walk over (it spawned in the middle of the sand).
+        const sand = this.map.platforms[0];
+        this.fish.x = sand.x + sand.w * 0.85;
+        this.fish.y = sand.y;
+        this.startCutscene();
+      }
+      else this.startFishPhase();
+    }
+  }
+
+  /** Put a boss on the k-th widest platform (Buffalo, the Fishy boss, and Sandbox bosses). */
+  private addBoss(kind: BossKind, name: string, team: number, k: number, hp?: number): Fighter {
+    const wide = [...this.map.platforms].filter((p) => p.kind !== 'lava').sort((p, q) => q.w - p.w);
+    const top = wide.length ? wide[k % wide.length] : null;
+    const weapons =
+      kind === 'cat' ? ['soup', 'catcall'] : kind === 'mascot' ? ['stick'] : kind === 'buffalo' ? ['horns', 'headbutt'] : kind === 'fish' ? ['trident'] : randomBossWeapons();
+    const color = { boss: '#263238', cat: '#ff9800', mascot: '#ffffff', buffalo: '#5d4037', fish: '#1e88e5' }[kind];
+    const f = new Fighter({
+      name,
+      color,
+      team,
+      human: false,
+      weapons: weapons.map((id) => weapon(id)),
+      x: top ? top.x + top.w / 2 + (k >= wide.length ? 60 : 0) : this.map.w / 2,
+      y: (top?.y ?? this.map.h / 2) - 300,
+      boss: true,
+      cat: kind === 'cat',
+      mascot: kind === 'mascot',
+      buffalo: kind === 'buffalo',
+      fish: kind === 'fish',
+      hp,
+    });
+    f.brain = new BotBrain('boss');
+    this.fighters.push(f);
+    return f;
+  }
+
+  // ---------- the Beach ----------
+
+  /** Free For All / Teams on the Beach: everybody is on one side until the Fishy boss goes down. */
+  private startFishPhase() {
+    this.fishPhase = true;
+    for (const f of this.fighters) {
+      if (f.boss) continue;
+      this.homeTeams.set(f, f.team);
+      f.team = 0;
+    }
+    this.say('capFishPhase', -1, 3.5);
+  }
+
+  private endFishPhase() {
+    this.fishPhase = false;
+    for (const [f, team] of this.homeTeams) f.team = team;
+    // Snowmen, helpers, snowballs and peels go back to their owner's side.
+    for (const s of this.snowmen) s.team = s.owner.team;
+    for (const c of this.cats) if (!c.owner.boss) c.team = c.owner.team;
+    for (const b of this.groundBalls) b.team = b.owner.team;
+    for (const p of this.peels) p.team = p.owner.team;
+    this.say(this.mode === 'team' ? 'capBackTeams' : 'capBackFfa', -1, 3);
+    this.play('ko');
+  }
+
+  say(key: Key, who: number, t: number) {
+    this.caption = { key, who, t };
+  }
+
+  /** Boss Fight on the Beach: the normal boss hits the Fishy boss for 1,000, then gets beaten. */
+  private startCutscene() {
+    const allies = this.fighters.filter((f) => f.boss && !f.fish);
+    this.cutMain = allies[0] ?? null;
+    this.cutOthers = allies.slice(1);
+    this.cut = { t: 0, hits: 0, nextHit: 0, called: -1, strikeAt: -1, endAt: -1, ticks: 0, nextTick: 0 };
+    this.say('capFishAppears', -1, 2.2);
+  }
+
+  private updateCutscene(dt: number) {
+    const c = this.cut!;
+    const fish = this.fish!;
+    const main = this.cutMain;
+    c.t += dt;
+    this.cutMove.clear();
+    if (main && main.alive && c.hits < 5) {
+      // The boss walks up to the Fishy boss and hits it 5 times for 200 each.
+      const dx = fish.x - main.x;
+      main.facing = sign(dx) || 1;
+      fish.facing = -main.facing;
+      const close = Math.abs(dx) < (main.w + fish.w) / 2 + 90;
+      if (!close && c.t > 1) this.cutMove.set(main, sign(dx));
+      if (c.t > 1 && c.hits === 0 && c.nextHit === 0) this.say('capBossAttacks', this.fighters.indexOf(main), 2.2);
+      if ((close || c.t > 4.5) && c.t > 1.4 && c.t >= c.nextHit) {
+        c.nextHit = c.t + 0.45;
+        c.hits++;
+        main.slashT = 0.3;
+        main.slashAngle = main.facing > 0 ? 0 : Math.PI;
+        main.slashSlot = 0;
+        this.damage(fish, CUTSCENE_DMG / 5, main, main.facing * 200, -100);
+        if (c.hits === 5) c.called = c.t + 0.8;
+      }
+      return;
+    }
+    if (c.called > 0 && c.t >= c.called && c.strikeAt < 0) {
+      if (this.cutOthers.some((b) => b.alive)) {
+        // The Fishy boss calls fish to take out the other bosses.
+        this.say('capCallFish', -1, 2.2);
+        for (const b of this.cutOthers) {
+          for (let k = 0; k < 6; k++) {
+            const x = b.x + (k - 2.5) * 34;
+            const m = new Cat(fish, x, b.y - b.h * 0.6, FISHY.fish.hp, FISHY.fish.dmg, 'fish');
+            m.vy = -300 - Math.random() * 300;
+            this.cats.push(m);
+            this.burst(x, b.y - 40, '#4fc3f7', 6, 220);
+          }
+        }
+        this.ring(fish.x, fish.y, 90 * fish.scale, 0.4, '#4fc3f7');
+        this.play('snowman');
+        c.nextTick = c.t + 0.6;
+        c.strikeAt = c.t + 3.2;
+      } else c.strikeAt = c.t;
+      return;
+    }
+    if (c.strikeAt > 0 && c.endAt < 0) {
+      // The fish bite the other bosses until they go down.
+      if (c.t >= c.nextTick && c.ticks < 8) {
+        c.nextTick = c.t + 0.3;
+        c.ticks++;
+        for (const b of this.cutOthers) {
+          if (!b.alive) continue;
+          const biter = this.cats.find((m) => m.alive && m.variant === 'fish' && Math.abs(m.x - b.x) < 300);
+          const dmg = c.ticks >= 8 ? b.hp : Math.ceil(b.maxHp / 8);
+          if (biter) biter.attackT = 0.8;
+          this.damage(b, dmg, biter ?? fish, 0, -100, 'trip');
+        }
+      }
+      if (c.t >= c.strikeAt) {
+        // Trident Strike with lightning: the normal boss is beaten too.
+        if (main && main.alive) {
+          this.say('capTrident', -1, 2.2);
+          fish.thrustT = 0.4;
+          fish.thrustSlot = 0;
+          fish.thrustAngle = Math.atan2(main.cy - fish.shoulder().y, main.x - fish.x);
+          this.lightning(main);
+          this.damage(main, main.hp, fish, sign(main.x - fish.x) * 600, -700, 'zap');
+        }
+        c.endAt = c.t + 1.6;
+      }
+      return;
+    }
+    if (c.endAt > 0 && c.t >= c.endAt) {
+      // The fish swim away, the Fishy boss is left with 8,999 HP, and the real fight starts.
+      for (const m of this.cats) {
+        if (m.owner !== fish) continue;
+        m.alive = false;
+        this.burst(m.x, m.cy, '#4fc3f7', 8, 260);
+      }
+      fish.hp = FISH_HP - CUTSCENE_DMG;
+      // A moment to get ready before its first skill.
+      fish.cds[0] = 2.5;
+      this.cut = null;
+      this.say('capFight', -1, 1.8);
+      this.play('ko');
+    }
+  }
+
+  /** A lightning bolt from the sky onto a body (picture only). */
+  private lightning(t: Body) {
+    const top = Math.min(t.y - 700, this.cam.y - 600);
+    this.bolts.push({ x1: t.x, y1: top, x2: t.x, y2: t.cy, life: 0.3 });
+    if (this.record) this.events.push(['z', Math.round(t.x), Math.round(top), Math.round(t.x), Math.round(t.cy)]);
+    this.burst(t.x, t.cy, '#fff176', 18, 420);
+    this.shake = Math.min(18, this.shake + 10);
+    this.play('boom');
   }
 
   get bosses(): Fighter[] {
@@ -324,6 +554,7 @@ export class Game {
       b.stun = Math.max(b.stun, b.frozenT);
       if (b.onGround) b.vx *= 0.8;
     }
+    if (this.cut) this.updateCutscene(dt);
     for (const f of this.fighters) if (f.alive) this.updateFighter(f, dt);
     for (const s of this.snowmen) {
       if (!s.alive) continue;
@@ -336,9 +567,18 @@ export class Game {
       if (!c.alive) continue;
       c.stun -= dt;
       c.hurtFlash -= dt;
-      updateCat(c, dt, this);
+      // The Recall Memory ally fades away after 20 seconds.
+      c.life -= dt;
+      if (c.life <= 0) {
+        c.alive = false;
+        this.burst(c.x, c.cy, '#b388ff', 18, 300);
+        this.text(c.x, c.y - c.h - 10, '💭', '#b388ff', 26);
+        continue;
+      }
+      if (this.cut) c.vx *= 0.8;
+      else updateCat(c, dt, this);
       this.stepBody(c, dt);
-      if (c.onGround) c.walkPhase += c.vx * dt * 0.06;
+      if (c.onGround) c.walkPhase += c.vx * dt * (c.variant === 'memory' ? 0.04 : 0.06);
     }
     this.meleeHits();
     this.updateProjectiles(dt);
@@ -363,8 +603,13 @@ export class Game {
     f.hurtFlash -= dt;
     f.dashT -= dt;
     f.thrustT -= dt;
+    f.slashT -= dt;
+    f.buttAnim -= dt;
+    f.summonCd = Math.max(0, f.summonCd - dt);
 
-    const it = f.human ? f.humanIntent(dt) : f.brain!.think(dt, f, this);
+    let it = f.human ? f.humanIntent(dt) : f.brain!.think(dt, f, this);
+    // Cutscene: nobody moves on their own.
+    if (this.cut) it = { moveX: this.cutMove.get(f) ?? 0, aim: null, shield: false, jump: false, skill: null, skillSlot: 0 };
 
     if (f.shieldBroken && f.shieldHp >= SHIELD_MAX * 0.4) f.shieldBroken = false;
     f.shielding = it.shield && !f.shieldBroken && f.dashT <= 0;
@@ -392,6 +637,14 @@ export class Game {
         f.angVel[i] = 0;
         continue;
       }
+      if (f.slashT > 0 && i === f.slashSlot) {
+        // Inferno Slash: a big sweep from over the head down through the aim.
+        const dir = Math.cos(f.slashAngle) >= 0 ? 1 : -1;
+        const k = 1 - f.slashT / 0.3;
+        f.angles[i] = wrap(f.slashAngle + dir * (-1.5 + k * 2.6));
+        f.angVel[i] = 9;
+        continue;
+      }
       const desired = i === 0 ? (it.aim ?? f.restAngle(0)) : it.aim === null ? f.restAngle(1) : f.angles[0] + Math.PI;
       const diff = wrap(desired - f.angles[i]);
       const step = clamp(diff, -f.weapons[i].turn * dt, f.weapons[i].turn * dt);
@@ -411,6 +664,7 @@ export class Game {
       this.shockwave(f);
     }
     if (f.mascot) this.mascotTouch(f);
+    if (f.buffalo) this.updateBuffalo(f, dt);
     if (f.onGround) f.walkPhase += f.vx * dt * 0.045;
 
     const swinging = Math.abs(f.angVel[0]) > 3.5 || f.dashT > 0 || f.thrustT > 0;
@@ -491,6 +745,19 @@ export class Game {
   /** On fire (Magic Staff fireball, gang som soup): a little damage every few moments. */
   private updateBurns(dt: number) {
     for (const b of this.bodies()) {
+      // Poison Dart: 10 damage every second.
+      if (b.alive && b.poisonT > 0) {
+        b.poisonT -= dt;
+        b.poisonTick -= dt;
+        if (b.poisonTick <= 0) {
+          b.poisonTick = 1;
+          b.hp -= POISON.dmg;
+          b.hurtFlash = 0.1;
+          this.text(b.x + (Math.random() - 0.5) * 20, b.y - b.h - 10, String(POISON.dmg), '#76ff03', 18);
+          this.burst(b.x, b.cy, '#76ff03', 4, 140);
+          if (b.hp <= 0) this.kill(b, b.poisonSrc, 'ragdoll');
+        }
+      }
       if (!b.alive || b.burnT <= 0) continue;
       b.burnT -= dt;
       b.burnTick -= dt;
@@ -515,8 +782,12 @@ export class Game {
   // ---------- combat ----------
 
   /** `how`: the death finisher if this hit knocks a stickman out (none = the original pop). */
-  damage(target: Body, amount: number, src: Body | null, kx: number, ky: number, how?: Finish) {
-    if (!target.alive || amount <= 0) return;
+  /** Returns true if the hit landed (not blocked by a shield). */
+  damage(target: Body, amount: number, src: Body | null, kx: number, ky: number, how?: Finish): boolean {
+    if (!target.alive || amount <= 0) return false;
+    // Sandbox: stronger (or weaker) fighters, and their snowmen and helpers.
+    const by = src instanceof Snowman || src instanceof Cat ? src.owner : src;
+    if (by instanceof Fighter) amount *= by.power;
     amount = Math.round(amount);
     if (target instanceof Fighter && target.shielding) {
       target.shieldHp -= amount;
@@ -524,7 +795,7 @@ export class Game {
       this.burst(target.x, target.cy, '#4fc3f7', 6, 200);
       this.play('block');
       if (target.shieldHp <= 0) this.breakShield(target);
-      return;
+      return false;
     }
     const heavy = target instanceof Fighter && target.boss;
     if (heavy) {
@@ -544,6 +815,23 @@ export class Game {
     this.shake = Math.min(14, this.shake + amount / 30);
     this.play('hit');
     if (target.hp <= 0) this.kill(target, src, how);
+    return true;
+  }
+
+  /** On fire: `dmg` every second for `secs` seconds. */
+  setBurn(e: Body, secs: number, dmg: number, src: Body) {
+    // A hair over so the last tick still lands.
+    e.burnT = secs + 0.05;
+    e.burnTick = 1;
+    e.burnDmg = dmg;
+    e.burnEvery = 1;
+    e.burnSrc = src;
+  }
+
+  setPoison(e: Body, src: Body) {
+    e.poisonT = POISON.s + 0.05;
+    e.poisonTick = 1;
+    e.poisonSrc = src;
   }
 
   kill(b: Body, src: Body | null, how: Finish = 'pop') {
@@ -551,6 +839,8 @@ export class Game {
     b.alive = false;
     b.hp = 0;
     const fighter = b instanceof Fighter;
+    // Buffalo isn't a stickman: it always goes down with the original pop.
+    if (b instanceof Fighter && b.buffalo && how !== 'void') how = 'pop';
     if (fighter) b.finish = how;
     // The original pop for snowmen, cats and 'pop' kills. Fell into the void: nothing at all.
     if (!fighter || how === 'pop') {
@@ -572,18 +862,34 @@ export class Game {
   }
 
   private meleeHits() {
+    // The cutscene does its own hits.
+    if (this.cut) return;
     const bodies = this.bodies();
     for (const f of this.fighters) {
       if (!f.alive || f.shielding) continue;
       for (let i = 0; i < f.weapons.length; i++) {
         const def = f.weapons[i];
-        // A thrown axe is not in your hand.
+        // A thrown axe is not in your hand. Buffalo has no normal attack.
         if ((def.id === 'axe' || def.id === 'six7') && f.boomerangOut[i]) continue;
+        if (def.damage <= 0) continue;
         const speed = Math.abs(f.angVel[i]);
         const dash = f.dashT > 0;
         const thrust = f.thrustT > 0 && i === f.thrustSlot;
         if (speed < 3.5 && !dash && !thrust) continue;
-        const dmg = f.mascot ? MASCOT_TOUCH : dash ? 60 * f.dmgMult : thrust ? 70 * f.dmgMult : def.damage * f.dmgMult * clamp(speed / 12, 0.5, 1.3);
+        const glove = thrust && def.id === 'glove';
+        const dmg = f.mascot
+          ? MASCOT_TOUCH
+          : f.fish
+          ? FISHY.melee
+          : dash
+          ? 60 * f.dmgMult
+          : glove
+          ? 45 * f.dmgMult
+          : thrust
+          ? 70 * f.dmgMult
+          : def.id === 'dart'
+          ? POISON.hit
+          : def.damage * f.dmgMult * clamp(speed / 12, 0.5, 1.3);
         const h = f.hand(i);
         const tp = f.tip(i);
         const pts = [0.25, 0.5, 0.75, 1].map((k) => ({ x: h.x + (tp.x - h.x) * k, y: h.y + (tp.y - h.y) * k }));
@@ -593,8 +899,11 @@ export class Game {
           if (!pts.some((p) => e.contains(p.x, p.y, 4))) continue;
           f.hitCd.set(e.id, this.time + (dash || thrust ? 0.5 : 0.35));
           const dir = sign(e.x - f.x) || f.facing;
-          const force = dash || thrust ? 1.4 : 1;
-          this.damage(e, dmg, f, dir * (220 + dmg * 8) * force, -(260 + dmg * 5) * force, MELEE_FINISH[def.id]);
+          // Mega Punch sends them flying.
+          const force = glove ? 2.4 : dash || thrust ? 1.4 : 1;
+          const hit = this.damage(e, dmg, f, dir * (220 + dmg * 8) * force, -(260 + dmg * 5) * force, MELEE_FINISH[def.id]);
+          if (hit && e.alive && def.id === 'firesword') this.setBurn(e, FIRE_SWORD.burnS, FIRE_SWORD.burn, f);
+          if (hit && e.alive && def.id === 'dart') this.setPoison(e, f);
         }
       }
     }
@@ -710,6 +1019,68 @@ export class Game {
       case 'thunder':
         this.thunder(f);
         break;
+      case 'firesword': {
+        // Inferno Slash: swing, and a curved air slash of fire flies out.
+        f.slashT = 0.3;
+        f.slashAngle = angle;
+        f.slashSlot = i;
+        f.hitCd.clear();
+        const sh = f.shoulder();
+        this.spawnProj('fireslash', f, sh.x + cos * 40 * s, sh.y + sin * 40 * s, angle, 1100, 0, FIRE_SWORD.slash * m, i);
+        this.burst(sh.x + cos * 50 * s, sh.y + sin * 50 * s, '#ff6d00', 12, 300);
+        break;
+      }
+      case 'recall':
+        // The boss ally when it's ready, otherwise Strike.
+        if (f.summonCd <= 0) {
+          this.summonMemory(f);
+          f.summonCd = RECALL.summonCd;
+          f.cds[i] = 1;
+        } else this.spawnProj('memorybox', f, tip.x, tip.y, angle, 1400, 0, RECALL.strike * m, i);
+        break;
+      case 'dart':
+        this.spawnProj('dart', f, tip.x, tip.y, angle, 1500, 300, POISON.hit * m, i);
+        break;
+      case 'glove':
+        // Mega Punch: the glove springs out.
+        f.thrustT = 0.3;
+        f.thrustAngle = angle;
+        f.thrustSlot = i;
+        f.hitCd.clear();
+        this.play('throw');
+        break;
+      case 'magnet':
+        this.magnet(f);
+        break;
+      case 'rocket':
+        this.spawnProj('rocket', f, tip.x, tip.y, angle, 1000, 0, 85 * m, i);
+        this.burst(tip.x, tip.y, '#ff9800', 8, 200);
+        break;
+      case 'horns': {
+        // Horn Charge: run head first across the platform.
+        const dir = Math.abs(cos) < 0.2 ? f.facing : sign(cos);
+        f.facing = dir;
+        f.dashT = 0.7;
+        f.dashVx = dir * 1100;
+        f.hitCd.clear();
+        this.text(f.x, f.y - f.h - 20, '🐂💨', '#ffffff', 30);
+        this.play('jump');
+        break;
+      }
+      case 'headbutt':
+        f.facing = Math.abs(cos) < 0.2 ? f.facing : sign(cos);
+        f.buttN = 2;
+        f.buttT = 0;
+        break;
+      case 'trident': {
+        // The Fishy boss takes turns: Tidal Waves, Call Fish, Trident Strike.
+        const n = f.fishNext;
+        f.fishNext = (n + 1) % 3;
+        if (n === 0) this.tidalWaves(f, i);
+        else if (n === 1) this.callCats(f, FISHY.fish, 'fish');
+        else this.tridentStrike(f, i);
+        break;
+      }
       case 'stick':
       case 'mascotstick': {
         // Giant stick slam: leap up, then smash down.
@@ -724,6 +1095,97 @@ export class Game {
         this.play('jump');
         break;
       }
+    }
+  }
+
+  /** Recall Memory: the purple boss ally appears next to you and fights for 20 seconds. */
+  private summonMemory(f: Fighter) {
+    const x = f.x + f.facing * 50;
+    const c = new Cat(f, x, f.y - 4, MEMORY_ALLY.hp, MEMORY_ALLY.dmg, 'memory');
+    c.vy = -300;
+    this.cats.push(c);
+    this.burst(x, f.y - 60, '#b388ff', 24, 360);
+    this.ring(x, f.y, 90, 0.5, '#b388ff');
+    this.text(x, f.y - 160, '💭!', '#b388ff', 30);
+    this.play('snowman');
+  }
+
+  /** Magnet: pulls every enemy close by toward you, with a little damage. */
+  private magnet(f: Fighter) {
+    const R = 480 * f.scale;
+    this.ring(f.x, f.cy, R, 0.4, '#e53935');
+    this.burst(f.x, f.cy, '#90a4ae', 12, 260);
+    this.play('throw');
+    for (const e of this.bodies()) {
+      if (!e.alive || e.team === f.team) continue;
+      const dx = e.x - f.x;
+      if (Math.hypot(dx, e.cy - f.cy) > R) continue;
+      this.damage(e, 15 * f.dmgMult, f, -(sign(dx) || 1) * Math.min(900, 300 + Math.abs(dx) * 1.6), -350, 'ragdoll');
+    }
+  }
+
+  /** Buffalo: Horn Charge hits everyone it runs into; Head Butt hits twice. */
+  private updateBuffalo(f: Fighter, dt: number) {
+    if (f.dashT > 0) {
+      if (f.onGround && Math.random() < 0.5) this.burst(f.x - f.facing * f.w * 0.4, f.y, '#a1887f', 2, 140);
+      this.breakGlassAt(f.x + f.facing * f.w * 0.5, f.cy, 30, f);
+      this.buffaloHit(f, f.w / 2 + 30, BUFFALO.charge, 1100, 0.8);
+    }
+    if (f.buttN > 0) {
+      f.buttT -= dt;
+      if (f.buttT <= 0) {
+        f.buttN--;
+        f.buttT = 0.55;
+        f.buttAnim = 0.35;
+        f.vx = f.facing * 650;
+        f.hitCd.clear();
+        this.buffaloHit(f, f.w / 2 + 90, BUFFALO.butt, 900, 0.3);
+        this.burst(f.x + f.facing * f.w * 0.55, f.y - f.h * 0.5, '#ffffff', 10, 260);
+        this.play('hit');
+      }
+    }
+  }
+
+  /** Hit enemies in front of Buffalo (within `reach` of its middle). */
+  private buffaloHit(f: Fighter, reach: number, dmg: number, push: number, again: number) {
+    for (const e of this.bodies()) {
+      if (!e.alive || e.team === f.team) continue;
+      const dx = e.x - f.x;
+      if (Math.abs(dx) > reach + e.w / 2 || (sign(dx) || f.facing) !== f.facing) continue;
+      if (e.y < f.y - f.h - 20 || e.y - e.h > f.y + 10) continue;
+      if ((f.hitCd.get(e.id) ?? 0) > this.time) continue;
+      f.hitCd.set(e.id, this.time + again);
+      this.damage(e, dmg * (f.dmgMult / 1.5), f, f.facing * push, -800, 'fling');
+    }
+  }
+
+  /** The Fishy boss: two waves roll out both ways and push everyone away (no damage). */
+  private tidalWaves(f: Fighter, slot: number) {
+    for (const d of [-1, 1]) {
+      this.spawnProj('wave', f, f.x + d * 60, f.y - 45, d > 0 ? 0 : Math.PI, 760, 0, 0, slot);
+      this.projectiles[this.projectiles.length - 1].dir = d;
+    }
+    this.ring(f.x, f.y, 140 * f.scale, 0.5, '#4fc3f7');
+    this.burst(f.x, f.y - 20, '#81d4fa', 24, 420);
+    this.text(f.x, f.y - f.h - 30, '🌊', '#4fc3f7', 34);
+  }
+
+  /** The Fishy boss: Trident Strike for 99, and half the time lightning for 30 more. */
+  private tridentStrike(f: Fighter, slot: number) {
+    const t = nearestEnemy(this, f, 700 * (f.scale / 2.6));
+    f.thrustT = 0.4;
+    f.thrustSlot = slot;
+    if (!t) {
+      f.thrustAngle = f.facing > 0 ? 0 : Math.PI;
+      return;
+    }
+    f.facing = sign(t.x - f.x) || f.facing;
+    f.thrustAngle = Math.atan2(t.cy - f.shoulder().y, t.x - f.x);
+    this.burst(t.x, t.cy, '#ffd54f', 14, 320);
+    this.damage(t, FISHY.strike * (f.dmgMult / 1.5), f, f.facing * 600, -600, 'ragdoll');
+    if (Math.random() < 0.5 && t.alive) {
+      this.lightning(t);
+      this.damage(t, FISHY.lightning * (f.dmgMult / 1.5), f, f.facing * 300, -500, 'zap');
     }
   }
 
@@ -833,23 +1295,24 @@ export class Game {
   }
 
   /** Call Cat AI: little cats appear around the caller. */
-  private callCats(f: Fighter, o: { count: number; hp: number; dmg: number; max: number }) {
-    const have = this.cats.filter((c) => c.alive && c.owner === f).length;
+  private callCats(f: Fighter, o: { count: number; hp: number; dmg: number; max: number }, variant: CatVariant = 'cat') {
+    const icon = variant === 'fish' ? '🐟' : '🐱';
+    const have = this.cats.filter((c) => c.alive && c.owner === f && c.variant === variant).length;
     const n = Math.min(o.count, o.max - have);
     if (n <= 0) {
-      this.text(f.x, f.y - f.h - 20, `🐱 ${o.max}/${o.max}`, '#ffffff', 22);
+      this.text(f.x, f.y - f.h - 20, `${icon} ${o.max}/${o.max}`, '#ffffff', 22);
       return;
     }
     for (let k = 0; k < n; k++) {
       const x = f.x + (k - (n - 1) / 2) * 44;
-      const c = new Cat(f, x, f.y - 10, o.hp, o.dmg);
+      const c = new Cat(f, x, f.y - 10, o.hp, o.dmg, variant);
       c.vy = -500 - Math.random() * 300;
       c.vx = (k - (n - 1) / 2) * 120;
       this.cats.push(c);
       this.burst(x, f.y - 20, '#ffcc80', 6, 220);
     }
-    this.ring(f.x, f.y, 90 * f.scale, 0.4, '#ffb74d');
-    this.text(f.x, f.y - f.h - 30, `🐱 ×${n}`, '#ffcc80', 28);
+    this.ring(f.x, f.y, 90 * f.scale, 0.4, variant === 'fish' ? '#4fc3f7' : '#ffb74d');
+    this.text(f.x, f.y - f.h - 30, `${icon} ×${n}`, variant === 'fish' ? '#81d4fa' : '#ffcc80', 28);
     this.play('snowman');
   }
 
@@ -857,7 +1320,7 @@ export class Game {
   catBite(c: Cat, e: Body) {
     c.attackT = 0.8;
     const dir = sign(e.x - c.x) || c.facing;
-    this.damage(e, c.touchDmg, c, dir * 260, -220, 'trip');
+    this.damage(e, c.touchDmg, c, dir * (c.variant === 'memory' ? 520 : 260), c.variant === 'memory' ? -420 : -220, c.variant === 'memory' ? 'ragdoll' : 'trip');
   }
 
   /** Soup lands: a yellow splash that hurts and burns every enemy close by. */
@@ -885,8 +1348,10 @@ export class Game {
   spawnProj(kind: ProjKind, owner: Body, x: number, y: number, angle: number, speed: number, g: number, dmg: number, slot: number) {
     const scale = owner instanceof Fighter ? owner.scale : 1;
     const big = kind === 'boomerang' || kind === 'bomb' || kind === 'axe' || kind === 'fireball' || kind === 'six7' || kind === 'soup';
-    const r = { arrow: 5, snowball: 11, minisnow: 8, boomerang: 16, bomb: 11, axe: 22, shuriken: 8, laser: 6, fireball: 14, six7: 24, poop: 10, soup: 14, icebolt: 9, banana: 10 }[kind] * (big ? scale : 1);
-    const life = { arrow: 2, snowball: 3, minisnow: 3, boomerang: 3.5, bomb: 1.5, axe: 3.5, shuriken: 2, laser: 0.7, fireball: 2, six7: 3.5, poop: 3, soup: 3, icebolt: 2, banana: 3 }[kind];
+    const r =
+      { arrow: 5, snowball: 11, minisnow: 8, boomerang: 16, bomb: 11, axe: 22, shuriken: 8, laser: 6, fireball: 14, six7: 24, poop: 10, soup: 14, icebolt: 9, banana: 10, fireslash: 34, dart: 6, memorybox: 12, rocket: 10, wave: 60 }[kind] *
+      (big || kind === 'fireslash' ? scale : 1);
+    const life = { arrow: 2, snowball: 3, minisnow: 3, boomerang: 3.5, bomb: 1.5, axe: 3.5, shuriken: 2, laser: 0.7, fireball: 2, six7: 3.5, poop: 3, soup: 3, icebolt: 2, banana: 3, fireslash: 0.7, dart: 2, memorybox: 0.35, rocket: 2, wave: 1.7 }[kind];
     this.projectiles.push({
       kind,
       x,
@@ -964,6 +1429,28 @@ export class Game {
           this.damage(e, p.dmg, p.owner, dir * 600, -450, PROJ_FINISH[p.kind]);
           continue;
         }
+        if (p.kind === 'wave') {
+          // Tidal waves push you away but don't hurt.
+          p.hit.add(e.id);
+          if (e instanceof Fighter && e.shielding) {
+            e.vx += (p.dir ?? dir) * 250;
+            continue;
+          }
+          const heavy = e instanceof Fighter && e.boss;
+          e.vx = (p.dir ?? dir) * (heavy ? 300 : 720);
+          e.vy = Math.min(e.vy, heavy ? -150 : -480);
+          e.onGround = false;
+          e.stun = Math.max(e.stun, heavy ? 0.05 : 0.4);
+          this.burst(e.x, e.y - 10, '#81d4fa', 8, 240);
+          continue;
+        }
+        if (p.kind === 'fireslash') {
+          // The air slash goes through everyone in its path and sets them on fire.
+          p.hit.add(e.id);
+          if (this.damage(e, p.dmg, p.owner, dir * 450, -350, PROJ_FINISH[p.kind]) && e.alive) this.setBurn(e, FIRE_SWORD.slashBurnS, FIRE_SWORD.slashBurn, p.owner);
+          this.burst(e.x, e.cy, '#ff6d00', 10, 260);
+          continue;
+        }
         if (p.kind === 'laser') {
           // The beam goes through everyone in its way.
           p.hit.add(e.id);
@@ -982,7 +1469,14 @@ export class Game {
           if (e.alive) e.frozenT = 1.2;
           this.burst(p.x, p.y, '#b3e5fc', 12, 260);
         } else if (p.kind === 'banana') this.slip(e, p.owner, p.dmg, dir);
-        else {
+        else if (p.kind === 'rocket') this.explode(p, 150 * p.scale);
+        else if (p.kind === 'dart') {
+          if (this.damage(e, p.dmg, p.owner, dir * 200, -150, PROJ_FINISH[p.kind]) && e.alive) this.setPoison(e, p.owner);
+          this.burst(p.x, p.y, '#76ff03', 8, 200);
+        } else if (p.kind === 'memorybox') {
+          this.damage(e, p.dmg, p.owner, dir * 500, -350, PROJ_FINISH[p.kind]);
+          this.burst(p.x, p.y, '#b388ff', 14, 300);
+        } else {
           this.damage(e, p.dmg, p.owner, dir * (p.kind === 'arrow' ? 420 : 300), -260, PROJ_FINISH[p.kind]);
           if (p.kind !== 'arrow') this.burst(p.x, p.y, '#ffffff', 8, 220);
         }
@@ -1005,7 +1499,10 @@ export class Game {
       }
 
       if (returns(p.kind)) this.breakGlassAt(p.x, p.y, p.r, p.owner);
-      else {
+      else if (p.kind === 'wave' || p.kind === 'fireslash') {
+        // Waves and air slashes go over and through platforms.
+        if (p.kind === 'fireslash') this.breakGlassAt(p.x, p.y, p.r, p.owner);
+      } else {
         for (const [pi, pl] of this.map.platforms.entries()) {
           if (!this.solid(pi)) continue;
           if (p.x < pl.x || p.x > pl.x + pl.w || p.y + p.r < pl.y || p.y - p.r > pl.y + pl.h) continue;
@@ -1014,7 +1511,13 @@ export class Game {
             this.breakGlassAt(p.x, p.y, p.r, p.owner);
             if (p.kind === 'laser' || p.kind === 'bomb') continue;
             if (p.kind === 'fireball') this.explode(p, 120 * p.scale, true);
+            if (p.kind === 'rocket') this.explode(p, 150 * p.scale);
             if (p.kind === 'soup') this.splash(p);
+            p.dead = true;
+            break;
+          }
+          if (p.kind === 'rocket') {
+            this.explode(p, 150 * p.scale);
             p.dead = true;
             break;
           }
@@ -1062,6 +1565,7 @@ export class Game {
       if (p.life <= 0) {
         if (p.kind === 'bomb') this.explode(p);
         if (p.kind === 'fireball') this.explode(p, 120 * p.scale, true);
+        if (p.kind === 'rocket') this.explode(p, 150 * p.scale);
         if (p.kind === 'soup') this.splash(p);
         this.finishProj(p);
         continue;
@@ -1187,8 +1691,19 @@ export class Game {
 
   private winnerTeam(): { decided: boolean; team: number | null } {
     const alive = this.fighters.filter((f) => f.alive);
+    if (this.cut) return { decided: false, team: null };
+    if (this.fishPhase) {
+      // Everyone against the Fishy boss first; then back to Free For All / Teams.
+      if (!this.fish?.alive) {
+        this.fishBeaten = true;
+        this.endFishPhase();
+      } else if (!alive.some((f) => !f.boss)) return { decided: true, team: BOSS_TEAM };
+      else return { decided: false, team: null };
+    }
+    if (this.beach && this.fish && !this.fish.alive) this.fishBeaten = true;
     if (isBossMode(this.mode)) {
-      const bosses = this.bosses;
+      // Only the bosses you fight count (on the Beach the normal bosses were on your side).
+      const bosses = this.bosses.filter((b) => b.team === BOSS_TEAM);
       if (bosses.length && bosses.every((b) => !b.alive)) return { decided: true, team: 0 };
       if (!alive.some((f) => !f.boss)) return { decided: true, team: BOSS_TEAM };
       return { decided: false, team: null };
@@ -1212,9 +1727,10 @@ export class Game {
     this.result = {
       mode: this.mode,
       winnerTeam: w.team,
-      winners: w.team === BOSS_TEAM ? this.fighters.filter((f) => f.boss) : winners,
+      winners: w.team === BOSS_TEAM ? this.fighters.filter((f) => f.boss && f.team === BOSS_TEAM) : winners,
       humanWon: winners.some((f) => f.human) && w.team !== BOSS_TEAM,
       hadHumans: this.fighters.some((f) => f.human),
+      fish: this.fishBeaten,
     };
     if (!this.demo && this.result.humanWon) sfx.win();
     this.onOver?.(this.result);
@@ -1260,6 +1776,10 @@ export class Game {
     this.rings = this.rings.filter((r) => r.life > 0);
     for (const b of this.bolts) b.life -= dt;
     this.bolts = this.bolts.filter((b) => b.life > 0);
+    if (this.caption) {
+      this.caption.t -= dt;
+      if (this.caption.t <= 0) this.caption = null;
+    }
     updateCorpses(this, dt);
     this.shake = Math.max(0, this.shake - 40 * dt);
   }

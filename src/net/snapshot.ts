@@ -1,6 +1,7 @@
-import { Cat, Fighter, Snowman, type ProjKind, type Projectile } from '../game/entities';
+import { CAT_VARIANTS, Cat, Fighter, Snowman, type ProjKind, type Projectile } from '../game/entities';
 import type { Game, NetEvent } from '../game/game';
 import { FINISHES, makeCorpse } from '../game/finish';
+import type { Key } from '../i18n';
 
 /** One frame of the match as the host sees it, packed into small arrays of numbers. */
 export interface Snapshot {
@@ -15,13 +16,15 @@ export interface Snapshot {
   /** Potions [id, x, y] and banana peels [x, y, life]. */
   po?: number[][];
   pe?: number[][];
-  /** AI cats: [id, owner, x, y, hp, facing, hurt, maxHp, vx]. */
+  /** AI cats and helpers: [id, owner, x, y, hp, facing, hurt, maxHp, vx, variant, life, biting]. */
   c?: number[][];
+  /** Big words on screen: [key, fighter index, seconds left]. */
+  cap?: [string, number, number];
   /** Broken glass right now: [platform index, seconds until it comes back]. */
   gl?: number[][];
 }
 
-const KINDS: ProjKind[] = ['arrow', 'snowball', 'minisnow', 'boomerang', 'bomb', 'axe', 'shuriken', 'laser', 'fireball', 'six7', 'poop', 'soup', 'icebolt', 'banana'];
+const KINDS: ProjKind[] = ['arrow', 'snowball', 'minisnow', 'boomerang', 'bomb', 'axe', 'shuriken', 'laser', 'fireball', 'six7', 'poop', 'soup', 'icebolt', 'banana', 'fireslash', 'dart', 'memorybox', 'rocket', 'wave'];
 const r1 = (v: number) => Math.round(v);
 const r2 = (v: number) => Math.round(v * 100) / 100;
 
@@ -37,7 +40,9 @@ const SHIELD = 1,
   BOOM1 = 256,
   THRUST1 = 512,
   BURN = 1024,
-  FROZEN = 2048;
+  FROZEN = 2048,
+  BUTT = 4096,
+  POISON = 8192;
 
 function ownerIndex(g: Game, o: unknown): number {
   const f = o instanceof Snowman || o instanceof Cat ? o.owner : o;
@@ -63,6 +68,8 @@ export function encodeSnapshot(g: Game): Snapshot {
       if (f.boomerangOut[1]) fl |= BOOM1;
       if (f.burnT > 0) fl |= BURN;
       if (f.frozenT > 0) fl |= FROZEN;
+      if (f.buttAnim > 0) fl |= BUTT;
+      if (f.poisonT > 0) fl |= POISON;
       return [f.alive ? 1 : 0, r1(f.x), r1(f.y), r1(f.vx), r1(f.vy), r1(f.hp), f.facing, f.onGround ? 1 : 0, fl, r1(f.shieldHp), r2(f.angles[0]), r2(f.angVel[0]), r2(f.angles[1] ?? 0), FINISHES.indexOf(f.finish)];
     }),
     m: g.snowmen.map((s) => [s.id, ownerIndex(g, s.owner), r1(s.x), r1(s.y), r1(s.hp), s.facing, s.hurtFlash > 0 ? 1 : 0]),
@@ -71,9 +78,10 @@ export function encodeSnapshot(g: Game): Snapshot {
     e: g.events,
     po: g.potions.map((p) => [p.id, r1(p.x), r1(p.y)]),
     pe: g.peels.map((p) => [r1(p.x), r1(p.y), r2(p.life)]),
-    c: g.cats.map((c) => [c.id, ownerIndex(g, c.owner), r1(c.x), r1(c.y), r1(c.hp), c.facing, c.hurtFlash > 0 ? 1 : 0, c.maxHp, r1(c.vx)]),
+    c: g.cats.map((c) => [c.id, ownerIndex(g, c.owner), r1(c.x), r1(c.y), r1(c.hp), c.facing, c.hurtFlash > 0 ? 1 : 0, c.maxHp, r1(c.vx), CAT_VARIANTS.indexOf(c.variant), c.life === Infinity ? -1 : r2(c.life), c.attackT > 0.5 ? 1 : 0]),
     gl: g.glassT.flatMap((t, i) => (t > 0 ? [[i, r2(t)]] : [])),
   };
+  if (g.caption) snap.cap = [g.caption.key, g.caption.who, r2(g.caption.t)];
   g.events = [];
   return snap;
 }
@@ -121,6 +129,8 @@ export class Mirror {
       if (f.boomerangOut.length > 1) f.boomerangOut[1] = !!(fl & BOOM1);
       f.burnT = fl & BURN ? 1 : 0;
       f.frozenT = fl & FROZEN ? 1 : 0;
+      f.buttAnim = fl & BUTT ? 0.1 : 0;
+      f.poisonT = fl & POISON ? 1 : 0;
       f.shieldHp = shieldHp;
       f.angVel[0] = av0;
       const prev = this.target.get(f);
@@ -164,13 +174,15 @@ export class Mirror {
 
     const seenCats = new Set<number>();
     const cats: Cat[] = [];
-    for (const [id, oi, x, y, hp, facing, hurt, maxHp, vx] of s.c ?? []) {
+    for (const [id, oi, x, y, hp, facing, hurt, maxHp, vx, variant, life, biting] of s.c ?? []) {
       seenCats.add(id);
       let c = this.cats.get(id);
       if (!c) {
-        c = new Cat(g.fighters[oi] ?? g.fighters[0], x, y, maxHp, 0);
+        c = new Cat(g.fighters[oi] ?? g.fighters[0], x, y, maxHp, 0, CAT_VARIANTS[variant] ?? 'cat');
         this.cats.set(id, c);
       }
+      c.life = life === undefined || life < 0 ? Infinity : life;
+      if (biting) c.attackT = 0.7;
       c.hp = hp;
       c.facing = facing;
       c.vx = vx;
@@ -202,6 +214,7 @@ export class Mirror {
       const owner = g.fighters[oi] ?? g.fighters[0];
       return { x, y, owner, team: owner.team, life };
     });
+    g.caption = s.cap ? { key: s.cap[0] as Key, who: s.cap[1], t: s.cap[2] } : null;
     g.glassT = g.map.platforms.map(() => 0);
     for (const [i, t] of s.gl ?? []) if (i in g.glassT) g.glassT[i] = t;
     g.applyEvents(s.e);
@@ -221,7 +234,10 @@ export class Mirror {
         body.hurtFlash -= dt;
       } else {
         body.hurtFlash -= dt;
-        if (body instanceof Cat) body.walkPhase += body.vx * dt * 0.06;
+        if (body instanceof Cat) {
+          body.walkPhase += body.vx * dt * (body.variant === 'memory' ? 0.04 : 0.06);
+          body.attackT -= dt;
+        }
       }
     }
     this.g.clientTick(dt);

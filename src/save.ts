@@ -8,6 +8,10 @@ export interface SaveData {
   /** potions: healing potions drop in matches (on by default). */
   settings: { lang: Lang; fallMode: FallMode; sound: boolean; potions: boolean };
   lastMatch?: MatchConfig;
+  /** The last Sandbox setup. */
+  lastSandbox?: MatchConfig;
+  /** Achievement ids you have earned. */
+  achievements: string[];
   /** Your name for online rooms. */
   name: string;
   /** Names typed for P1-P6 on this device. */
@@ -30,6 +34,7 @@ function defaults(): SaveData {
     coins: 0,
     owned: [...FREE_WEAPONS],
     customMaps: [],
+    achievements: [],
     settings: { lang: thai ? 'th' : 'en', fallMode: 'ko', sound: true, potions: true },
     name: '',
     localNames: [],
@@ -53,6 +58,8 @@ export function normalize(raw: unknown): SaveData {
       potions: r.settings?.potions !== false,
     },
     lastMatch: r.lastMatch,
+    lastSandbox: r.lastSandbox,
+    achievements: Array.isArray(r.achievements) ? Array.from(new Set(r.achievements.filter((x) => typeof x === 'string'))) : [],
     name: cleanName(r.name),
     localNames: Array.isArray(r.localNames) ? r.localNames.slice(0, 6).map(cleanName) : [],
     updatedAt: Number.isFinite(r.updatedAt) ? (r.updatedAt as number) : 0,

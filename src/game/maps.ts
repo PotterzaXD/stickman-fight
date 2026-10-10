@@ -4,7 +4,7 @@ export interface Theme {
   sky: [string, string];
   plat: string;
   top: string;
-  deco: 'clouds' | 'stars' | 'snow' | 'embers' | 'space';
+  deco: 'clouds' | 'stars' | 'snow' | 'embers' | 'space' | 'beach';
   /** Gravity multiplier (space: low gravity, you jump higher and fall slower). */
   gravity?: number;
 }
@@ -16,9 +16,10 @@ export const THEMES: Record<ThemeId, Theme> = {
   snow: { sky: ['#b3e5fc', '#ffffff'], plat: '#78909c', top: '#ffffff', deco: 'snow' },
   lava: { sky: ['#2b0f0f', '#a1301a'], plat: '#3e2723', top: '#ff7043', deco: 'embers' },
   space: { sky: ['#05010f', '#1a1240'], plat: '#4a4458', top: '#9e97b8', deco: 'space', gravity: 0.55 },
+  beach: { sky: ['#4fc3f7', '#fff3e0'], plat: '#c8955a', top: '#ffe0a3', deco: 'beach' },
 };
 
-export const THEME_IDS: ThemeId[] = ['day', 'sunset', 'night', 'snow', 'lava', 'space'];
+export const THEME_IDS: ThemeId[] = ['day', 'sunset', 'night', 'snow', 'lava', 'space', 'beach'];
 
 const P = (x: number, y: number, w: number, h = 24): Platform => ({ x, y, w, h });
 /** Special block: concrete, lava or glass. */
@@ -212,6 +213,27 @@ export const BUILTIN_MAPS: MapDef[] = [
       P(900, 290, 200),
       P(160, 330, 140),
       P(1700, 330, 140),
+    ],
+    spawns: [],
+  },
+  {
+    // The Fishy boss lives here: it shows up in every mode on this map.
+    id: 'beach',
+    name: 'm.beach',
+    w: 1900,
+    h: 1000,
+    theme: 'beach',
+    builtin: true,
+    deco: 'palms',
+    platforms: [
+      // The sand, a wooden pier and floating rafts
+      P(120, 760, 1180, 70),
+      P(1300, 780, 480, 26),
+      P(260, 570, 260),
+      P(860, 500, 280),
+      P(1420, 590, 240),
+      P(560, 360, 220),
+      P(1180, 340, 200),
     ],
     spawns: [],
   },

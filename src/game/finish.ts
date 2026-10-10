@@ -32,6 +32,15 @@ export const MELEE_FINISH: Partial<Record<WeaponId, Finish>> = {
   banana: 'slip',
   stick: 'ragdoll',
   mascotstick: 'ragdoll',
+  firesword: 'ashes',
+  recall: 'ragdoll',
+  dart: 'ragdoll',
+  glove: 'fling',
+  magnet: 'ragdoll',
+  rocket: 'ragdoll',
+  horns: 'fling',
+  headbutt: 'fling',
+  trident: 'ragdoll',
 };
 
 /** Finisher for a skill shot. */
@@ -48,6 +57,10 @@ export const PROJ_FINISH: Partial<Record<ProjKind, Finish>> = {
   soup: 'ashes',
   icebolt: 'shatter',
   banana: 'slip',
+  fireslash: 'ashes',
+  dart: 'ragdoll',
+  memorybox: 'fling',
+  rocket: 'fling',
 };
 
 interface Pt {

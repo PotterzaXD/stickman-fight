@@ -1,4 +1,5 @@
 import { WEAPONS } from '../game/weapons';
+import { achName, grant } from '../achievements';
 import { t, type Key } from '../i18n';
 import { save } from '../save';
 import { sfx } from '../sfx';
@@ -29,6 +30,8 @@ register('shop', (root) => {
           });
           sfx.coin();
           toast(t('bought', { name }));
+          // Owning every weapon earns Collector.
+          for (const id of grant([])) setTimeout(() => toast(t('achNew', { name: achName(id) })), 1200);
           render();
         };
         return h(

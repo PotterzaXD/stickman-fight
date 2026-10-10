@@ -1,4 +1,5 @@
-export type WeaponId = 'sword' | 'spear' | 'hammer' | 'bow' | 'boomerang' | 'bomb' | 'katana' | 'snowball' | 'axe' | 'shuriken' | 'laser' | 'staff' | 'six7' | 'poop' | 'treasure' | 'soup' | 'catcall' | 'ice' | 'thunder' | 'banana' | 'stick' | 'mascotstick';
+export type WeaponId = 'sword' | 'spear' | 'hammer' | 'bow' | 'boomerang' | 'bomb' | 'katana' | 'snowball' | 'axe' | 'shuriken' | 'laser' | 'staff' | 'six7' | 'poop' | 'treasure' | 'soup' | 'catcall' | 'ice' | 'thunder' | 'banana' | 'stick' | 'mascotstick'
+  | 'firesword' | 'recall' | 'dart' | 'glove' | 'magnet' | 'rocket' | 'horns' | 'headbutt' | 'trident';
 
 export interface WeaponDef {
   id: WeaponId;
@@ -40,10 +41,26 @@ export const WEAPONS: WeaponDef[] = [
   { id: 'banana', price: 250, length: 26, damage: 12, turn: 14, cooldown: 1.8, ranged: true },
   { id: 'stick', price: 0, length: 90, damage: 50, turn: 10, cooldown: 6, ranged: false, special: 'boss' },
   { id: 'mascotstick', price: 0, length: 90, damage: 30, turn: 11, cooldown: 6, ranged: false, special: 'reward' },
+  { id: 'firesword', price: 500, length: 78, damage: 35, turn: 15, cooldown: 5, ranged: false },
+  { id: 'recall', price: 1000, length: 22, damage: 20, turn: 14, cooldown: 5, ranged: false },
+  { id: 'dart', price: 400, length: 30, damage: 15, turn: 14, cooldown: 1.5, ranged: true },
+  { id: 'glove', price: 350, length: 36, damage: 22, turn: 15, cooldown: 3, ranged: false },
+  { id: 'magnet', price: 450, length: 40, damage: 14, turn: 13, cooldown: 5, ranged: false },
+  { id: 'rocket', price: 750, length: 56, damage: 12, turn: 12, cooldown: 4, ranged: true },
+  // Buffalo has no normal attack: its horns and head only hurt with its skills.
+  { id: 'horns', price: 0, length: 60, damage: 0, turn: 10, cooldown: 5, ranged: false, special: 'boss' },
+  { id: 'headbutt', price: 0, length: 40, damage: 0, turn: 10, cooldown: 4, ranged: false, special: 'boss' },
+  { id: 'trident', price: 0, length: 110, damage: 30, turn: 10, cooldown: 3.5, ranged: false, special: 'boss' },
 ];
 
 /** Weapons you can buy in the shop or roll at random (no boss or reward weapons). */
 export const SHOP_WEAPONS = WEAPONS.filter((w) => !w.special);
+
+/** Every weapon you can own: the shop plus the boss rewards. */
+export const ALL_OWNABLE = WEAPONS.filter((w) => w.special !== 'boss');
+
+/** The shop weapons from before the Fire Sword update: owning these unlocks the Mascot (new weapons don't lock it again). */
+export const MASCOT_WEAPONS = ['sword', 'spear', 'hammer', 'bow', 'boomerang', 'bomb', 'katana', 'snowball', 'axe', 'shuriken', 'laser', 'staff', 'six7', 'poop', 'ice', 'thunder', 'banana'];
 
 export function weapon(id: string): WeaponDef {
   return WEAPONS.find((w) => w.id === id) ?? WEAPONS[0];
