@@ -20,7 +20,8 @@ import {
 } from './entities';
 import { MELEE_FINISH, PROJ_FINISH, makeCorpse, updateCorpses, type Corpse, type Finish } from './finish';
 import { THEMES, pickSpawns } from './maps';
-import { BEACH_MAP, BEACH_MODES, isBossMode, type BossKind, type Difficulty, type FallMode, type MapDef, type Mode, type SandboxBoss } from './types';
+import { feedCount, type FeedKind } from './killfeed';
+import { BEACH_MAP, BEACH_MODES, isBossMode, isSecret, type BossKind, type Difficulty, type FallMode, type MapDef, type Mode, type SandboxBoss } from './types';
 import { SHOP_WEAPONS, weapon } from './weapons';
 import type { Key } from '../i18n';
 import { sfx } from '../sfx';
@@ -137,6 +138,15 @@ export const RECALL = { summonCd: 21, strike: 50 };
 export const BUFFALO = { charge: 120, butt: 90 };
 /** The Fishy boss: trident hits, Trident Strike (+ lightning half the time), and the fish it calls. */
 export const FISHY = { melee: 30, strike: 99, lightning: 30, fish: { count: 4, hp: 50, dmg: 20, max: 12 } };
+/** The Snow Queen: Ice Shard (+ slow), Blizzard over the whole screen, and Frozen Shield. */
+export const QUEEN = { shard: 40, slowS: 2.5, blizzard: 25, blizzardS: 5, warnS: 1.3, shieldHp: 1500 };
+/** The Tide King: Wave Crash, Water Jet (a beam that hits again and again) and Summon Fish. */
+export const TIDE = { crash: 60, jet: 15, jetS: 2.2, jetEvery: 0.22, jetLen: 950, fish: { count: 3, hp: 80, dmg: 20, max: 9 } };
+/** The Ancient Guardian: Vine Whip, Root Trap (slow + damage over time) and Leaf Storm. */
+export const GUARDIAN = { vine: 50, root: 20, rootS: 3, leaf: 20, leafS: 5, leafR: 320, leafEvery: 0.5 };
+/** Slowed fighters move at this much of their speed. */
+export const SLOW_SPEED = 0.45;
+
 /** Damage the normal boss does to the Fishy boss in the Beach cutscene. */
 export const CUTSCENE_DMG = 1000;
 
@@ -161,7 +171,22 @@ export type NetEvent =
   | ['t', number, number, string, string, number]
   | ['r', number, number, number, number, string]
   | ['s', string]
-  | ['z', number, number, number, number];
+  | ['z', number, number, number, number]
+  | ['k', number, number, FeedKind, number];
+
+/** One line in the kill feed: fighter indexes (killer -1 = nobody), what happened, which joke. */
+export interface FeedItem {
+  victim: number;
+  killer: number;
+  kind: FeedKind;
+  n: number;
+  t: number;
+}
+/** Seconds a kill feed line stays, and how many show at once. */
+export const FEED_LIFE = 5;
+export const FEED_MAX = 6;
+/** Fell off within this many seconds of a hit: the hitter gets the credit. */
+const BLAME_S = 5;
 
 const sign = (v: number) => (v > 0 ? 1 : v < 0 ? -1 : 0);
 const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v));
@@ -217,9 +242,18 @@ export class Game {
   private cutOthers: Fighter[] = [];
   private cutMove = new Map<Fighter, number>();
   caption: Caption | null = null;
+  feed: FeedItem[] = [];
+  /** The Snow Queen's Blizzard: warning seconds left, then seconds of storm left. */
+  blizzard: { warn: number; t: number; tick: number; owner: Fighter | null } | null = null;
+  /** Where each platform starts (moving platforms slide away from here and back). */
+  private platBase: { x: number; y: number }[];
+  private lastFeed = new Map<string, number>();
 
   constructor(map: MapDef, specs: FighterSpec[], opts: GameOpts) {
-    this.map = map;
+    // Each match gets its own copy of the platforms: moving platforms change their copy.
+    this.map = { ...map, platforms: map.platforms.map((p) => ({ ...p })) };
+    this.platBase = map.platforms.map((p) => ({ x: p.x, y: p.y }));
+    map = this.map;
     this.mode = opts.mode;
     this.fallMode = opts.fallMode;
     this.demo = !!opts.demo;
@@ -299,6 +333,7 @@ export class Game {
     }
     const names = opts.bossNames ?? {};
     if (opts.mode === 'buffalo') this.addBoss('buffalo', names.buffalo ?? opts.bossName ?? 'Buffalo', BOSS_TEAM, 0);
+    if (isSecret(opts.mode)) this.addBoss(opts.mode, names[opts.mode] ?? opts.bossName ?? 'Boss', BOSS_TEAM, 0);
     // Sandbox: any bosses, on any team, with any HP.
     (opts.extraBosses ?? []).forEach((b, k) => {
       const f = this.addBoss(b.kind, names[b.kind] ?? b.kind, b.team, k, b.hp);
@@ -322,8 +357,22 @@ export class Game {
     const wide = [...this.map.platforms].filter((p) => p.kind !== 'lava').sort((p, q) => q.w - p.w);
     const top = wide.length ? wide[k % wide.length] : null;
     const weapons =
-      kind === 'cat' ? ['soup', 'catcall'] : kind === 'mascot' ? ['stick'] : kind === 'buffalo' ? ['horns', 'headbutt'] : kind === 'fish' ? ['trident'] : randomBossWeapons();
-    const color = { boss: '#263238', cat: '#ff9800', mascot: '#ffffff', buffalo: '#5d4037', fish: '#1e88e5' }[kind];
+      kind === 'cat'
+        ? ['soup', 'catcall']
+        : kind === 'mascot'
+        ? ['stick']
+        : kind === 'buffalo'
+        ? ['horns', 'headbutt']
+        : kind === 'fish'
+        ? ['trident']
+        : kind === 'queen'
+        ? ['scepter']
+        : kind === 'tide'
+        ? ['kingtrident']
+        : kind === 'guardian'
+        ? ['vinestaff']
+        : randomBossWeapons();
+    const color = { boss: '#263238', cat: '#ff9800', mascot: '#ffffff', buffalo: '#5d4037', fish: '#1e88e5', queen: '#81d4fa', tide: '#0277bd', guardian: '#558b2f' }[kind];
     const f = new Fighter({
       name,
       color,
@@ -337,6 +386,7 @@ export class Game {
       mascot: kind === 'mascot',
       buffalo: kind === 'buffalo',
       fish: kind === 'fish',
+      secret: isSecret(kind) ? kind : undefined,
       hp,
     });
     f.brain = new BotBrain('boss');
@@ -505,6 +555,8 @@ export class Game {
   /** Joining device: the host runs the match; this only animates effects and the camera between updates. */
   clientTick(dt: number) {
     this.time += dt;
+    this.movePlatforms(false);
+    this.markSurvivors();
     for (const f of this.fighters) {
       if (!f.alive) continue;
       if (f.onGround) f.walkPhase += f.vx * dt * 0.045;
@@ -531,6 +583,7 @@ export class Game {
       else if (e[0] === 'r') this.rings.push({ x: e[1], y: e[2], r: 10, maxR: e[3], life: e[4], max: e[4], color: e[5] });
       else if (e[0] === 's' && e[1] in sfx) (sfx as unknown as Record<string, () => void>)[e[1]]();
       else if (e[0] === 'z') this.bolts.push({ x1: e[1], y1: e[2], x2: e[3], y2: e[4], life: 0.3 });
+      else if (e[0] === 'k') this.pushFeed({ victim: e[1], killer: e[2], kind: e[3], n: e[4], t: FEED_LIFE });
     }
   }
 
@@ -545,8 +598,40 @@ export class Game {
     f.brain = new BotBrain('medium');
   }
 
+  /** Patience: who is still standing at 5 minutes. */
+  private markSurvivors() {
+    if (this.time < 300) return;
+    for (const f of this.fighters) if (f.alive) f.survived5 = true;
+  }
+
+  /** Slide the moving platforms to where they are at this moment, carrying whoever stands on them. */
+  movePlatforms(carry = true) {
+    this.map.platforms.forEach((p, i) => {
+      if (!p.move) return;
+      const base = this.platBase[i];
+      const k = 0.5 - 0.5 * Math.cos(2 * Math.PI * (this.time / p.move.period + (p.move.phase ?? 0)));
+      const nx = base.x + p.move.dx * k;
+      const ny = base.y + p.move.dy * k;
+      const dx = nx - p.x;
+      const dy = ny - p.y;
+      p.x = nx;
+      p.y = ny;
+      if (!carry || (!dx && !dy)) return;
+      for (const b of this.bodies()) {
+        if (!b.alive || !b.onGround || b.standOn !== i) continue;
+        b.x += dx;
+        b.y += dy;
+      }
+      for (const gb of this.groundBalls) if (gb.x >= p.x - dx && gb.x <= p.x - dx + p.w && Math.abs(gb.y - (p.y - dy)) < 3) {
+        gb.x += dx;
+        gb.y += dy;
+      }
+    });
+  }
+
   update(dt: number) {
     this.time += dt;
+    this.movePlatforms();
     // Frozen by the Ice Wand: can't move until it melts.
     for (const b of this.bodies()) {
       if (b.frozenT <= 0) continue;
@@ -554,7 +639,10 @@ export class Game {
       b.stun = Math.max(b.stun, b.frozenT);
       if (b.onGround) b.vx *= 0.8;
     }
+    for (const b of this.bodies()) if (b.slowT > 0) b.slowT -= dt;
+    this.markSurvivors();
     if (this.cut) this.updateCutscene(dt);
+    this.updateBlizzard(dt);
     for (const f of this.fighters) if (f.alive) this.updateFighter(f, dt);
     for (const s of this.snowmen) {
       if (!s.alive) continue;
@@ -626,7 +714,7 @@ export class Game {
     if (f.dashT > 0) f.vx = f.dashVx;
     else if (f.stun > 0) f.vx *= Math.max(0, 1 - 1.5 * dt);
     else {
-      const target = f.shielding ? 0 : it.moveX * f.speed;
+      const target = f.shielding ? 0 : it.moveX * f.speed * (f.slowT > 0 ? SLOW_SPEED : 1);
       f.vx += (target - f.vx) * Math.min(1, (f.onGround ? 14 : 6) * dt);
     }
     if (it.moveX && !f.shielding && f.dashT <= 0) f.facing = sign(it.moveX);
@@ -665,6 +753,8 @@ export class Game {
     }
     if (f.mascot) this.mascotTouch(f);
     if (f.buffalo) this.updateBuffalo(f, dt);
+    if (f.jetT > 0) this.updateJet(f, dt);
+    if (f.leafT > 0) this.updateLeaves(f, dt);
     if (f.onGround) f.walkPhase += f.vx * dt * 0.045;
 
     const swinging = Math.abs(f.angVel[0]) > 3.5 || f.dashT > 0 || f.thrustT > 0;
@@ -684,15 +774,20 @@ export class Game {
       const half = b.w * 0.35;
       let land: number | null = null;
       let lava = false;
+      let on = -1;
       this.map.platforms.forEach((p, i) => {
         if (!this.solid(i)) return;
-        if (b.x + half > p.x && b.x - half < p.x + p.w && prevY <= p.y + 2 && b.y >= p.y) {
+        // Rising platforms can catch you a little below their top.
+        const catchUp = p.move && p.move.dy ? 14 : 2;
+        if (b.x + half > p.x && b.x - half < p.x + p.w && prevY <= p.y + catchUp && b.y >= p.y) {
           if (land === null || p.y < land) {
             land = p.y;
             lava = p.kind === 'lava';
+            on = i;
           }
         }
       });
+      b.standOn = on;
       if (land !== null) {
         b.y = land;
         b.vy = 0;
@@ -708,12 +803,13 @@ export class Game {
     b.vy = -LAVA_JUMP;
     b.onGround = false;
     b.hp -= LAVA_DMG;
+    if (b instanceof Fighter) b.dmgTaken += LAVA_DMG;
     b.hurtFlash = 0.15;
     if (b instanceof Fighter) b.slamming = false;
     this.text(b.x, b.y - b.h - 10, `-${LAVA_DMG}`, '#ff7043', 26);
     this.burst(b.x, b.y, '#ff6d00', 14, 380);
     this.play('hit');
-    if (b.hp <= 0) this.kill(b, null);
+    if (b.hp <= 0) this.kill(b, null, 'pop', 'lava');
   }
 
   /** A skill hit glass around (x, y): it shatters and comes back after GLASS_BACK seconds. */
@@ -752,6 +848,7 @@ export class Game {
         if (b.poisonTick <= 0) {
           b.poisonTick = 1;
           b.hp -= POISON.dmg;
+          if (b instanceof Fighter) b.dmgTaken += POISON.dmg;
           b.hurtFlash = 0.1;
           this.text(b.x + (Math.random() - 0.5) * 20, b.y - b.h - 10, String(POISON.dmg), '#76ff03', 18);
           this.burst(b.x, b.cy, '#76ff03', 4, 140);
@@ -764,10 +861,11 @@ export class Game {
       if (b.burnTick > 0) continue;
       b.burnTick = b.burnEvery;
       b.hp -= b.burnDmg;
+      if (b instanceof Fighter) b.dmgTaken += b.burnDmg;
       b.hurtFlash = 0.1;
       this.text(b.x + (Math.random() - 0.5) * 20, b.y - b.h - 10, String(b.burnDmg), '#ff9800', 18);
       this.burst(b.x, b.cy, '#ff9800', 4, 160);
-      if (b.hp <= 0) this.kill(b, b.burnSrc, 'ashes');
+      if (b.hp <= 0) this.kill(b, b.burnSrc, 'ashes', 'burn');
     }
   }
 
@@ -789,6 +887,10 @@ export class Game {
     const by = src instanceof Snowman || src instanceof Cat ? src.owner : src;
     if (by instanceof Fighter) amount *= by.power;
     amount = Math.round(amount);
+    if (target instanceof Fighter && by instanceof Fighter && by !== target) {
+      target.lastHitBy = by;
+      target.lastHitT = this.time;
+    }
     if (target instanceof Fighter && target.shielding) {
       target.shieldHp -= amount;
       target.vx += kx * 0.25;
@@ -797,12 +899,33 @@ export class Game {
       if (target.shieldHp <= 0) this.breakShield(target);
       return false;
     }
+    if (target instanceof Fighter && target.iceShield > 0) {
+      // Frozen Shield: blocks everything until it breaks.
+      target.iceShield -= amount;
+      this.text(target.x + (Math.random() - 0.5) * 30, target.y - target.h - 10, `🛡️${amount}`, '#b3e5fc', 18);
+      this.burst(target.x + (Math.random() - 0.5) * target.w, target.cy, '#e1f5fe', 5, 220);
+      this.play('block');
+      if (target.iceShield <= 0) {
+        target.iceShield = 0;
+        this.text(target.x, target.y - target.h - 40, 'SHATTERED!', '#4fc3f7', 30);
+        this.burst(target.x, target.cy, '#b3e5fc', 40, 520);
+        this.ring(target.x, target.cy, 200, 0.4, '#e1f5fe');
+        this.play('glass');
+      }
+      return false;
+    }
     const heavy = target instanceof Fighter && target.boss;
     if (heavy) {
       kx *= 0.25;
       ky *= 0.25;
     }
     target.hp -= amount;
+    if (target instanceof Fighter) target.dmgTaken += amount;
+    if (by instanceof Fighter && by !== target) {
+      by.streak++;
+      by.bestStreak = Math.max(by.bestStreak, by.streak);
+    }
+    this.play(amount >= 60 ? 'heavy' : 'hit');
     target.vx = kx;
     if (ky < 0) {
       target.vy = Math.min(target.vy, ky);
@@ -813,7 +936,6 @@ export class Game {
     this.text(target.x + (Math.random() - 0.5) * 20, target.y - target.h - 10, String(amount), amount >= 60 ? '#ff5252' : '#ffffff', 18 + Math.min(16, amount / 5));
     this.burst(target.x, target.cy, target.color, 5 + Math.floor(amount / 10), 260);
     this.shake = Math.min(14, this.shake + amount / 30);
-    this.play('hit');
     if (target.hp <= 0) this.kill(target, src, how);
     return true;
   }
@@ -834,7 +956,8 @@ export class Game {
     e.poisonSrc = src;
   }
 
-  kill(b: Body, src: Body | null, how: Finish = 'pop') {
+  /** `env`: what the map did (lava block, fire); falling off the map is worked out here. */
+  kill(b: Body, src: Body | null, how: Finish = 'pop', env?: FeedKind) {
     if (!b.alive) return;
     b.alive = false;
     b.hp = 0;
@@ -858,7 +981,31 @@ export class Game {
     }
     const killer = src instanceof Snowman || src instanceof Cat ? src.owner : src;
     if (killer instanceof Fighter && killer !== b && b.kind === 'fighter') killer.kos++;
+    if (b instanceof Fighter && !this.demo) this.feedKill(b, killer instanceof Fighter && killer !== b ? killer : null, how, env);
     if (b instanceof Fighter) for (const p of this.projectiles) if (p.owner === b && returns(p.kind)) p.dead = true;
+  }
+
+  /** Add a goofy line to the kill feed (and send it to the other devices). */
+  private feedKill(v: Fighter, killer: Fighter | null, how: Finish, env?: FeedKind) {
+    let kind: FeedKind = env ?? 'kill';
+    if (how === 'void') kind = this.map.theme === 'beach' ? 'water' : this.map.theme === 'lava' ? 'lava' : 'void';
+    // Knocked off the map (or into lava) by someone a moment ago: they get the credit.
+    if (!killer && v.lastHitBy && v.lastHitBy !== v && this.time - v.lastHitT < BLAME_S) killer = v.lastHitBy;
+    const by = !!killer;
+    const count = feedCount(kind, by);
+    // Never the same joke twice in a row.
+    let n = Math.floor(Math.random() * count);
+    const key = `${kind}${by}`;
+    if (count > 1 && n === this.lastFeed.get(key)) n = (n + 1) % count;
+    this.lastFeed.set(key, n);
+    const item: FeedItem = { victim: this.fighters.indexOf(v), killer: killer ? this.fighters.indexOf(killer) : -1, kind, n, t: FEED_LIFE };
+    this.pushFeed(item);
+    if (this.record) this.events.push(['k', item.victim, item.killer, kind, n]);
+  }
+
+  private pushFeed(item: FeedItem) {
+    this.feed.push(item);
+    if (this.feed.length > FEED_MAX) this.feed.shift();
   }
 
   private meleeHits() {
@@ -879,7 +1026,7 @@ export class Game {
         const glove = thrust && def.id === 'glove';
         const dmg = f.mascot
           ? MASCOT_TOUCH
-          : f.fish
+          : f.fish || def.id === 'trident'
           ? FISHY.melee
           : dash
           ? 60 * f.dmgMult
@@ -1081,6 +1228,33 @@ export class Game {
         else this.tridentStrike(f, i);
         break;
       }
+      case 'scepter': {
+        // The Snow Queen takes turns: Ice Shard, Blizzard, Frozen Shield (shards again if one is still going).
+        const n = f.fishNext;
+        f.fishNext = (n + 1) % 3;
+        if (n === 1 && !this.blizzard) this.startBlizzard(f);
+        else if (n === 2 && f.iceShield <= 0) this.frozenShield(f);
+        else this.iceShards(f, i, angle);
+        break;
+      }
+      case 'kingtrident': {
+        // The Tide King: Wave Crash, Water Jet, Summon Fish.
+        const n = f.fishNext;
+        f.fishNext = (n + 1) % 3;
+        if (n === 0) this.waveCrash(f, i);
+        else if (n === 1) this.waterJet(f, angle);
+        else this.callCats(f, TIDE.fish, 'fish');
+        break;
+      }
+      case 'vinestaff': {
+        // The Ancient Guardian: Vine Whip, Root Trap, Leaf Storm.
+        const n = f.fishNext;
+        f.fishNext = (n + 1) % 3;
+        if (n === 0) this.vineWhip(f, i, angle);
+        else if (n === 1) this.rootTrap(f);
+        else this.leafStorm(f);
+        break;
+      }
       case 'stick':
       case 'mascotstick': {
         // Giant stick slam: leap up, then smash down.
@@ -1095,6 +1269,149 @@ export class Game {
         this.play('jump');
         break;
       }
+    }
+  }
+
+  // ---------- the secret bosses ----------
+
+  /** Ice Shard: three icy shards in a spread. Each does 40 and slows you down. */
+  private iceShards(f: Fighter, slot: number, angle: number) {
+    const sh = f.shoulder();
+    for (const spread of [-0.14, 0, 0.14]) this.spawnProj('shard', f, sh.x + Math.cos(angle) * 60, sh.y + Math.sin(angle) * 60, angle + spread, 1250, 0, QUEEN.shard * (f.dmgMult / 1.5), slot);
+    this.burst(sh.x, sh.y, '#b3e5fc', 14, 300);
+    this.play('shard');
+  }
+
+  /** Blizzard: a warning, then the whole screen freezes: 25 damage every second for 5 seconds. */
+  private startBlizzard(f: Fighter) {
+    this.blizzard = { warn: QUEEN.warnS, t: QUEEN.blizzardS, tick: 0, owner: f };
+    this.say('capBlizzard', -1, QUEEN.warnS + 0.6);
+    this.text(f.x, f.y - f.h - 30, '❄️❄️❄️', '#e1f5fe', 34);
+    this.play('chime');
+  }
+
+  private updateBlizzard(dt: number) {
+    const bz = this.blizzard;
+    if (!bz) return;
+    if (bz.warn > 0) {
+      bz.warn -= dt;
+      return;
+    }
+    bz.t -= dt;
+    bz.tick -= dt;
+    const owner = bz.owner;
+    if (bz.t <= 0 || !owner || !owner.alive) {
+      this.blizzard = null;
+      return;
+    }
+    if (bz.tick > 0) return;
+    bz.tick = 1;
+    this.play('wind');
+    for (const e of this.bodies()) {
+      if (!e.alive || e.team === owner.team) continue;
+      this.damage(e, QUEEN.blizzard * (owner.dmgMult / 1.5), owner, e.vx * 0.6, 0, 'shatter');
+      if (e.alive) this.burst(e.x, e.cy, '#e1f5fe', 4, 160);
+    }
+  }
+
+  /** Frozen Shield: an ice dome that blocks every hit until it breaks. */
+  private frozenShield(f: Fighter) {
+    f.iceShield = QUEEN.shieldHp;
+    this.ring(f.x, f.cy, f.h * 0.75, 0.5, '#e1f5fe');
+    this.burst(f.x, f.cy, '#b3e5fc', 24, 360);
+    this.text(f.x, f.y - f.h - 30, '🛡️❄️', '#e1f5fe', 34);
+    this.play('glass');
+  }
+
+  /** Wave Crash: two huge waves roll out both ways: 60 damage and a big knockback. */
+  private waveCrash(f: Fighter, slot: number) {
+    for (const d of [-1, 1]) {
+      this.spawnProj('crash', f, f.x + d * 70, f.y - 60, d > 0 ? 0 : Math.PI, 820, 0, TIDE.crash * (f.dmgMult / 1.5), slot);
+      this.projectiles[this.projectiles.length - 1].dir = d;
+    }
+    this.ring(f.x, f.y, 180, 0.5, '#0288d1');
+    this.burst(f.x, f.y - 20, '#4fc3f7', 30, 480);
+    this.shake = Math.min(18, this.shake + 8);
+    this.text(f.x, f.y - f.h - 30, '🌊🌊', '#4fc3f7', 36);
+    this.play('splash');
+  }
+
+  /** Water Jet: a beam that follows its target and hits again and again. */
+  private waterJet(f: Fighter, angle: number) {
+    f.jetT = TIDE.jetS;
+    f.jetAngle = angle;
+    f.jetTick = 0.3;
+    this.play('splash');
+  }
+
+  private updateJet(f: Fighter, dt: number) {
+    f.jetT -= dt;
+    f.jetTick -= dt;
+    // Turns slowly toward the closest enemy, so you can outrun it.
+    const t = nearestEnemy(this, f, TIDE.jetLen + 200);
+    const sh = f.shoulder();
+    if (t) f.jetAngle += clamp(wrap(Math.atan2(t.cy - sh.y, t.x - f.x) - f.jetAngle), -1.1 * dt, 1.1 * dt);
+    f.angles[0] = f.jetAngle;
+    f.angVel[0] = 0;
+    f.facing = Math.cos(f.jetAngle) >= 0 ? 1 : -1;
+    if (f.jetTick > 0) return;
+    f.jetTick = TIDE.jetEvery;
+    const cos = Math.cos(f.jetAngle);
+    const sin = Math.sin(f.jetAngle);
+    for (const e of this.bodies()) {
+      if (!e.alive || e.team === f.team) continue;
+      const dx = e.x - sh.x;
+      const dy = e.cy - sh.y;
+      const along = dx * cos + dy * sin;
+      if (along < 0 || along > TIDE.jetLen) continue;
+      if (Math.abs(-dx * sin + dy * cos) > e.w / 2 + 22) continue;
+      this.damage(e, TIDE.jet * (f.dmgMult / 1.5), f, cos * 380, Math.min(-120, sin * 380), 'ragdoll');
+      this.burst(e.x, e.cy, '#81d4fa', 5, 200);
+    }
+  }
+
+  /** Vine Whip: a long vine lashes out and hits everyone along it for 50. */
+  private vineWhip(f: Fighter, slot: number, angle: number) {
+    const h = f.hand(slot);
+    this.spawnProj('vine', f, h.x, h.y, angle, 2100, 0, GUARDIAN.vine * (f.dmgMult / 1.5), slot);
+    this.burst(h.x, h.y, '#7cb342', 10, 260);
+    this.play('whip');
+  }
+
+  /** Root Trap: roots grab every enemy close by: a hit, slowed down, and damage over time. */
+  private rootTrap(f: Fighter) {
+    this.text(f.x, f.y - f.h - 30, '🌿', '#9ccc65', 34);
+    this.ring(f.x, f.y, 400, 0.5, '#7cb342');
+    this.play('roots');
+    for (const e of this.bodies()) {
+      if (!e.alive || e.team === f.team || Math.hypot(e.x - f.x, e.y - f.y) > 1000) continue;
+      this.burst(e.x, e.y, '#6d4c41', 10, 260);
+      this.burst(e.x, e.y, '#7cb342', 8, 220);
+      if (!this.damage(e, GUARDIAN.root * (f.dmgMult / 1.5), f, 0, -200, 'ragdoll') || !e.alive) continue;
+      e.slowT = Math.max(e.slowT, GUARDIAN.rootS);
+      this.setPoison(e, f);
+    }
+  }
+
+  /** Leaf Storm: sharp leaves swirl around the Guardian and cut anyone close. */
+  private leafStorm(f: Fighter) {
+    f.leafT = GUARDIAN.leafS;
+    f.leafTick = 0.2;
+    this.text(f.x, f.y - f.h - 30, '🍃🍃🍃', '#9ccc65', 34);
+    this.play('wind');
+  }
+
+  private updateLeaves(f: Fighter, dt: number) {
+    f.leafT -= dt;
+    f.leafTick -= dt;
+    if (f.leafTick > 0) return;
+    f.leafTick = GUARDIAN.leafEvery;
+    for (const e of this.bodies()) {
+      if (!e.alive || e.team === f.team) continue;
+      const dx = e.x - f.x;
+      if (Math.hypot(dx, e.cy - f.cy) > GUARDIAN.leafR + e.w / 2) continue;
+      this.damage(e, GUARDIAN.leaf * (f.dmgMult / 1.5), f, (sign(dx) || 1) * 420, -300, 'ragdoll');
+      this.burst(e.x, e.cy, '#9ccc65', 5, 220);
     }
   }
 
@@ -1172,7 +1489,9 @@ export class Game {
 
   /** The Fishy boss: Trident Strike for 99, and half the time lightning for 30 more. */
   private tridentStrike(f: Fighter, slot: number) {
-    const t = nearestEnemy(this, f, 700 * (f.scale / 2.6));
+    // A player's trident is just as strong as the Fishy boss's.
+    const boss = f.boss ? f.dmgMult / 1.5 : 1;
+    const t = nearestEnemy(this, f, f.boss ? 700 * (f.scale / 2.6) : 700);
     f.thrustT = 0.4;
     f.thrustSlot = slot;
     if (!t) {
@@ -1182,10 +1501,10 @@ export class Game {
     f.facing = sign(t.x - f.x) || f.facing;
     f.thrustAngle = Math.atan2(t.cy - f.shoulder().y, t.x - f.x);
     this.burst(t.x, t.cy, '#ffd54f', 14, 320);
-    this.damage(t, FISHY.strike * (f.dmgMult / 1.5), f, f.facing * 600, -600, 'ragdoll');
+    this.damage(t, FISHY.strike * boss, f, f.facing * 600, -600, 'ragdoll');
     if (Math.random() < 0.5 && t.alive) {
       this.lightning(t);
-      this.damage(t, FISHY.lightning * (f.dmgMult / 1.5), f, f.facing * 300, -500, 'zap');
+      this.damage(t, FISHY.lightning * boss, f, f.facing * 300, -500, 'zap');
     }
   }
 
@@ -1349,9 +1668,9 @@ export class Game {
     const scale = owner instanceof Fighter ? owner.scale : 1;
     const big = kind === 'boomerang' || kind === 'bomb' || kind === 'axe' || kind === 'fireball' || kind === 'six7' || kind === 'soup';
     const r =
-      { arrow: 5, snowball: 11, minisnow: 8, boomerang: 16, bomb: 11, axe: 22, shuriken: 8, laser: 6, fireball: 14, six7: 24, poop: 10, soup: 14, icebolt: 9, banana: 10, fireslash: 34, dart: 6, memorybox: 12, rocket: 10, wave: 60 }[kind] *
+      { arrow: 5, snowball: 11, minisnow: 8, boomerang: 16, bomb: 11, axe: 22, shuriken: 8, laser: 6, fireball: 14, six7: 24, poop: 10, soup: 14, icebolt: 9, banana: 10, fireslash: 34, dart: 6, memorybox: 12, rocket: 10, wave: 60, shard: 10, crash: 80, vine: 14 }[kind] *
       (big || kind === 'fireslash' ? scale : 1);
-    const life = { arrow: 2, snowball: 3, minisnow: 3, boomerang: 3.5, bomb: 1.5, axe: 3.5, shuriken: 2, laser: 0.7, fireball: 2, six7: 3.5, poop: 3, soup: 3, icebolt: 2, banana: 3, fireslash: 0.7, dart: 2, memorybox: 0.35, rocket: 2, wave: 1.7 }[kind];
+    const life = { arrow: 2, snowball: 3, minisnow: 3, boomerang: 3.5, bomb: 1.5, axe: 3.5, shuriken: 2, laser: 0.7, fireball: 2, six7: 3.5, poop: 3, soup: 3, icebolt: 2, banana: 3, fireslash: 0.7, dart: 2, memorybox: 0.35, rocket: 2, wave: 1.7, shard: 1.6, crash: 1.9, vine: 0.42 }[kind];
     this.projectiles.push({
       kind,
       x,
@@ -1375,6 +1694,9 @@ export class Game {
   }
 
   private finishProj(p: Projectile) {
+    // A shot that hit nobody ends a Perfect Aim streak (once per shot).
+    if (!p.settled && !p.hitAny && p.owner instanceof Fighter && p.kind !== 'snowball') p.owner.streak = 0;
+    p.settled = true;
     p.dead = true;
     if (returns(p.kind) && p.owner instanceof Fighter) {
       p.owner.boomerangOut[p.slot] = false;
@@ -1419,6 +1741,7 @@ export class Game {
       for (const e of bodies) {
         if (!e.alive || e.team === p.team || p.hit.has(e.id) || !e.contains(p.x, p.y, p.r)) continue;
         const dir = sign(p.vx) || 1;
+        p.hitAny = true;
         if (p.kind === 'boomerang') {
           p.hit.add(e.id);
           this.damage(e, p.dmg, p.owner, dir * 450, -350, PROJ_FINISH[p.kind]);
@@ -1437,12 +1760,39 @@ export class Game {
             continue;
           }
           const heavy = e instanceof Fighter && e.boss;
+          if (e instanceof Fighter && p.owner instanceof Fighter) {
+            e.lastHitBy = p.owner;
+            e.lastHitT = this.time;
+          }
           e.vx = (p.dir ?? dir) * (heavy ? 300 : 720);
           e.vy = Math.min(e.vy, heavy ? -150 : -480);
           e.onGround = false;
           e.stun = Math.max(e.stun, heavy ? 0.05 : 0.4);
           this.burst(e.x, e.y - 10, '#81d4fa', 8, 240);
           continue;
+        }
+        if (p.kind === 'crash') {
+          // Wave Crash goes through everyone: 60 and a huge knockback.
+          p.hit.add(e.id);
+          this.damage(e, p.dmg, p.owner, (p.dir ?? dir) * 1300, -750, 'fling');
+          this.burst(e.x, e.y - 10, '#81d4fa', 10, 280);
+          continue;
+        }
+        if (p.kind === 'vine') {
+          // The vine lashes through everyone in its way.
+          p.hit.add(e.id);
+          this.damage(e, p.dmg, p.owner, dir * 650, -420, 'ragdoll');
+          this.burst(e.x, e.cy, '#7cb342', 10, 260);
+          continue;
+        }
+        if (p.kind === 'shard') {
+          if (this.damage(e, p.dmg, p.owner, dir * 260, -200, 'shatter') && e.alive) {
+            e.slowT = Math.max(e.slowT, QUEEN.slowS);
+            this.text(e.x, e.y - e.h - 30, '🥶', '#b3e5fc', 24);
+          }
+          this.burst(p.x, p.y, '#e1f5fe', 12, 260);
+          p.dead = true;
+          break;
         }
         if (p.kind === 'fireslash') {
           // The air slash goes through everyone in its path and sets them on fire.
@@ -1499,8 +1849,8 @@ export class Game {
       }
 
       if (returns(p.kind)) this.breakGlassAt(p.x, p.y, p.r, p.owner);
-      else if (p.kind === 'wave' || p.kind === 'fireslash') {
-        // Waves and air slashes go over and through platforms.
+      else if (p.kind === 'wave' || p.kind === 'fireslash' || p.kind === 'crash' || p.kind === 'vine' || p.kind === 'shard') {
+        // Waves, air slashes, vines and ice shards go over and through platforms.
         if (p.kind === 'fireslash') this.breakGlassAt(p.x, p.y, p.r, p.owner);
       } else {
         for (const [pi, pl] of this.map.platforms.entries()) {
@@ -1682,6 +2032,7 @@ export class Game {
     f.slamming = false;
     f.airJumps = 1;
     f.hp -= dmg;
+    f.dmgTaken += dmg;
     this.text(f.x, this.map.h - 40, `-${dmg}`, '#ff5252', 30);
     this.play('jump');
     if (f.hp <= 0) this.kill(f, null, 'void');
@@ -1775,6 +2126,8 @@ export class Game {
     }
     this.rings = this.rings.filter((r) => r.life > 0);
     for (const b of this.bolts) b.life -= dt;
+    for (const f of this.feed) f.t -= dt;
+    this.feed = this.feed.filter((f) => f.t > 0);
     this.bolts = this.bolts.filter((b) => b.life > 0);
     if (this.caption) {
       this.caption.t -= dt;

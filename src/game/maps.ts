@@ -23,6 +23,8 @@ export const THEME_IDS: ThemeId[] = ['day', 'sunset', 'night', 'snow', 'lava', '
 
 const P = (x: number, y: number, w: number, h = 24): Platform => ({ x, y, w, h });
 /** Special block: concrete, lava or glass. */
+/** Moving platform: slides dx, dy away and back every `period` seconds. */
+const M = (x: number, y: number, w: number, dx: number, dy: number, period: number, phase = 0): Platform => ({ x, y, w, h: 22, move: { dx, dy, period, phase } });
 const B = (kind: BlockKind, x: number, y: number, w: number, h = 24): Platform => ({ x, y, w, h, kind });
 
 /** Block kinds in shared map links (0 = normal platform). */
@@ -234,6 +236,28 @@ export const BUILTIN_MAPS: MapDef[] = [
       P(1420, 590, 240),
       P(560, 360, 220),
       P(1180, 340, 200),
+    ],
+    spawns: [],
+  },
+  {
+    // Moving platforms: time your jumps!
+    id: 'elevator',
+    name: 'm.elevator',
+    w: 1800,
+    h: 1000,
+    theme: 'night',
+    builtin: true,
+    platforms: [
+      P(100, 780, 400, 60),
+      P(1300, 780, 400, 60),
+      // A ferry across the gap, two lifts and a fast shuttle up top
+      M(540, 760, 220, 500, 0, 6),
+      M(520, 620, 170, 0, -280, 4.5),
+      M(1110, 620, 170, 0, -280, 4.5, 0.5),
+      P(770, 430, 260),
+      M(260, 280, 190, 1090, 0, 8, 0.25),
+      P(170, 540, 170),
+      P(1460, 540, 170),
     ],
     spawns: [],
   },

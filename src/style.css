@@ -857,3 +857,27 @@ select {
 .ach p {
   margin: 2px 0 0;
 }
+
+/* Music and sound volume sliders */
+.vol-row {
+  align-items: center;
+  flex-wrap: nowrap;
+}
+.vol-slider {
+  flex: 1;
+  min-width: 0;
+  accent-color: #1e88e5;
+}
+.vol-slider:disabled {
+  opacity: 0.4;
+}
+.vol-pct {
+  min-width: 3.2em;
+  text-align: right;
+}
+
+/* A secret boss woke up */
+.treasure-got.secret-got {
+  background: linear-gradient(90deg, #311b92, #4a148c);
+  color: #fff;
+}

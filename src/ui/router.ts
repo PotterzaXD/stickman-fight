@@ -1,4 +1,6 @@
 import type { MapDef, MatchConfig } from '../game/types';
+import { playMusic } from '../music';
+import { sfx } from '../sfx';
 
 export interface Routes {
   menu: undefined;
@@ -36,5 +38,8 @@ export function go<K extends keyof Routes>(name: K, ...arg: undefined extends Ro
   root.replaceChildren();
   root.scrollTop = 0;
   const s = screens[name] as Screen<K>;
+  // Menus play the title theme; Sandbox has its own. Matches pick their own music.
+  if (name !== 'play' && name !== 'netplay') playMusic(name === 'sandbox' ? 'sandbox' : 'menu');
+  sfx.transition();
   cleanup = s(root, arg[0] as Routes[K]);
 }

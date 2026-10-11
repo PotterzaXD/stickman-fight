@@ -1,6 +1,6 @@
 import { BOT_COLORS, PLAYER_COLORS, TEAM_COLORS } from '../game/game';
 import { allMaps } from '../game/maps';
-import { BEACH_MAP, BEACH_MODES, type Difficulty, type MapDef, type MatchConfig, type Mode, type SlotConfig } from '../game/types';
+import { BEACH_MAP, BEACH_MODES, SECRET_KINDS, isBossMode, isSecret, type SecretKind, type Difficulty, type MapDef, type MatchConfig, type Mode, type SlotConfig } from '../game/types';
 import { hasAch } from '../achievements';
 import { WEAPONS } from '../game/weapons';
 import { t, teamName, type Key } from '../i18n';
@@ -99,6 +99,8 @@ export function slotLooks(match: MatchConfig): { name: string; color: string; pl
   });
 }
 
+export const SECRET_ICONS: Record<SecretKind, string> = { queen: '❄️', tide: '🌊', guardian: '🌲' };
+
 function defaultMatch(): MatchConfig {
   return {
     mode: 'ffa',
@@ -119,7 +121,7 @@ register('lobby', (root, arg) => {
   if (arg?.mapId) m.mapId = arg.mapId;
   if (!maps.some((x) => x.id === m.mapId)) m.mapId = 'arena';
   m.bosses = Math.max(1, Math.min(MAX_BOSSES, m.bosses ?? 1));
-  if (m.mode === 'sandbox' || (m.mode === 'buffalo' && !hasAch('buffalo'))) m.mode = 'ffa';
+  if (m.mode === 'sandbox' || (m.mode === 'buffalo' && !hasAch('buffalo')) || (isSecret(m.mode) && !save.data.secrets.includes(m.mode))) m.mode = 'ffa';
   if (m.mapId === BEACH_MAP && !BEACH_MODES.includes(m.mode)) m.mode = 'boss';
 
   const body = h('div', { class: 'page-body' });
@@ -136,7 +138,7 @@ register('lobby', (root, arg) => {
     if (m.mode === 'mascot' && !mascotUnlocked(save.data.owned)) return t('mascotLocked', mascotProgress(save.data.owned));
     if (m.mode === 'buffalo' && !hasAch('buffalo')) return t('buffaloLocked');
     if (m.mapId === BEACH_MAP && !BEACH_MODES.includes(m.mode)) return t('beachOnly');
-    if (m.mode === 'boss' || m.mode === 'cat' || m.mode === 'mascot' || m.mode === 'buffalo') return n >= 1 ? '' : t('needOne');
+    if (isBossMode(m.mode)) return n >= 1 ? '' : t('needOne');
     if (n < 2) return t('needTwo');
     if (m.mode === 'team' && new Set(m.slots.map((s) => s.team)).size < 2) return t('needTwoTeams');
     return '';
@@ -157,7 +159,7 @@ register('lobby', (root, arg) => {
           onclick: () => {
             // The Mascot stays locked until you own every shop weapon.
             if (mode === 'mascot' && !mascotUnlocked(save.data.owned)) return toast(t('mascotLocked', mascotProgress(save.data.owned)));
-            // Buffalo unlocks when you beat the Mascot all by yourself.
+            // Buffalo unlocks when you fight the Mascot all by yourself and get knocked out.
             if (mode === 'buffalo' && !hasAch('buffalo')) return toast(t('buffaloLocked'));
             if (m.mapId === BEACH_MAP && !BEACH_MODES.includes(mode)) return toast(t('beachOnly'));
             m.mode = mode;
@@ -266,8 +268,20 @@ register('lobby', (root, arg) => {
         'section',
         {},
         h('h3', {}, t('mode')),
-        h('div', { class: 'segs' }, modeBtn('ffa', '🥊'), modeBtn('team', '🤝'), modeBtn('boss', '👹'), modeBtn('cat', '🐱'), modeBtn('mascot', '⚪'), modeBtn('buffalo', '🐃')),
+        h(
+          'div',
+          { class: 'segs' },
+          modeBtn('ffa', '🥊'),
+          modeBtn('team', '🤝'),
+          modeBtn('boss', '👹'),
+          modeBtn('cat', '🐱'),
+          modeBtn('mascot', '⚪'),
+          modeBtn('buffalo', '🐃'),
+          // Secret bosses only show up once you have unlocked them.
+          ...SECRET_KINDS.filter((k) => save.data.secrets.includes(k)).map((k) => modeBtn(k, SECRET_ICONS[k])),
+        ),
         h('p', { class: 'muted' }, t(`${m.mode}Desc` as Key)),
+        isSecret(m.mode) ? h('small', { class: 'muted' }, `🪙🏆 ${t(`${m.mode}Reward` as Key)}`) : null,
         m.mode === 'buffalo' ? h('small', { class: 'muted' }, `🪙🏆 ${t('buffaloReward')}`) : null,
         ...beachNotes(m.mapId, m.mode),
         m.mode === 'cat' ? h('small', { class: 'muted' }, `🪙🏆 ${t('catReward')}`) : null,

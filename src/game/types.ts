@@ -23,10 +23,15 @@ export interface Intent {
 }
 
 export type Difficulty = 'easy' | 'medium' | 'hard';
-export type Mode = 'ffa' | 'team' | 'boss' | 'cat' | 'mascot' | 'buffalo' | 'sandbox';
+export type Mode = 'ffa' | 'team' | 'boss' | 'cat' | 'mascot' | 'buffalo' | 'sandbox' | SecretKind;
 
-/** Boss Fight, Grandfather Cat, the Mascot and Buffalo: everyone teams up against the boss. */
-export const isBossMode = (m: Mode) => m === 'boss' || m === 'cat' || m === 'mascot' || m === 'buffalo';
+/** The secret bosses: hidden until you meet their unlock conditions. */
+export type SecretKind = 'queen' | 'tide' | 'guardian';
+export const SECRET_KINDS: SecretKind[] = ['queen', 'tide', 'guardian'];
+export const isSecret = (m: string): m is SecretKind => (SECRET_KINDS as string[]).includes(m);
+
+/** Boss Fight, Grandfather Cat, the Mascot, Buffalo and the secret bosses: everyone teams up against the boss. */
+export const isBossMode = (m: Mode) => m === 'boss' || m === 'cat' || m === 'mascot' || m === 'buffalo' || isSecret(m);
 /** The Beach: only these modes (the Fishy boss shows up in all of them). */
 export const BEACH_MODES: Mode[] = ['ffa', 'team', 'boss'];
 export const BEACH_MAP = 'beach';
@@ -42,6 +47,8 @@ export interface Platform {
   w: number;
   h: number;
   kind?: BlockKind;
+  /** Moving platform: slides `dx`, `dy` away and back every `period` seconds (`phase` 0-1 = where it starts). */
+  move?: { dx: number; dy: number; period: number; phase?: number };
 }
 
 export interface MapDef {
@@ -69,7 +76,7 @@ export interface SlotConfig {
 }
 
 /** Bosses you can add in Sandbox. */
-export type BossKind = 'boss' | 'cat' | 'mascot' | 'buffalo' | 'fish';
+export type BossKind = 'boss' | 'cat' | 'mascot' | 'buffalo' | 'fish' | SecretKind;
 
 export interface SandboxBoss {
   kind: BossKind;

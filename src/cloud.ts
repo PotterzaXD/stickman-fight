@@ -50,6 +50,14 @@ function merge(local: SaveData, remote: SaveData): SaveData {
     ...newer,
     owned: Array.from(new Set([...local.owned, ...remote.owned])),
     achievements: Array.from(new Set([...local.achievements, ...remote.achievements])),
+    secrets: Array.from(new Set([...local.secrets, ...remote.secrets])),
+    stats: {
+      catSnowWins: Math.max(local.stats.catSnowWins, remote.stats.catSnowWins),
+      mapsWon: Array.from(new Set([...local.stats.mapsWon, ...remote.stats.mapsWon])),
+      usedWeapons: Array.from(new Set([...local.stats.usedWeapons, ...remote.stats.usedWeapons])),
+    },
+    // Volume settings belong to this device.
+    settings: { ...newer.settings, musicVol: local.settings.musicVol, sfxVol: local.settings.sfxVol, musicMute: local.settings.musicMute, sfxMute: local.settings.sfxMute },
     customMaps: [...maps.values()],
     name: newer.name || local.name || remote.name,
     updatedAt: Date.now(),

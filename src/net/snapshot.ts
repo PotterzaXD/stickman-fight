@@ -22,9 +22,11 @@ export interface Snapshot {
   cap?: [string, number, number];
   /** Broken glass right now: [platform index, seconds until it comes back]. */
   gl?: number[][];
+  /** The Snow Queen's Blizzard: [warning seconds left, storm seconds left]. */
+  bz?: [number, number];
 }
 
-const KINDS: ProjKind[] = ['arrow', 'snowball', 'minisnow', 'boomerang', 'bomb', 'axe', 'shuriken', 'laser', 'fireball', 'six7', 'poop', 'soup', 'icebolt', 'banana', 'fireslash', 'dart', 'memorybox', 'rocket', 'wave'];
+const KINDS: ProjKind[] = ['arrow', 'snowball', 'minisnow', 'boomerang', 'bomb', 'axe', 'shuriken', 'laser', 'fireball', 'six7', 'poop', 'soup', 'icebolt', 'banana', 'fireslash', 'dart', 'memorybox', 'rocket', 'wave', 'shard', 'crash', 'vine'];
 const r1 = (v: number) => Math.round(v);
 const r2 = (v: number) => Math.round(v * 100) / 100;
 
@@ -42,7 +44,11 @@ const SHIELD = 1,
   BURN = 1024,
   FROZEN = 2048,
   BUTT = 4096,
-  POISON = 8192;
+  POISON = 8192,
+  ICE = 16384,
+  JET = 32768,
+  LEAF = 65536,
+  SLOW = 131072;
 
 function ownerIndex(g: Game, o: unknown): number {
   const f = o instanceof Snowman || o instanceof Cat ? o.owner : o;
@@ -70,6 +76,10 @@ export function encodeSnapshot(g: Game): Snapshot {
       if (f.frozenT > 0) fl |= FROZEN;
       if (f.buttAnim > 0) fl |= BUTT;
       if (f.poisonT > 0) fl |= POISON;
+      if (f.iceShield > 0) fl |= ICE;
+      if (f.jetT > 0) fl |= JET;
+      if (f.leafT > 0) fl |= LEAF;
+      if (f.slowT > 0) fl |= SLOW;
       return [f.alive ? 1 : 0, r1(f.x), r1(f.y), r1(f.vx), r1(f.vy), r1(f.hp), f.facing, f.onGround ? 1 : 0, fl, r1(f.shieldHp), r2(f.angles[0]), r2(f.angVel[0]), r2(f.angles[1] ?? 0), FINISHES.indexOf(f.finish)];
     }),
     m: g.snowmen.map((s) => [s.id, ownerIndex(g, s.owner), r1(s.x), r1(s.y), r1(s.hp), s.facing, s.hurtFlash > 0 ? 1 : 0]),
@@ -82,6 +92,7 @@ export function encodeSnapshot(g: Game): Snapshot {
     gl: g.glassT.flatMap((t, i) => (t > 0 ? [[i, r2(t)]] : [])),
   };
   if (g.caption) snap.cap = [g.caption.key, g.caption.who, r2(g.caption.t)];
+  if (g.blizzard) snap.bz = [r2(g.blizzard.warn), r2(g.blizzard.t)];
   g.events = [];
   return snap;
 }
@@ -97,6 +108,8 @@ export class Mirror {
   apply(s: Snapshot) {
     const g = this.g;
     g.shake = Math.max(g.shake, s.sh);
+    // Keep the clock close to the host's so moving platforms line up.
+    if (Math.abs(g.time - s.tm) > 0.15) g.time = s.tm;
     s.f.forEach((a, i) => {
       const f = g.fighters[i];
       if (!f) return;
@@ -114,6 +127,8 @@ export class Mirror {
       f.alive = alive === 1;
       f.vx = vx;
       f.vy = vy;
+      // Damage taken (for the Untouched achievement on this device).
+      if (hp < f.hp) f.dmgTaken += f.hp - hp;
       f.hp = hp;
       f.facing = facing;
       f.onGround = ground === 1;
@@ -131,6 +146,10 @@ export class Mirror {
       f.frozenT = fl & FROZEN ? 1 : 0;
       f.buttAnim = fl & BUTT ? 0.1 : 0;
       f.poisonT = fl & POISON ? 1 : 0;
+      f.iceShield = fl & ICE ? 1 : 0;
+      f.jetT = fl & JET ? 1 : 0;
+      f.leafT = fl & LEAF ? 1 : 0;
+      f.slowT = fl & SLOW ? 1 : 0;
       f.shieldHp = shieldHp;
       f.angVel[0] = av0;
       const prev = this.target.get(f);
@@ -214,6 +233,7 @@ export class Mirror {
       const owner = g.fighters[oi] ?? g.fighters[0];
       return { x, y, owner, team: owner.team, life };
     });
+    g.blizzard = s.bz ? { warn: s.bz[0], t: s.bz[1], tick: 1, owner: null } : null;
     g.caption = s.cap ? { key: s.cap[0] as Key, who: s.cap[1], t: s.cap[2] } : null;
     g.glassT = g.map.platforms.map(() => 0);
     for (const [i, t] of s.gl ?? []) if (i in g.glassT) g.glassT[i] = t;

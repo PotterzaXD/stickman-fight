@@ -31,9 +31,11 @@ On a computer you can test with the keyboard: WASD is P1, the arrow keys are P2 
   - **Horn Charge:** runs head first across the platform and hits everyone in its way (120).
   - **Head Butt:** butts with its head 2 times (90 each).
 
-  Buffalo unlocks when you beat the Mascot **all by yourself** (no other players or bots), which also gives the **What an Buffalo** achievement. Online, the host needs it unlocked. Beating Buffalo gives **3,000 coins** every time.
+  Buffalo unlocks when you fight the Mascot **all by yourself** (no other players or bots) and get knocked out, which also gives the **What an Buffalo** achievement. Online, the host needs it unlocked. Beating Buffalo gives **3,000 coins** every time.
 
-- **Sandbox** (its own button on the main menu): add any players, bots and bosses (Boss, Grandfather Cat, Mascot, Buffalo, Fishy boss), put them on teams, and change each one's HP and power. You can try every weapon there. Sandbox matches never change your coins.
+- **Secret bosses:** there are secret bosses hidden in the game. They stay hidden until you meet their unlock conditions, then show up as new modes in Play (and online, when the host has them). We won't spoil them here.
+
+- **Sandbox** (its own button on the main menu): add any players, bots and bosses (Boss, Grandfather Cat, Mascot, Buffalo, Fishy boss, and any secret bosses you have unlocked), put them on teams, and change each one's HP and power. You can try every weapon there. Sandbox matches never change your coins.
 
 You can have up to 6 players and 6 bots at once. Each bot has its own difficulty: CPU-easy, CPU-medium or CPU-hard. With no players, you watch the bots fight.
 
@@ -115,21 +117,43 @@ The Fishy boss hits with its trident for 30. Its skills take turns:
 - **Call Fish:** fish with 50 HP that bite for 20.
 - **Trident Strike:** 99 damage, and half the time lightning strikes for 30 more.
 
-Beating the Fishy boss gives **1,000 coins**.
+Beating the Fishy boss gives **1,000 coins**, and the first time you beat it you get its **Trident** (just as strong as the Fishy boss's: Tidal Waves, Call Fish and Trident Strike).
+
+## Kill feed
+
+Every KO shows a goofy line down the right side of the screen, with the names in each fighter's colour, for example "Player1 turned Player2 into modern art" or "Player2 forgot water isn't solid". Falling off the map, into the sea (Beach) or into lava gets its own lines, and if someone hit you just before you fell, they get the credit. Up to 6 lines show at once and each fades after 5 seconds.
+
+## Music and sound
+
+The game makes its own chiptune music (no audio files): a title theme, a chill Sandbox theme, a theme for each map style (day, sunset, night, snow, lava, space and beach), boss music, a theme for each secret boss, and short victory and defeat jingles. There are sound effects for hits, heavy hits, blocks, slashes, shots, boss skills, buttons, screen changes, achievements and secret boss unlocks.
+
+In **Settings** there are separate **Music** and **Sound effects** sliders (0-100%) with their own mute buttons. They are saved on this device.
 
 ## Achievements
 
-Tap **🏆 Achievements** on the main menu.
+Tap **🏆 Achievements** on the main menu. They count in normal matches and in Sandbox.
 
 | Achievement | How to get it |
 |---|---|
-| What an Buffalo | Beat the Mascot all by yourself (unlocks Buffalo) |
-| Collector | Own every weapon, including the Mascot Stick |
+| What an Buffalo | Fight the Mascot all by yourself and get knocked out (unlocks Buffalo) |
+| Collector | Own every weapon, including the boss rewards |
 | Boss Slayer | Win a Boss Fight |
 | Sorry, Grandpa | Beat Grandfather Cat |
 | Icon Breaker | Beat the Mascot |
 | Bull Rider | Beat Buffalo |
 | Fish Fry | Beat the Fishy boss |
+| First Victory | Win your very first match |
+| Untouched | Win a match without taking any damage |
+| Last Breath | Win a match with less than 50 HP left |
+| Speed Runner | Beat any boss in under 2 minutes |
+| Team Player | Win with 4 or more fighters on your side |
+| Perfect Aim | Land 20 hits in a row without a shot missing |
+| Comeback Kid | Start a match with 0 coins and still win |
+| Patience | Stay alive for 5 minutes in one match |
+| The Collector | Fight with every weapon at least once (Sandbox lets you try them all) |
+| True Challenger | Own every weapon, unlock Buffalo, then beat the Mascot |
+
+The secret bosses have achievements too. They show as "???" until you unlock that boss.
 
 ## Potions
 
@@ -137,7 +161,9 @@ In **Settings** you can turn healing potions on or off (on by default). When the
 
 ## Maps
 
-There are 13 built-in maps: Classic Arena, Sky Islands, The Tower, Long Bridge, Snowy Peak, The Pit, Volcano, Concrete Factory, Glass Palace, Rooftops, Frozen Lake, **Space** and the **Beach**.
+There are 14 built-in maps: Classic Arena, Sky Islands, The Tower, Long Bridge, Snowy Peak, The Pit, Volcano, Concrete Factory, Glass Palace, Rooftops, Frozen Lake, **Space**, the **Beach** and **Elevator Chaos**.
+
+Elevator Chaos has moving platforms: a ferry that slides across the gap, two lifts that go up and down, and a fast shuttle along the top. They carry whoever stands on them, so time your jumps. Moving platforms have yellow and black stripes underneath.
 
 Space has a big spaceship in the middle to fight on, and low gravity: everyone jumps higher and falls slower. Any map you make with the Space theme in the editor gets low gravity too.
 

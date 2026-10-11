@@ -1,5 +1,6 @@
 import type { Body, Cat, Fighter, Snowman, Projectile } from './entities';
-import { BOSS_TEAM, type Game } from './game';
+import { BOSS_TEAM, FEED_LIFE, type Game } from './game';
+import { feedParts } from './killfeed';
 import { t } from '../i18n';
 import { drawCorpse } from './finish';
 import { THEMES } from './maps';
@@ -325,7 +326,34 @@ export function drawPlatforms(ctx: Ctx, map: MapDef, time = 0, glassT?: number[]
     ctx.lineWidth = 2;
     roundRect(ctx, p.x, p.y, p.w, p.h, Math.min(10, p.h / 2));
     ctx.stroke();
+    if (p.move) drawMover(ctx, p, time);
   }
+}
+
+/** Moving platforms: hazard stripes underneath and blinking arrows showing which way they go. */
+function drawMover(ctx: Ctx, p: Platform, time: number) {
+  ctx.save();
+  ctx.beginPath();
+  ctx.rect(p.x + 4, p.y + p.h * 0.5, p.w - 8, p.h * 0.5 - 2);
+  ctx.clip();
+  for (let x = p.x - 20; x < p.x + p.w + 20; x += 20) {
+    ctx.fillStyle = Math.round((x - p.x) / 20) % 2 ? '#212121' : '#fdd835';
+    ctx.beginPath();
+    ctx.moveTo(x, p.y + p.h);
+    ctx.lineTo(x + 10, p.y + p.h * 0.5);
+    ctx.lineTo(x + 20, p.y + p.h * 0.5);
+    ctx.lineTo(x + 10, p.y + p.h);
+    ctx.fill();
+  }
+  ctx.restore();
+  const m = p.move!;
+  const blink = 0.45 + 0.45 * Math.sin(time * 6);
+  ctx.fillStyle = `rgba(255,235,59,${blink})`;
+  ctx.font = '900 16px system-ui, sans-serif';
+  ctx.textAlign = 'center';
+  const arrow = m.dy ? '⇕' : '⇔';
+  ctx.fillText(arrow, p.x + 14, p.y + p.h - 4);
+  ctx.fillText(arrow, p.x + p.w - 14, p.y + p.h - 4);
 }
 
 /** A palm tree on the Beach. */
@@ -724,6 +752,68 @@ export function drawWeaponShape(ctx: Ctx, id: WeaponId, len: number, s: number, 
         ctx.lineTo(tipx + 7 * s, py * s);
         ctx.lineTo(tipx, (py + 3) * s);
         ctx.fill();
+      }
+      break;
+    case 'scepter': {
+      // The Snow Queen's ice scepter: a silver rod with a glowing crystal
+      ctx.strokeStyle = '#cfd8dc';
+      ctx.lineWidth = 4 * s;
+      line(ctx, -10 * s, 0, len - 16 * s, 0);
+      ctx.fillStyle = ready ? '#e1f5fe' : '#90caf9';
+      ctx.strokeStyle = '#4fc3f7';
+      ctx.lineWidth = 1.5 * s;
+      ctx.beginPath();
+      ctx.moveTo(len - 18 * s, 0);
+      ctx.lineTo(len - 8 * s, -9 * s);
+      ctx.lineTo(len + 6 * s, 0);
+      ctx.lineTo(len - 8 * s, 9 * s);
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+      if (ready) {
+        ctx.fillStyle = 'rgba(179,229,252,0.35)';
+        ctx.beginPath();
+        ctx.arc(len - 6 * s, 0, 14 * s, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      break;
+    }
+    case 'kingtrident':
+      // The Tide King's big golden trident with a pearl
+      ctx.strokeStyle = '#ffd54f';
+      ctx.lineWidth = 5 * s;
+      line(ctx, -16 * s, 0, len - 16 * s, 0);
+      ctx.lineWidth = 3.5 * s;
+      ctx.beginPath();
+      ctx.moveTo(len - 2 * s, -13 * s);
+      ctx.quadraticCurveTo(len - 18 * s, -13 * s, len - 18 * s, 0);
+      ctx.quadraticCurveTo(len - 18 * s, 13 * s, len - 2 * s, 13 * s);
+      ctx.moveTo(len - 18 * s, 0);
+      ctx.lineTo(len + 6 * s, 0);
+      ctx.stroke();
+      ctx.fillStyle = ready ? '#ffffff' : '#b0bec5';
+      ctx.beginPath();
+      ctx.arc(len - 20 * s, 0, 4 * s, 0, Math.PI * 2);
+      ctx.fill();
+      break;
+    case 'vinestaff':
+      // The Ancient Guardian's gnarled staff with leaves
+      ctx.strokeStyle = '#5d4037';
+      ctx.lineWidth = 5 * s;
+      ctx.beginPath();
+      ctx.moveTo(-10 * s, 0);
+      ctx.quadraticCurveTo(len * 0.4, -5 * s, len * 0.7, 3 * s);
+      ctx.quadraticCurveTo(len * 0.85, 6 * s, len, -2 * s);
+      ctx.stroke();
+      ctx.fillStyle = ready ? '#9ccc65' : '#689f38';
+      for (const [lx, ly, rot] of [[len * 0.5, -6, -0.6], [len * 0.75, 7, 0.7], [len, -6, -0.3], [len + 4, 4, 0.5]] as [number, number, number][]) {
+        ctx.save();
+        ctx.translate(lx, ly * s);
+        ctx.rotate(rot);
+        ctx.beginPath();
+        ctx.ellipse(0, 0, 7 * s, 3.2 * s, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
       }
       break;
     case 'catcall':
@@ -1408,6 +1498,7 @@ function drawFighter(ctx: Ctx, f: Fighter, time: number) {
     ctx.arc(head[0] + f.facing * 5 * s, head[1] - 2 * s, 1.6 * s, 0, Math.PI * 2);
     ctx.fill();
   }
+  if (f.secret) drawSecretHead(ctx, f, head[0], head[1], s, time);
   if (f.stun > 0.25 && !f.boss) {
     ctx.fillStyle = '#ffeb3b';
     for (let i = 0; i < 3; i++) {
@@ -1428,6 +1519,57 @@ function drawFighter(ctx: Ctx, f: Fighter, time: number) {
     ctx.arc(x, f.cy - 4 * s, f.h * 0.62, 0, Math.PI * 2);
     ctx.fill();
     ctx.stroke();
+  }
+
+  // Frozen Shield: an ice dome
+  if (f.iceShield > 0) {
+    const r = f.h * 0.7;
+    ctx.fillStyle = 'rgba(225,245,254,0.28)';
+    ctx.strokeStyle = 'rgba(179,229,252,0.95)';
+    ctx.lineWidth = 5;
+    ctx.beginPath();
+    ctx.arc(x, f.cy, r, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+    ctx.strokeStyle = 'rgba(255,255,255,0.7)';
+    ctx.lineWidth = 3;
+    for (let k = 0; k < 6; k++) {
+      const a = (k / 6) * Math.PI * 2 + 0.3;
+      line(ctx, x + Math.cos(a) * r * 0.55, f.cy + Math.sin(a) * r * 0.55, x + Math.cos(a) * r * 0.95, f.cy + Math.sin(a) * r * 0.95);
+    }
+  }
+  // Leaf Storm: sharp leaves spinning around
+  if (f.leafT > 0) {
+    for (let k = 0; k < 22; k++) {
+      const a = time * (2.6 + (k % 3) * 0.5) + (k * Math.PI * 2) / 22;
+      const rr = 120 + (k % 4) * 55 + Math.sin(time * 3 + k) * 20;
+      const lx = x + Math.cos(a) * rr;
+      const ly = f.cy + Math.sin(a) * rr * 0.6;
+      ctx.fillStyle = k % 3 ? '#7cb342' : '#c5e1a5';
+      ctx.save();
+      ctx.translate(lx, ly);
+      ctx.rotate(a * 2);
+      ctx.beginPath();
+      ctx.ellipse(0, 0, 11, 4.5, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+    }
+  }
+  // Slowed: frost and roots around the feet
+  if (f.slowT > 0) {
+    ctx.strokeStyle = 'rgba(129,212,250,0.85)';
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.ellipse(x, y - 4, 22 * s, 7 * s, 0, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.strokeStyle = '#6d4c41';
+    ctx.lineWidth = 2.5;
+    for (const d of [-1, 1]) {
+      ctx.beginPath();
+      ctx.moveTo(x + d * 14 * s, y);
+      ctx.quadraticCurveTo(x + d * 4 * s, y - 14 * s, x + d * 10 * s, y - 24 * s + Math.sin(time * 5) * 2);
+      ctx.stroke();
+    }
   }
 
   if (!f.boss) {
@@ -1669,6 +1811,93 @@ function drawProjectile(ctx: Ctx, p: Projectile, time: number) {
       ctx.restore();
       break;
     }
+    case 'shard': {
+      const a = Math.atan2(p.vy, p.vx);
+      ctx.save();
+      ctx.translate(p.x, p.y);
+      ctx.rotate(a);
+      ctx.fillStyle = 'rgba(179,229,252,0.35)';
+      ctx.beginPath();
+      ctx.ellipse(-10, 0, 22, 8, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = '#e1f5fe';
+      ctx.strokeStyle = '#4fc3f7';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(16, 0);
+      ctx.lineTo(-6, -7);
+      ctx.lineTo(-14, 0);
+      ctx.lineTo(-6, 7);
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+      ctx.restore();
+      break;
+    }
+    case 'crash': {
+      // Wave Crash: a huge dark wave with white foam
+      const d = Math.sign(p.vx) || 1;
+      const R = p.r;
+      const H = R * 2.2;
+      ctx.save();
+      ctx.translate(p.x, p.y + 60);
+      ctx.scale(d, 1);
+      ctx.fillStyle = 'rgba(2,119,189,0.82)';
+      ctx.beginPath();
+      ctx.moveTo(-R * 2, 0);
+      ctx.quadraticCurveTo(-R * 0.6, -H * 0.4, 0, -H);
+      ctx.quadraticCurveTo(R * 0.8, -H * 1.08, R, -H * 0.6);
+      ctx.quadraticCurveTo(R * 0.35, -H * 0.72, R * 0.6, 0);
+      ctx.closePath();
+      ctx.fill();
+      ctx.strokeStyle = '#ffffff';
+      ctx.lineWidth = 6;
+      ctx.beginPath();
+      ctx.moveTo(-R * 0.3, -H * 0.88);
+      ctx.quadraticCurveTo(R * 0.6, -H * 1.15, R, -H * 0.6);
+      ctx.stroke();
+      ctx.fillStyle = 'rgba(255,255,255,0.8)';
+      for (let i = 0; i < 5; i++) {
+        ctx.beginPath();
+        ctx.arc(R * 0.9 - i * 10 + Math.sin(time * 20 + i) * 4, -H * 0.62 + i * 6, 5, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.restore();
+      break;
+    }
+    case 'vine': {
+      // Vine Whip: a wavy green vine from the Guardian's hand to the tip
+      const o = p.owner as Fighter;
+      const hx = o.alive ? o.hand(0).x : p.x - p.vx * 0.2;
+      const hy = o.alive ? o.hand(0).y : p.y - p.vy * 0.2;
+      const dx = p.x - hx;
+      const dy = p.y - hy;
+      const len = Math.hypot(dx, dy) || 1;
+      const nx = -dy / len;
+      const ny = dx / len;
+      ctx.strokeStyle = '#33691e';
+      ctx.lineWidth = 9;
+      ctx.lineCap = 'round';
+      ctx.beginPath();
+      ctx.moveTo(hx, hy);
+      for (let k = 1; k <= 12; k++) {
+        const u = k / 12;
+        const wob = Math.sin(u * 9 + time * 18) * 12 * (1 - u * 0.5);
+        ctx.lineTo(hx + dx * u + nx * wob, hy + dy * u + ny * wob);
+      }
+      ctx.stroke();
+      ctx.strokeStyle = '#8bc34a';
+      ctx.lineWidth = 4;
+      ctx.stroke();
+      ctx.fillStyle = '#9ccc65';
+      for (let k = 2; k <= 11; k += 3) {
+        const u = k / 12;
+        ctx.beginPath();
+        ctx.ellipse(hx + dx * u + nx * 10, hy + dy * u + ny * 10, 8, 3.5, Math.atan2(dy, dx) + 0.6, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      break;
+    }
     case 'wave': {
       // A rolling wave of water
       const d = Math.sign(p.vx) || 1;
@@ -1758,6 +1987,7 @@ export function renderGame(g: Game, ctx: Ctx, vw: number, vh: number, dpr: numbe
   for (const b of g.bodies()) if (b.alive && b.burnT > 0) drawFlames(ctx, b, g.time);
   for (const b of g.bodies()) if (b.alive && b.poisonT > 0) drawPoison(ctx, b, g.time);
   for (const p of g.projectiles) drawProjectile(ctx, p, g.time);
+  for (const f of g.fighters) if (f.alive && f.jetT > 0) drawJet(ctx, f, g.time);
   for (const b of g.bolts) drawBolt(ctx, b);
 
   for (const r of g.rings) {
@@ -1789,6 +2019,7 @@ export function renderGame(g: Game, ctx: Ctx, vw: number, vh: number, dpr: numbe
 
   // Boss health bars across the top (one per boss)
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  if (g.blizzard) drawBlizzard(ctx, g.blizzard, vw, vh, g.time);
   // (On the Beach, bosses on your side that went down in the cutscene drop off the list.)
   const bars = g.bosses.filter((b) => b.alive || b.team === BOSS_TEAM);
   for (const [k, boss] of bars.entries()) {
@@ -1807,6 +2038,8 @@ export function renderGame(g: Game, ctx: Ctx, vw: number, vh: number, dpr: numbe
     ctx.fillText(`${boss.name}  ${Math.max(0, Math.ceil(boss.hp))} / ${boss.maxHp}`, vw / 2, y + 12);
   }
 
+  drawFeed(g, ctx, vw, 58 + bars.length * 26);
+
   // Big words across the screen (the Beach and its cutscene)
   if (g.caption) {
     const c = g.caption;
@@ -1822,5 +2055,206 @@ export function renderGame(g: Game, ctx: Ctx, vw: number, vh: number, dpr: numbe
     ctx.fillStyle = '#ffffff';
     ctx.fillText(text, vw / 2, ty, vw - 32);
     ctx.globalAlpha = 1;
+  }
+}
+
+/** The kill feed down the right side: newest at the bottom, each line slides in and fades out. */
+function drawFeed(g: Game, ctx: Ctx, vw: number, top: number) {
+  if (!g.feed.length) return;
+  const maxW = Math.max(220, vw * 0.46);
+  const base = Math.round(Math.min(17, Math.max(12, vw / 55)));
+  let y = top;
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'middle';
+  for (const item of g.feed) {
+    const victim = g.fighters[item.victim];
+    if (!victim) continue;
+    const killer = g.fighters[item.killer];
+    const parts = feedParts(item.kind, !!killer, item.n, killer?.name ?? '', victim.name);
+    const age = FEED_LIFE - item.t;
+    // Shrink long lines to fit.
+    let size = base;
+    const font = (w: number) => `${w} ${size}px "Baloo 2", system-ui, sans-serif`;
+    const widthOf = () =>
+      parts.reduce((sum, p) => {
+        ctx.font = font(p.who ? 900 : 700);
+        return sum + ctx.measureText(p.text).width;
+      }, 0);
+    let tw = widthOf();
+    while (tw > maxW - 24 && size > 9) {
+      size--;
+      tw = widthOf();
+    }
+    const lh = size + 12;
+    const slide = Math.max(0, 1 - age / 0.18);
+    const x = vw - 12 - tw - 20 + slide * (tw + 40);
+    ctx.globalAlpha = Math.min(1, item.t / 0.6);
+    ctx.fillStyle = 'rgba(0,0,0,0.62)';
+    roundRect(ctx, x, y, tw + 20, lh, lh / 2);
+    ctx.fill();
+    // A little pop when it arrives.
+    if (age < 0.3) {
+      ctx.strokeStyle = `rgba(255,235,59,${1 - age / 0.3})`;
+      ctx.lineWidth = 3;
+      roundRect(ctx, x, y, tw + 20, lh, lh / 2);
+      ctx.stroke();
+    }
+    let px = x + 10;
+    for (const p of parts) {
+      ctx.font = font(p.who ? 900 : 700);
+      const who = p.who === 'k' ? killer : p.who === 'v' ? victim : null;
+      if (who) {
+        ctx.lineWidth = 3;
+        // Dark colours (the Boss, Buffalo) get a light outline so the name still shows.
+        ctx.strokeStyle = isDark(who.color) ? 'rgba(255,255,255,0.9)' : 'rgba(0,0,0,0.9)';
+        ctx.strokeText(p.text, px, y + lh / 2 + 1);
+      }
+      ctx.fillStyle = who ? who.color : '#ffffff';
+      ctx.fillText(p.text, px, y + lh / 2 + 1);
+      px += ctx.measureText(p.text).width;
+    }
+    y += lh + 5;
+  }
+  ctx.globalAlpha = 1;
+  ctx.textBaseline = 'alphabetic';
+}
+
+function isDark(hex: string): boolean {
+  const m = /^#([0-9a-f]{6})$/i.exec(hex);
+  if (!m) return false;
+  const n = parseInt(m[1], 16);
+  return ((n >> 16) & 255) * 0.3 + ((n >> 8) & 255) * 0.59 + (n & 255) * 0.11 < 90;
+}
+
+/** The secret bosses' heads: an ice crown, a gold crown with a seaweed beard, antlers and leaves. */
+function drawSecretHead(ctx: Ctx, f: Fighter, hx: number, hy: number, s: number, time: number) {
+  const d = f.facing;
+  if (f.secret === 'queen') {
+    ctx.fillStyle = '#e1f5fe';
+    ctx.strokeStyle = '#4fc3f7';
+    ctx.lineWidth = 1.2 * s;
+    ctx.beginPath();
+    ctx.moveTo(hx - 10 * s, hy - 8 * s);
+    for (let k = 0; k <= 4; k++) {
+      const px = hx - 10 * s + k * 5 * s;
+      ctx.lineTo(px, hy - (k % 2 ? 16 : 22) * s);
+      ctx.lineTo(px + 2.5 * s, hy - 10 * s);
+    }
+    ctx.lineTo(hx + 10 * s, hy - 8 * s);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+    // Long icy hair down the back
+    ctx.strokeStyle = 'rgba(225,245,254,0.9)';
+    ctx.lineWidth = 3 * s;
+    for (const k of [0, 1, 2]) {
+      ctx.beginPath();
+      ctx.moveTo(hx - d * 8 * s, hy - 6 * s + k * 3 * s);
+      ctx.quadraticCurveTo(hx - d * 16 * s, hy + 10 * s, hx - d * (12 + k * 3) * s, hy + (24 + Math.sin(time * 3 + k) * 2) * s);
+      ctx.stroke();
+    }
+    // Sparkles
+    ctx.fillStyle = `rgba(255,255,255,${0.5 + 0.5 * Math.sin(time * 6)})`;
+    ctx.fillRect(hx + 12 * s, hy - 26 * s, 2 * s, 2 * s);
+    ctx.fillRect(hx - 15 * s, hy - 20 * s, 2 * s, 2 * s);
+  } else if (f.secret === 'tide') {
+    ctx.fillStyle = '#ffca28';
+    ctx.strokeStyle = '#ff8f00';
+    ctx.lineWidth = 1.2 * s;
+    ctx.beginPath();
+    ctx.moveTo(hx - 10 * s, hy - 9 * s);
+    ctx.lineTo(hx - 11 * s, hy - 20 * s);
+    ctx.lineTo(hx - 5 * s, hy - 14 * s);
+    ctx.lineTo(hx, hy - 23 * s);
+    ctx.lineTo(hx + 5 * s, hy - 14 * s);
+    ctx.lineTo(hx + 11 * s, hy - 20 * s);
+    ctx.lineTo(hx + 10 * s, hy - 9 * s);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+    // Seaweed beard
+    ctx.strokeStyle = '#2e7d32';
+    ctx.lineWidth = 2.2 * s;
+    for (let k = -2; k <= 2; k++) {
+      ctx.beginPath();
+      ctx.moveTo(hx + k * 3 * s, hy + 6 * s);
+      ctx.quadraticCurveTo(hx + k * 3 * s + Math.sin(time * 4 + k) * 4 * s, hy + 14 * s, hx + k * 2 * s, hy + (22 + Math.abs(k)) * s);
+      ctx.stroke();
+    }
+  } else if (f.secret === 'guardian') {
+    // Wooden antlers and a crown of leaves, glowing green eyes
+    ctx.strokeStyle = '#5d4037';
+    ctx.lineWidth = 2.5 * s;
+    for (const k of [-1, 1]) {
+      ctx.beginPath();
+      ctx.moveTo(hx + k * 6 * s, hy - 9 * s);
+      ctx.lineTo(hx + k * 12 * s, hy - 24 * s);
+      ctx.moveTo(hx + k * 9 * s, hy - 16 * s);
+      ctx.lineTo(hx + k * 17 * s, hy - 19 * s);
+      ctx.moveTo(hx + k * 11 * s, hy - 21 * s);
+      ctx.lineTo(hx + k * 8 * s, hy - 29 * s);
+      ctx.stroke();
+    }
+    ctx.fillStyle = '#8bc34a';
+    for (let k = -2; k <= 2; k++) {
+      ctx.beginPath();
+      ctx.ellipse(hx + k * 4.5 * s, hy - 10 * s, 4 * s, 2 * s, k * 0.4, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.fillStyle = '#ccff90';
+    ctx.shadowColor = '#76ff03';
+    ctx.shadowBlur = 10;
+    ctx.beginPath();
+    ctx.arc(hx + d * 4 * s, hy - 2 * s, 2.6 * s, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.shadowBlur = 0;
+  }
+}
+
+/** The Tide King's Water Jet: a wobbly beam of water. */
+function drawJet(ctx: Ctx, f: Fighter, time: number) {
+  const sh = f.shoulder();
+  const a = f.angles[0];
+  const len = 950;
+  ctx.save();
+  ctx.translate(sh.x, sh.y);
+  ctx.rotate(a);
+  const w = 22 + Math.sin(time * 40) * 4;
+  const g = ctx.createLinearGradient(0, 0, len, 0);
+  g.addColorStop(0, 'rgba(129,212,250,0.95)');
+  g.addColorStop(1, 'rgba(129,212,250,0.1)');
+  ctx.fillStyle = g;
+  ctx.beginPath();
+  ctx.moveTo(40, -w / 2);
+  ctx.lineTo(len, -w);
+  ctx.lineTo(len, w);
+  ctx.lineTo(40, w / 2);
+  ctx.closePath();
+  ctx.fill();
+  ctx.strokeStyle = 'rgba(255,255,255,0.8)';
+  ctx.lineWidth = 3;
+  for (let k = 0; k < 6; k++) {
+    const x0 = ((time * 1400 + k * 170) % (len - 60)) + 60;
+    line(ctx, x0, Math.sin(k + time * 30) * 6, x0 + 50, Math.sin(k + time * 30) * 6);
+  }
+  ctx.restore();
+}
+
+/** The Blizzard: a flashing warning first, then snow blowing across the whole screen. */
+function drawBlizzard(ctx: Ctx, bz: { warn: number; t: number }, vw: number, vh: number, time: number) {
+  if (bz.warn > 0) {
+    ctx.fillStyle = `rgba(179,229,252,${0.12 + 0.12 * Math.sin(time * 18)})`;
+    ctx.fillRect(0, 0, vw, vh);
+    return;
+  }
+  const fade = Math.min(1, bz.t * 2);
+  ctx.fillStyle = `rgba(225,245,254,${0.28 * fade})`;
+  ctx.fillRect(0, 0, vw, vh);
+  ctx.strokeStyle = `rgba(255,255,255,${0.8 * fade})`;
+  ctx.lineWidth = 2;
+  for (let i = 0; i < 90; i++) {
+    const x = ((hash(i) * vw - time * (700 + hash(i + 3) * 500)) % vw + vw) % vw;
+    const y = ((hash(i + 11) * vh + time * (160 + hash(i + 5) * 120)) % vh + vh) % vh;
+    line(ctx, x, y, x + 26, y - 7);
   }
 }

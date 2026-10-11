@@ -1,3 +1,5 @@
+import { applyVolumes } from '../audio';
+import { sfx } from '../sfx';
 import { cloudEnabled, currentUser, onUserChange, signIn, signOut } from '../cloud';
 import { t, type Lang } from '../i18n';
 import { save } from '../save';
@@ -62,6 +64,55 @@ register('settings', (root) => {
     );
   };
 
+  /** A 0-100% slider with its own mute button. Saved on this device right away. */
+  const volumeRow = (icon: string, label: string, key: 'musicVol' | 'sfxVol', muteKey: 'musicMute' | 'sfxMute') => {
+    const s = save.data.settings;
+    const pct = h('b', { class: 'vol-pct' }, `${s[key]}%`);
+    const slider = h('input', {
+      type: 'range',
+      min: '0',
+      max: '100',
+      step: '5',
+      value: String(s[key]),
+      class: 'vol-slider',
+      'aria-label': label,
+      oninput: (e: Event) => {
+        const v = Number((e.target as HTMLInputElement).value);
+        pct.textContent = `${v}%`;
+        save.data.settings[key] = v;
+        applyVolumes();
+      },
+      onchange: () => {
+        save.update(() => {});
+        if (key === 'sfxVol') sfx.coin();
+      },
+    }) as HTMLInputElement;
+    if (s[muteKey]) slider.disabled = true;
+    return h(
+      'section',
+      {},
+      h('h3', {}, `${s[muteKey] ? '🔇' : icon} ${label}`),
+      h(
+        'div',
+        { class: 'row gap vol-row' },
+        slider,
+        pct,
+        h(
+          'button',
+          {
+            class: `btn small ${s[muteKey] ? 'primary' : 'ghost'}`,
+            onclick: () => {
+              save.update((d) => (d.settings[muteKey] = !d.settings[muteKey]));
+              applyVolumes();
+              render();
+            },
+          },
+          s[muteKey] ? `🔈 ${t('unmute')}` : `🔇 ${t('mute')}`,
+        ),
+      ),
+    );
+  };
+
   const render = () => {
     if (!alive) return;
     const s = save.data.settings;
@@ -80,7 +131,8 @@ register('settings', (root) => {
           seg(s.potions ? 'on' : 'off', [['on', t('on')], ['off', t('off')]], (v) => (save.data.settings.potions = v === 'on')),
           h('p', { class: 'muted small' }, t('potionsDesc')),
         ),
-        h('section', {}, h('h3', {}, `🔊 ${t('sound')}`), seg(s.sound ? 'on' : 'off', [['on', t('on')], ['off', t('off')]], (v) => (save.data.settings.sound = v === 'on'))),
+        volumeRow('🎵', t('music'), 'musicVol', 'musicMute'),
+        volumeRow('🔊', t('sfxLabel'), 'sfxVol', 'sfxMute'),
         h('section', {}, h('h3', {}, `☁️ ${t('account')}`), accountBox()),
         h('section', {}, h('button', { class: 'btn', onclick: shareGame }, `🔗 ${t('share')}`)),
       ),

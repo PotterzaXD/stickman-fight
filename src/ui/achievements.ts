@@ -1,4 +1,4 @@
-import { ACHIEVEMENTS, achDesc, achName, grant, hasAch } from '../achievements';
+import { ACHIEVEMENTS, achDesc, achHidden, achName, grant, hasAch } from '../achievements';
 import { t } from '../i18n';
 import { h } from './dom';
 import { coinChip } from './menu';
@@ -15,8 +15,10 @@ register('achievements', (root) => {
       h(
         'div',
         { class: `ach ${hasAch(id) ? 'have' : ''}` },
-        h('span', { class: 'ach-icon' }, hasAch(id) ? '🏆' : '🔒'),
-        h('div', {}, h('b', {}, achName(id)), h('p', { class: 'muted small' }, achDesc(id))),
+        h('span', { class: 'ach-icon' }, hasAch(id) ? '🏆' : achHidden(id) ? '❔' : '🔒'),
+        achHidden(id)
+          ? h('div', {}, h('b', {}, `??? (${t('secretAch')})`), h('p', { class: 'muted small' }, t('secretAchDesc')))
+          : h('div', {}, h('b', {}, achName(id)), h('p', { class: 'muted small' }, achDesc(id))),
       ),
     ),
   );
