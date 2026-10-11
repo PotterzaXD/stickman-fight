@@ -1,5 +1,6 @@
 import type { Body, Cat, Fighter, Snowman, Projectile } from './entities';
-import { BOSS_TEAM, type Game } from './game';
+import { BOSS_TEAM, FEED_LIFE, type Game } from './game';
+import { feedParts } from './killfeed';
 import { t } from '../i18n';
 import { drawCorpse } from './finish';
 import { THEMES } from './maps';
@@ -325,7 +326,34 @@ export function drawPlatforms(ctx: Ctx, map: MapDef, time = 0, glassT?: number[]
     ctx.lineWidth = 2;
     roundRect(ctx, p.x, p.y, p.w, p.h, Math.min(10, p.h / 2));
     ctx.stroke();
+    if (p.move) drawMover(ctx, p, time);
   }
+}
+
+/** Moving platforms: hazard stripes underneath and blinking arrows showing which way they go. */
+function drawMover(ctx: Ctx, p: Platform, time: number) {
+  ctx.save();
+  ctx.beginPath();
+  ctx.rect(p.x + 4, p.y + p.h * 0.5, p.w - 8, p.h * 0.5 - 2);
+  ctx.clip();
+  for (let x = p.x - 20; x < p.x + p.w + 20; x += 20) {
+    ctx.fillStyle = Math.round((x - p.x) / 20) % 2 ? '#212121' : '#fdd835';
+    ctx.beginPath();
+    ctx.moveTo(x, p.y + p.h);
+    ctx.lineTo(x + 10, p.y + p.h * 0.5);
+    ctx.lineTo(x + 20, p.y + p.h * 0.5);
+    ctx.lineTo(x + 10, p.y + p.h);
+    ctx.fill();
+  }
+  ctx.restore();
+  const m = p.move!;
+  const blink = 0.45 + 0.45 * Math.sin(time * 6);
+  ctx.fillStyle = `rgba(255,235,59,${blink})`;
+  ctx.font = '900 16px system-ui, sans-serif';
+  ctx.textAlign = 'center';
+  const arrow = m.dy ? '⇕' : '⇔';
+  ctx.fillText(arrow, p.x + 14, p.y + p.h - 4);
+  ctx.fillText(arrow, p.x + p.w - 14, p.y + p.h - 4);
 }
 
 /** A palm tree on the Beach. */
@@ -1807,6 +1835,8 @@ export function renderGame(g: Game, ctx: Ctx, vw: number, vh: number, dpr: numbe
     ctx.fillText(`${boss.name}  ${Math.max(0, Math.ceil(boss.hp))} / ${boss.maxHp}`, vw / 2, y + 12);
   }
 
+  drawFeed(g, ctx, vw, 58 + bars.length * 26);
+
   // Big words across the screen (the Beach and its cutscene)
   if (g.caption) {
     const c = g.caption;
@@ -1823,4 +1853,72 @@ export function renderGame(g: Game, ctx: Ctx, vw: number, vh: number, dpr: numbe
     ctx.fillText(text, vw / 2, ty, vw - 32);
     ctx.globalAlpha = 1;
   }
+}
+
+/** The kill feed down the right side: newest at the bottom, each line slides in and fades out. */
+function drawFeed(g: Game, ctx: Ctx, vw: number, top: number) {
+  if (!g.feed.length) return;
+  const maxW = Math.max(220, vw * 0.46);
+  const base = Math.round(Math.min(17, Math.max(12, vw / 55)));
+  let y = top;
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'middle';
+  for (const item of g.feed) {
+    const victim = g.fighters[item.victim];
+    if (!victim) continue;
+    const killer = g.fighters[item.killer];
+    const parts = feedParts(item.kind, !!killer, item.n, killer?.name ?? '', victim.name);
+    const age = FEED_LIFE - item.t;
+    // Shrink long lines to fit.
+    let size = base;
+    const font = (w: number) => `${w} ${size}px "Baloo 2", system-ui, sans-serif`;
+    const widthOf = () =>
+      parts.reduce((sum, p) => {
+        ctx.font = font(p.who ? 900 : 700);
+        return sum + ctx.measureText(p.text).width;
+      }, 0);
+    let tw = widthOf();
+    while (tw > maxW - 24 && size > 9) {
+      size--;
+      tw = widthOf();
+    }
+    const lh = size + 12;
+    const slide = Math.max(0, 1 - age / 0.18);
+    const x = vw - 12 - tw - 20 + slide * (tw + 40);
+    ctx.globalAlpha = Math.min(1, item.t / 0.6);
+    ctx.fillStyle = 'rgba(0,0,0,0.62)';
+    roundRect(ctx, x, y, tw + 20, lh, lh / 2);
+    ctx.fill();
+    // A little pop when it arrives.
+    if (age < 0.3) {
+      ctx.strokeStyle = `rgba(255,235,59,${1 - age / 0.3})`;
+      ctx.lineWidth = 3;
+      roundRect(ctx, x, y, tw + 20, lh, lh / 2);
+      ctx.stroke();
+    }
+    let px = x + 10;
+    for (const p of parts) {
+      ctx.font = font(p.who ? 900 : 700);
+      const who = p.who === 'k' ? killer : p.who === 'v' ? victim : null;
+      if (who) {
+        ctx.lineWidth = 3;
+        // Dark colours (the Boss, Buffalo) get a light outline so the name still shows.
+        ctx.strokeStyle = isDark(who.color) ? 'rgba(255,255,255,0.9)' : 'rgba(0,0,0,0.9)';
+        ctx.strokeText(p.text, px, y + lh / 2 + 1);
+      }
+      ctx.fillStyle = who ? who.color : '#ffffff';
+      ctx.fillText(p.text, px, y + lh / 2 + 1);
+      px += ctx.measureText(p.text).width;
+    }
+    y += lh + 5;
+  }
+  ctx.globalAlpha = 1;
+  ctx.textBaseline = 'alphabetic';
+}
+
+function isDark(hex: string): boolean {
+  const m = /^#([0-9a-f]{6})$/i.exec(hex);
+  if (!m) return false;
+  const n = parseInt(m[1], 16);
+  return ((n >> 16) & 255) * 0.3 + ((n >> 8) & 255) * 0.59 + (n & 255) * 0.11 < 90;
 }

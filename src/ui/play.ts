@@ -96,16 +96,20 @@ export function giveReward(r: RewardInfo): HTMLElement[] {
   if (r.fish) coins += FISH_COINS;
   const treasure = won && mode === 'cat' && !save.data.owned.includes('treasure');
   const stick = won && mode === 'mascot' && !save.data.owned.includes('mascotstick');
+  // Beating the Fishy boss gives you its Trident.
+  const trident = !!r.fish && !save.data.owned.includes('trident');
   save.update((d) => {
     d.coins += coins;
     if (treasure) d.owned.push('treasure');
     if (stick) d.owned.push('mascotstick');
+    if (trident) d.owned.push('trident');
   });
   const ach: AchievementId[] = [];
   if (won && mode === 'boss' && !beachBoss) ach.push('bossBeat');
   if (won && mode === 'cat') ach.push('catBeat');
   if (won && mode === 'mascot') ach.push('mascotBeat');
-  if (won && mode === 'mascot' && r.solo) ach.push('buffalo');
+  // Fight the Mascot all by yourself and get knocked out: Buffalo unlocks.
+  if (mode === 'mascot' && r.solo) ach.push('buffalo');
   if (won && mode === 'buffalo') ach.push('buffaloBeat');
   if (r.fish) ach.push('fishBeat');
   const fresh = grant(ach);
@@ -114,6 +118,7 @@ export function giveReward(r: RewardInfo): HTMLElement[] {
   if (r.fish) out.push(h('p', { class: 'treasure-got' }, t('fishCoins')));
   if (treasure) out.push(h('p', { class: 'treasure-got' }, t('treasureGot')));
   if (stick) out.push(h('p', { class: 'treasure-got' }, t('mascotStickGot')));
+  if (trident) out.push(h('p', { class: 'treasure-got' }, t('tridentGot')));
   out.push(...achLines(fresh));
   return out;
 }

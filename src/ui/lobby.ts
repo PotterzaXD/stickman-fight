@@ -157,7 +157,7 @@ register('lobby', (root, arg) => {
           onclick: () => {
             // The Mascot stays locked until you own every shop weapon.
             if (mode === 'mascot' && !mascotUnlocked(save.data.owned)) return toast(t('mascotLocked', mascotProgress(save.data.owned)));
-            // Buffalo unlocks when you beat the Mascot all by yourself.
+            // Buffalo unlocks when you fight the Mascot all by yourself and get knocked out.
             if (mode === 'buffalo' && !hasAch('buffalo')) return toast(t('buffaloLocked'));
             if (m.mapId === BEACH_MAP && !BEACH_MODES.includes(mode)) return toast(t('beachOnly'));
             m.mode = mode;

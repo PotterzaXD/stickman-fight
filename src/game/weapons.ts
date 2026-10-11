@@ -50,7 +50,8 @@ export const WEAPONS: WeaponDef[] = [
   // Buffalo has no normal attack: its horns and head only hurt with its skills.
   { id: 'horns', price: 0, length: 60, damage: 0, turn: 10, cooldown: 5, ranged: false, special: 'boss' },
   { id: 'headbutt', price: 0, length: 40, damage: 0, turn: 10, cooldown: 4, ranged: false, special: 'boss' },
-  { id: 'trident', price: 0, length: 110, damage: 30, turn: 10, cooldown: 3.5, ranged: false, special: 'boss' },
+  // The Fishy boss's trident: beat the Fishy boss to own it (same power as the boss's).
+  { id: 'trident', price: 0, length: 110, damage: 30, turn: 10, cooldown: 3.5, ranged: false, special: 'reward' },
 ];
 
 /** Weapons you can buy in the shop or roll at random (no boss or reward weapons). */

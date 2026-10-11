@@ -31,6 +31,8 @@ export abstract class Body {
   color: string;
   alive = true;
   onGround = false;
+  /** Index of the platform this body stands on (moving platforms carry it along). */
+  standOn = -1;
   stun = 0;
   facing = 1;
   hurtFlash = 0;
@@ -150,6 +152,9 @@ export class Fighter extends Body {
   slamming = false;
   kos = 0;
   walkPhase = 0;
+  /** Who hit this stickman last, and when (for the kill feed when they fall off the map). */
+  lastHitBy: Fighter | null = null;
+  lastHitT = -99;
   /** Next game time this fighter's weapon may hit each body id again. */
   hitCd = new Map<number, number>();
   trail: Vec[] = [];

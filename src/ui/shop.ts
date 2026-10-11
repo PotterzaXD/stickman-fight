@@ -41,7 +41,7 @@ register('shop', (root) => {
           h('h3', {}, name),
           h('p', { class: 'muted small' }, t(`s.${w.id}` as Key)),
           w.special === 'reward'
-            ? h('span', { class: 'badge' }, have ? `🏆 ${t('owned')}` : `🔒 ${t(w.id === 'mascotstick' ? 'rewardMascot' : 'rewardOnly')}`)
+            ? h('span', { class: 'badge' }, have ? `🏆 ${t('owned')}` : `🔒 ${t(w.id === 'mascotstick' ? 'rewardMascot' : w.id === 'trident' ? 'rewardFish' : 'rewardOnly')}`)
             : have
             ? h('span', { class: 'badge' }, w.price === 0 ? t('free') : `✔ ${t('owned')}`)
             : h('button', { class: `btn ${afford ? 'primary' : ''}`, onclick: buy }, `🪙 ${w.price}`),

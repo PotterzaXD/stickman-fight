@@ -42,6 +42,8 @@ export interface Platform {
   w: number;
   h: number;
   kind?: BlockKind;
+  /** Moving platform: slides `dx`, `dy` away and back every `period` seconds (`phase` 0-1 = where it starts). */
+  move?: { dx: number; dy: number; period: number; phase?: number };
 }
 
 export interface MapDef {

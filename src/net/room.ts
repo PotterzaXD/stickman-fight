@@ -47,7 +47,7 @@ export interface RoomState {
   /** Healing potions on/off (starts from the host's setting). */
   potions: boolean;
   hostWeapons: string[];
-  /** The host has beaten the Mascot alone, so Buffalo is unlocked. */
+  /** The host has fought the Mascot alone, so Buffalo is unlocked. */
   hostBuffalo?: boolean;
   phase: 'lobby' | 'playing';
   members: Member[];

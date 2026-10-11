@@ -97,6 +97,8 @@ export class Mirror {
   apply(s: Snapshot) {
     const g = this.g;
     g.shake = Math.max(g.shake, s.sh);
+    // Keep the clock close to the host's so moving platforms line up.
+    if (Math.abs(g.time - s.tm) > 0.15) g.time = s.tm;
     s.f.forEach((a, i) => {
       const f = g.fighters[i];
       if (!f) return;

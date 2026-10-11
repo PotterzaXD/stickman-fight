@@ -20,6 +20,7 @@ import {
 } from './entities';
 import { MELEE_FINISH, PROJ_FINISH, makeCorpse, updateCorpses, type Corpse, type Finish } from './finish';
 import { THEMES, pickSpawns } from './maps';
+import { feedCount, type FeedKind } from './killfeed';
 import { BEACH_MAP, BEACH_MODES, isBossMode, type BossKind, type Difficulty, type FallMode, type MapDef, type Mode, type SandboxBoss } from './types';
 import { SHOP_WEAPONS, weapon } from './weapons';
 import type { Key } from '../i18n';
@@ -161,7 +162,22 @@ export type NetEvent =
   | ['t', number, number, string, string, number]
   | ['r', number, number, number, number, string]
   | ['s', string]
-  | ['z', number, number, number, number];
+  | ['z', number, number, number, number]
+  | ['k', number, number, FeedKind, number];
+
+/** One line in the kill feed: fighter indexes (killer -1 = nobody), what happened, which joke. */
+export interface FeedItem {
+  victim: number;
+  killer: number;
+  kind: FeedKind;
+  n: number;
+  t: number;
+}
+/** Seconds a kill feed line stays, and how many show at once. */
+export const FEED_LIFE = 5;
+export const FEED_MAX = 6;
+/** Fell off within this many seconds of a hit: the hitter gets the credit. */
+const BLAME_S = 5;
 
 const sign = (v: number) => (v > 0 ? 1 : v < 0 ? -1 : 0);
 const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v));
@@ -217,9 +233,16 @@ export class Game {
   private cutOthers: Fighter[] = [];
   private cutMove = new Map<Fighter, number>();
   caption: Caption | null = null;
+  feed: FeedItem[] = [];
+  /** Where each platform starts (moving platforms slide away from here and back). */
+  private platBase: { x: number; y: number }[];
+  private lastFeed = new Map<string, number>();
 
   constructor(map: MapDef, specs: FighterSpec[], opts: GameOpts) {
-    this.map = map;
+    // Each match gets its own copy of the platforms: moving platforms change their copy.
+    this.map = { ...map, platforms: map.platforms.map((p) => ({ ...p })) };
+    this.platBase = map.platforms.map((p) => ({ x: p.x, y: p.y }));
+    map = this.map;
     this.mode = opts.mode;
     this.fallMode = opts.fallMode;
     this.demo = !!opts.demo;
@@ -505,6 +528,7 @@ export class Game {
   /** Joining device: the host runs the match; this only animates effects and the camera between updates. */
   clientTick(dt: number) {
     this.time += dt;
+    this.movePlatforms(false);
     for (const f of this.fighters) {
       if (!f.alive) continue;
       if (f.onGround) f.walkPhase += f.vx * dt * 0.045;
@@ -531,6 +555,7 @@ export class Game {
       else if (e[0] === 'r') this.rings.push({ x: e[1], y: e[2], r: 10, maxR: e[3], life: e[4], max: e[4], color: e[5] });
       else if (e[0] === 's' && e[1] in sfx) (sfx as unknown as Record<string, () => void>)[e[1]]();
       else if (e[0] === 'z') this.bolts.push({ x1: e[1], y1: e[2], x2: e[3], y2: e[4], life: 0.3 });
+      else if (e[0] === 'k') this.pushFeed({ victim: e[1], killer: e[2], kind: e[3], n: e[4], t: FEED_LIFE });
     }
   }
 
@@ -545,8 +570,34 @@ export class Game {
     f.brain = new BotBrain('medium');
   }
 
+  /** Slide the moving platforms to where they are at this moment, carrying whoever stands on them. */
+  movePlatforms(carry = true) {
+    this.map.platforms.forEach((p, i) => {
+      if (!p.move) return;
+      const base = this.platBase[i];
+      const k = 0.5 - 0.5 * Math.cos(2 * Math.PI * (this.time / p.move.period + (p.move.phase ?? 0)));
+      const nx = base.x + p.move.dx * k;
+      const ny = base.y + p.move.dy * k;
+      const dx = nx - p.x;
+      const dy = ny - p.y;
+      p.x = nx;
+      p.y = ny;
+      if (!carry || (!dx && !dy)) return;
+      for (const b of this.bodies()) {
+        if (!b.alive || !b.onGround || b.standOn !== i) continue;
+        b.x += dx;
+        b.y += dy;
+      }
+      for (const gb of this.groundBalls) if (gb.x >= p.x - dx && gb.x <= p.x - dx + p.w && Math.abs(gb.y - (p.y - dy)) < 3) {
+        gb.x += dx;
+        gb.y += dy;
+      }
+    });
+  }
+
   update(dt: number) {
     this.time += dt;
+    this.movePlatforms();
     // Frozen by the Ice Wand: can't move until it melts.
     for (const b of this.bodies()) {
       if (b.frozenT <= 0) continue;
@@ -684,15 +735,20 @@ export class Game {
       const half = b.w * 0.35;
       let land: number | null = null;
       let lava = false;
+      let on = -1;
       this.map.platforms.forEach((p, i) => {
         if (!this.solid(i)) return;
-        if (b.x + half > p.x && b.x - half < p.x + p.w && prevY <= p.y + 2 && b.y >= p.y) {
+        // Rising platforms can catch you a little below their top.
+        const catchUp = p.move && p.move.dy ? 14 : 2;
+        if (b.x + half > p.x && b.x - half < p.x + p.w && prevY <= p.y + catchUp && b.y >= p.y) {
           if (land === null || p.y < land) {
             land = p.y;
             lava = p.kind === 'lava';
+            on = i;
           }
         }
       });
+      b.standOn = on;
       if (land !== null) {
         b.y = land;
         b.vy = 0;
@@ -713,7 +769,7 @@ export class Game {
     this.text(b.x, b.y - b.h - 10, `-${LAVA_DMG}`, '#ff7043', 26);
     this.burst(b.x, b.y, '#ff6d00', 14, 380);
     this.play('hit');
-    if (b.hp <= 0) this.kill(b, null);
+    if (b.hp <= 0) this.kill(b, null, 'pop', 'lava');
   }
 
   /** A skill hit glass around (x, y): it shatters and comes back after GLASS_BACK seconds. */
@@ -767,7 +823,7 @@ export class Game {
       b.hurtFlash = 0.1;
       this.text(b.x + (Math.random() - 0.5) * 20, b.y - b.h - 10, String(b.burnDmg), '#ff9800', 18);
       this.burst(b.x, b.cy, '#ff9800', 4, 160);
-      if (b.hp <= 0) this.kill(b, b.burnSrc, 'ashes');
+      if (b.hp <= 0) this.kill(b, b.burnSrc, 'ashes', 'burn');
     }
   }
 
@@ -789,6 +845,10 @@ export class Game {
     const by = src instanceof Snowman || src instanceof Cat ? src.owner : src;
     if (by instanceof Fighter) amount *= by.power;
     amount = Math.round(amount);
+    if (target instanceof Fighter && by instanceof Fighter && by !== target) {
+      target.lastHitBy = by;
+      target.lastHitT = this.time;
+    }
     if (target instanceof Fighter && target.shielding) {
       target.shieldHp -= amount;
       target.vx += kx * 0.25;
@@ -834,7 +894,8 @@ export class Game {
     e.poisonSrc = src;
   }
 
-  kill(b: Body, src: Body | null, how: Finish = 'pop') {
+  /** `env`: what the map did (lava block, fire); falling off the map is worked out here. */
+  kill(b: Body, src: Body | null, how: Finish = 'pop', env?: FeedKind) {
     if (!b.alive) return;
     b.alive = false;
     b.hp = 0;
@@ -858,7 +919,31 @@ export class Game {
     }
     const killer = src instanceof Snowman || src instanceof Cat ? src.owner : src;
     if (killer instanceof Fighter && killer !== b && b.kind === 'fighter') killer.kos++;
+    if (b instanceof Fighter && !this.demo) this.feedKill(b, killer instanceof Fighter && killer !== b ? killer : null, how, env);
     if (b instanceof Fighter) for (const p of this.projectiles) if (p.owner === b && returns(p.kind)) p.dead = true;
+  }
+
+  /** Add a goofy line to the kill feed (and send it to the other devices). */
+  private feedKill(v: Fighter, killer: Fighter | null, how: Finish, env?: FeedKind) {
+    let kind: FeedKind = env ?? 'kill';
+    if (how === 'void') kind = this.map.theme === 'beach' ? 'water' : this.map.theme === 'lava' ? 'lava' : 'void';
+    // Knocked off the map (or into lava) by someone a moment ago: they get the credit.
+    if (!killer && v.lastHitBy && v.lastHitBy !== v && this.time - v.lastHitT < BLAME_S) killer = v.lastHitBy;
+    const by = !!killer;
+    const count = feedCount(kind, by);
+    // Never the same joke twice in a row.
+    let n = Math.floor(Math.random() * count);
+    const key = `${kind}${by}`;
+    if (count > 1 && n === this.lastFeed.get(key)) n = (n + 1) % count;
+    this.lastFeed.set(key, n);
+    const item: FeedItem = { victim: this.fighters.indexOf(v), killer: killer ? this.fighters.indexOf(killer) : -1, kind, n, t: FEED_LIFE };
+    this.pushFeed(item);
+    if (this.record) this.events.push(['k', item.victim, item.killer, kind, n]);
+  }
+
+  private pushFeed(item: FeedItem) {
+    this.feed.push(item);
+    if (this.feed.length > FEED_MAX) this.feed.shift();
   }
 
   private meleeHits() {
@@ -879,7 +964,7 @@ export class Game {
         const glove = thrust && def.id === 'glove';
         const dmg = f.mascot
           ? MASCOT_TOUCH
-          : f.fish
+          : f.fish || def.id === 'trident'
           ? FISHY.melee
           : dash
           ? 60 * f.dmgMult
@@ -1172,7 +1257,9 @@ export class Game {
 
   /** The Fishy boss: Trident Strike for 99, and half the time lightning for 30 more. */
   private tridentStrike(f: Fighter, slot: number) {
-    const t = nearestEnemy(this, f, 700 * (f.scale / 2.6));
+    // A player's trident is just as strong as the Fishy boss's.
+    const boss = f.boss ? f.dmgMult / 1.5 : 1;
+    const t = nearestEnemy(this, f, f.boss ? 700 * (f.scale / 2.6) : 700);
     f.thrustT = 0.4;
     f.thrustSlot = slot;
     if (!t) {
@@ -1182,10 +1269,10 @@ export class Game {
     f.facing = sign(t.x - f.x) || f.facing;
     f.thrustAngle = Math.atan2(t.cy - f.shoulder().y, t.x - f.x);
     this.burst(t.x, t.cy, '#ffd54f', 14, 320);
-    this.damage(t, FISHY.strike * (f.dmgMult / 1.5), f, f.facing * 600, -600, 'ragdoll');
+    this.damage(t, FISHY.strike * boss, f, f.facing * 600, -600, 'ragdoll');
     if (Math.random() < 0.5 && t.alive) {
       this.lightning(t);
-      this.damage(t, FISHY.lightning * (f.dmgMult / 1.5), f, f.facing * 300, -500, 'zap');
+      this.damage(t, FISHY.lightning * boss, f, f.facing * 300, -500, 'zap');
     }
   }
 
@@ -1437,6 +1524,10 @@ export class Game {
             continue;
           }
           const heavy = e instanceof Fighter && e.boss;
+          if (e instanceof Fighter && p.owner instanceof Fighter) {
+            e.lastHitBy = p.owner;
+            e.lastHitT = this.time;
+          }
           e.vx = (p.dir ?? dir) * (heavy ? 300 : 720);
           e.vy = Math.min(e.vy, heavy ? -150 : -480);
           e.onGround = false;
@@ -1775,6 +1866,8 @@ export class Game {
     }
     this.rings = this.rings.filter((r) => r.life > 0);
     for (const b of this.bolts) b.life -= dt;
+    for (const f of this.feed) f.t -= dt;
+    this.feed = this.feed.filter((f) => f.t > 0);
     this.bolts = this.bolts.filter((b) => b.life > 0);
     if (this.caption) {
       this.caption.t -= dt;
