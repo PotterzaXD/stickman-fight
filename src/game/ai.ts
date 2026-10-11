@@ -289,6 +289,18 @@ export class BotBrain {
           // Call Fish any time; the waves and the strike when someone is close.
           if (f.fishNext === 1 || dist < 600) angle = Math.atan2(dy, dx);
           break;
+        case 'scepter':
+          // Blizzard and Frozen Shield any time; Ice Shard at range.
+          if (f.fishNext !== 0 || dist < 1100) angle = Math.atan2(dy, dx);
+          break;
+        case 'kingtrident':
+          // Summon Fish any time; Wave Crash and Water Jet when someone is in reach.
+          if (f.fishNext === 2 || (f.fishNext === 0 && Math.abs(dy) < 260 && dist < 1100) || (f.fishNext === 1 && dist < 900)) angle = Math.atan2(dy, dx);
+          break;
+        case 'vinestaff':
+          // Vine Whip at range, Root Trap when someone is near, Leaf Storm when they are close.
+          if ((f.fishNext === 0 && dist < 820) || (f.fishNext === 1 && dist < 950) || (f.fishNext === 2 && dist < 420)) angle = Math.atan2(dy, dx);
+          break;
       }
       if (angle !== null) {
         it.skill = angle + err;

@@ -1,5 +1,6 @@
 export type WeaponId = 'sword' | 'spear' | 'hammer' | 'bow' | 'boomerang' | 'bomb' | 'katana' | 'snowball' | 'axe' | 'shuriken' | 'laser' | 'staff' | 'six7' | 'poop' | 'treasure' | 'soup' | 'catcall' | 'ice' | 'thunder' | 'banana' | 'stick' | 'mascotstick'
-  | 'firesword' | 'recall' | 'dart' | 'glove' | 'magnet' | 'rocket' | 'horns' | 'headbutt' | 'trident';
+  | 'firesword' | 'recall' | 'dart' | 'glove' | 'magnet' | 'rocket' | 'horns' | 'headbutt' | 'trident'
+  | 'scepter' | 'kingtrident' | 'vinestaff';
 
 export interface WeaponDef {
   id: WeaponId;
@@ -52,6 +53,10 @@ export const WEAPONS: WeaponDef[] = [
   { id: 'headbutt', price: 0, length: 40, damage: 0, turn: 10, cooldown: 4, ranged: false, special: 'boss' },
   // The Fishy boss's trident: beat the Fishy boss to own it (same power as the boss's).
   { id: 'trident', price: 0, length: 110, damage: 30, turn: 10, cooldown: 3.5, ranged: false, special: 'reward' },
+  // The secret bosses: each takes turns between 3 skills.
+  { id: 'scepter', price: 0, length: 90, damage: 30, turn: 10, cooldown: 3.2, ranged: true, special: 'boss' },
+  { id: 'kingtrident', price: 0, length: 120, damage: 35, turn: 10, cooldown: 3.4, ranged: false, special: 'boss' },
+  { id: 'vinestaff', price: 0, length: 100, damage: 30, turn: 10, cooldown: 3.2, ranged: false, special: 'boss' },
 ];
 
 /** Weapons you can buy in the shop or roll at random (no boss or reward weapons). */

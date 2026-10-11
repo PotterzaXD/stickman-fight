@@ -1,7 +1,7 @@
 import type { RealtimeChannel } from '@supabase/supabase-js';
 import { supabase } from '../cloud';
 import { TEAM_COLORS, randomBossWeapons, type FighterSpec, type MatchResult } from '../game/game';
-import { BEACH_MAP, BEACH_MODES, isBossMode, type Controller, type Difficulty, type FallMode, type MapDef, type Mode } from '../game/types';
+import { BEACH_MAP, BEACH_MODES, isBossMode, isSecret, type Controller, type Difficulty, type FallMode, type MapDef, type Mode } from '../game/types';
 import { cleanName, save } from '../save';
 import { MASCOT_WEAPONS } from '../game/weapons';
 import type { Snapshot } from './snapshot';
@@ -49,6 +49,8 @@ export interface RoomState {
   hostWeapons: string[];
   /** The host has fought the Mascot alone, so Buffalo is unlocked. */
   hostBuffalo?: boolean;
+  /** Secret bosses the host has unlocked. */
+  hostSecrets?: string[];
   phase: 'lobby' | 'playing';
   members: Member[];
 }
@@ -344,6 +346,7 @@ export class RoomHost extends Emitter<RoomEvents> {
         potions: save.data.settings.potions,
         hostWeapons,
         hostBuffalo: save.data.achievements.includes('buffalo'),
+        hostSecrets: [...save.data.secrets],
         phase: 'lobby',
         members,
       });
@@ -460,6 +463,7 @@ export class RoomHost extends Emitter<RoomEvents> {
     // The Mascot needs the host to own every shop weapon.
     if (p.mode === 'mascot' && !mascotUnlocked(this.state.hostWeapons)) this.state.mode = 'boss';
     if (p.mode === 'buffalo' && !this.state.hostBuffalo) this.state.mode = 'boss';
+    if (p.mode && isSecret(p.mode) && !this.state.hostSecrets?.includes(p.mode)) this.state.mode = 'boss';
     if (p.size) this.state.size = Math.max(Math.max(MIN_ROOM, this.state.members.length), Math.min(MAX_ROOM, p.size));
     if (p.map) {
       this.state.map = p.map;

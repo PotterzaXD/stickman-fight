@@ -1,0 +1,269 @@
+import { audio, midiHz, musicLevel, musicOut, noise } from './audio';
+
+/**
+ * Chiptune music made by the game itself (no audio files): a little step sequencer
+ * with a lead, a bass, an arpeggio and drums. Each track is built from a seed, so it
+ * always sounds the same, and every mode, map theme and secret boss has its own.
+ */
+export type TrackId =
+  | 'menu'
+  | 'sandbox'
+  | 'day'
+  | 'sunset'
+  | 'night'
+  | 'snow'
+  | 'lava'
+  | 'space'
+  | 'beach'
+  | 'boss'
+  | 'queen'
+  | 'tide'
+  | 'guardian';
+
+interface TrackDef {
+  bpm: number;
+  /** MIDI note of the key's root. */
+  root: number;
+  /** Scale steps from the root. */
+  scale: number[];
+  /** Chord roots as scale degrees, one per bar. */
+  chords: number[];
+  lead: OscillatorType;
+  bass: OscillatorType;
+  arp: OscillatorType | null;
+  /** Drum patterns over 16 steps: k = kick, s = snare, h = hat, t = tom. */
+  drums: string[];
+  /** 0-1: how busy the lead is. */
+  busy: number;
+  /** Bass rhythm over 16 steps (x = play). */
+  bassRhythm: string;
+  seed: number;
+  /** Lead an octave up (icy) or down (deep). */
+  leadOct?: number;
+  swing?: number;
+  vol?: number;
+}
+
+const MINOR = [0, 2, 3, 5, 7, 8, 10];
+const MAJOR = [0, 2, 4, 5, 7, 9, 11];
+const HARM = [0, 2, 3, 5, 7, 8, 11];
+const PHRYG = [0, 1, 3, 5, 7, 8, 10];
+const DORIAN = [0, 2, 3, 5, 7, 9, 10];
+const PENTA = [0, 3, 5, 7, 10];
+const LYDIAN = [0, 2, 4, 6, 7, 9, 11];
+
+const FOUR = 'k...h...k...h...';
+const BACK = 'k...s...k.k.s...';
+const DRIVE = 'k.h.s.h.k.h.s.hh';
+const HALF = 'k.......s.......';
+
+const TRACKS: Record<TrackId, TrackDef> = {
+  // Energetic synthwave to get you hyped
+  menu: { bpm: 138, root: 57, scale: MINOR, chords: [0, 5, 2, 6], lead: 'square', bass: 'sawtooth', arp: 'square', drums: ['k...s...k...s...', 'k.h.s.h.k.h.s.h.'], busy: 0.65, bassRhythm: 'x.x.x.x.x.x.x.x.', seed: 11 },
+  // Chill 8-bit for building and testing
+  sandbox: { bpm: 92, root: 60, scale: MAJOR, chords: [0, 5, 3, 4], lead: 'triangle', bass: 'sine', arp: 'triangle', drums: ['k.....h.....h...', 'k.....h...k.h...'], busy: 0.4, bassRhythm: 'x.....x...x.....', seed: 23, swing: 0.12 },
+  day: { bpm: 128, root: 60, scale: MAJOR, chords: [0, 4, 5, 3], lead: 'square', bass: 'triangle', arp: null, drums: [BACK, 'k.h.s.h.k.h.s.h.'], busy: 0.6, bassRhythm: 'x...x.x.x...x.x.', seed: 31 },
+  sunset: { bpm: 112, root: 65, scale: MAJOR, chords: [0, 3, 5, 4], lead: 'triangle', bass: 'sawtooth', arp: 'square', drums: [BACK], busy: 0.45, bassRhythm: 'x..x..x.x..x..x.', seed: 37, swing: 0.1 },
+  night: { bpm: 120, root: 62, scale: DORIAN, chords: [0, 6, 5, 6], lead: 'square', bass: 'triangle', arp: 'sine', drums: ['k...h.h.s...h...', 'k...h.h.s..kh.h.'], busy: 0.5, bassRhythm: 'x.......x.x.....', seed: 41 },
+  snow: { bpm: 132, root: 64, scale: MINOR, chords: [0, 3, 5, 4], lead: 'triangle', bass: 'triangle', arp: 'triangle', drums: [FOUR, 'k.h.k.h.s.h.k.h.'], busy: 0.55, bassRhythm: 'x...x...x...x...', seed: 43, leadOct: 1 },
+  lava: { bpm: 152, root: 61, scale: PHRYG, chords: [0, 1, 0, 6], lead: 'sawtooth', bass: 'sawtooth', arp: null, drums: [DRIVE, 'k.k.s.h.k.k.s.ss'], busy: 0.7, bassRhythm: 'xxx.xxx.xxx.xx.x', seed: 47 },
+  space: { bpm: 108, root: 62, scale: LYDIAN, chords: [0, 1, 0, 4], lead: 'sine', bass: 'triangle', arp: 'sine', drums: ['k.......h.......', 'k.....h.....s...'], busy: 0.35, bassRhythm: 'x.......x.......', seed: 53, leadOct: 1 },
+  beach: { bpm: 118, root: 67, scale: MAJOR, chords: [0, 3, 4, 0], lead: 'triangle', bass: 'square', arp: 'triangle', drums: ['k..h..h.s..h..h.', 'k..h..h.s..h.hh.'], busy: 0.6, bassRhythm: 'x..x..x...x..x..', seed: 59, swing: 0.15 },
+  // Standard bosses: fast and intense
+  boss: { bpm: 168, root: 57, scale: HARM, chords: [0, 5, 3, 4], lead: 'square', bass: 'sawtooth', arp: 'square', drums: [DRIVE, 'k.hks.hkk.hks.ss'], busy: 0.8, bassRhythm: 'xxxxxxxxxxxxxxxx', seed: 61 },
+  // The Snow Queen: icy synths and fast arps
+  queen: { bpm: 176, root: 64, scale: HARM, chords: [0, 5, 3, 4, 0, 5, 1, 4], lead: 'triangle', bass: 'square', arp: 'triangle', drums: ['k.h.s.h.k.h.s.h.', 'k.hhs.hhk.hhs.sh'], busy: 0.85, bassRhythm: 'x.x.x.x.x.x.x.x.', seed: 71, leadOct: 1 },
+  // The Tide King: heavy, deep, pulsing bass
+  tide: { bpm: 100, root: 50, scale: MINOR, chords: [0, 0, 5, 6], lead: 'sawtooth', bass: 'sawtooth', arp: null, drums: [HALF, 'k..k....s.....k.'], busy: 0.45, bassRhythm: 'x.xxx.xxx.xxx.xx', seed: 73, leadOct: -1, vol: 1.1 },
+  // The Ancient Guardian: tribal drums and a mysterious flute
+  guardian: { bpm: 124, root: 57, scale: PENTA, chords: [0, 0, 3, 4], lead: 'sine', bass: 'triangle', arp: null, drums: ['k..tt..tk.t.t.tt', 'k.ttk.t.k..tt.tk'], busy: 0.55, bassRhythm: 'x..x..x.x..x....', seed: 79 },
+};
+
+/** Small seeded random numbers, so a track's tune never changes. */
+function rng(seed: number) {
+  let s = seed * 9301 + 49297;
+  return () => {
+    s = (s * 9301 + 49297) % 233280;
+    return s / 233280;
+  };
+}
+
+/** Lead melody: for each bar, 16 steps of scale-degree offsets (or null for a rest). */
+function makeMelody(t: TrackDef): (number | null)[][] {
+  const r = rng(t.seed);
+  // Two phrases (A and B), played A A B A so the tune sticks.
+  const phrase = () =>
+    t.chords.slice(0, 4).map((chord) => {
+      const bar: (number | null)[] = [];
+      let deg = chord + [0, 2, 4][Math.floor(r() * 3)];
+      for (let i = 0; i < 16; i++) {
+        const strong = i % 4 === 0;
+        if (!strong && r() > t.busy) {
+          bar.push(null);
+          continue;
+        }
+        if (strong) deg = chord + [0, 2, 4, 7][Math.floor(r() * 4)];
+        else deg += [-2, -1, -1, 1, 1, 2][Math.floor(r() * 6)];
+        bar.push(deg);
+      }
+      return bar;
+    });
+  const a = phrase();
+  const b = phrase();
+  const bars = [...a, ...a, ...b, ...a];
+  // Tracks with 8 chords: walk through all of them.
+  return t.chords.length > 4 ? bars.map((bar, i) => bar.map((d) => (d === null ? null : d - t.chords[i % 4] + t.chords[i % t.chords.length]))) : bars;
+}
+
+function degHz(t: TrackDef, deg: number, oct: number): number {
+  const n = t.scale.length;
+  const o = Math.floor(deg / n);
+  const step = t.scale[((deg % n) + n) % n];
+  return midiHz(t.root + step + 12 * (o + oct));
+}
+
+let current: TrackId | null = null;
+let gain: GainNode | null = null;
+let timer = 0;
+let step = 0;
+let nextTime = 0;
+let melody: (number | null)[][] = [];
+
+function voice(a: AudioContext, out: AudioNode, type: OscillatorType, hz: number, at: number, dur: number, vol: number) {
+  const o = a.createOscillator();
+  const g = a.createGain();
+  o.type = type;
+  o.frequency.setValueAtTime(hz, at);
+  g.gain.setValueAtTime(0.0001, at);
+  g.gain.linearRampToValueAtTime(vol, at + 0.01);
+  g.gain.exponentialRampToValueAtTime(0.0001, at + dur);
+  o.connect(g).connect(out);
+  o.start(at);
+  o.stop(at + dur + 0.02);
+}
+
+function drum(a: AudioContext, out: AudioNode, kind: string, at: number) {
+  if (kind === 'k' || kind === 't') {
+    const o = a.createOscillator();
+    const g = a.createGain();
+    const top = kind === 'k' ? 150 : 220;
+    o.frequency.setValueAtTime(top, at);
+    o.frequency.exponentialRampToValueAtTime(kind === 'k' ? 40 : 90, at + 0.15);
+    g.gain.setValueAtTime(kind === 'k' ? 0.5 : 0.35, at);
+    g.gain.exponentialRampToValueAtTime(0.0001, at + (kind === 'k' ? 0.2 : 0.25));
+    o.connect(g).connect(out);
+    o.start(at);
+    o.stop(at + 0.3);
+    return;
+  }
+  const src = a.createBufferSource();
+  src.buffer = noise(a);
+  const f = a.createBiquadFilter();
+  f.type = kind === 'h' ? 'highpass' : 'bandpass';
+  f.frequency.value = kind === 'h' ? 7000 : 1800;
+  const g = a.createGain();
+  const len = kind === 'h' ? 0.05 : 0.15;
+  g.gain.setValueAtTime(kind === 'h' ? 0.12 : 0.28, at);
+  g.gain.exponentialRampToValueAtTime(0.0001, at + len);
+  src.connect(f).connect(g).connect(out);
+  src.start(at, Math.random() * 0.5);
+  src.stop(at + len + 0.02);
+}
+
+function schedule() {
+  const a = audio();
+  if (!a || !gain || !current) return;
+  if (a.state !== 'running') {
+    nextTime = a.currentTime + 0.05;
+    return;
+  }
+  const t = TRACKS[current];
+  const s16 = 60 / t.bpm / 4;
+  if (nextTime < a.currentTime - 0.2) nextTime = a.currentTime + 0.05;
+  const quiet = musicLevel() <= 0;
+  while (nextTime < a.currentTime + 0.15) {
+    if (quiet) {
+      step++;
+      nextTime += s16;
+      continue;
+    }
+    const bars = melody.length;
+    const barI = Math.floor(step / 16) % bars;
+    const i = step % 16;
+    const chord = t.chords[barI % t.chords.length];
+    const at = nextTime + (i % 2 ? (t.swing ?? 0) * s16 : 0);
+    const out = gain;
+    const vol = t.vol ?? 1;
+    // Lead
+    const deg = melody[barI][i];
+    if (deg !== null) voice(a, out, t.lead, degHz(t, deg, 1 + (t.leadOct ?? 0)), at, s16 * 1.8, (t.lead === 'sine' || t.lead === 'triangle' ? 0.16 : 0.07) * vol);
+    // Bass
+    if (t.bassRhythm[i] === 'x') voice(a, out, t.bass, degHz(t, chord + (i >= 8 && i % 4 === 2 ? 4 : 0), -1), at, s16 * 1.6, (t.bass === 'sawtooth' ? 0.09 : 0.2) * vol);
+    // Arpeggio: chord tones going up, on every other step
+    if (t.arp && i % 2 === 0) voice(a, out, t.arp, degHz(t, chord + [0, 2, 4, 7][(i / 2) % 4], 1), at, s16 * 0.9, (t.arp === 'square' ? 0.03 : 0.06) * vol);
+    // Drums: the second pattern every 4th bar for a fill
+    const pat = t.drums[barI % 4 === 3 && t.drums.length > 1 ? 1 : 0];
+    const d = pat[i];
+    if (d !== '.') drum(a, out, d, at);
+    step++;
+    nextTime += s16;
+  }
+}
+
+/** Start a track (keeps playing if it already is). Fades between tracks. */
+export function playMusic(id: TrackId) {
+  if (current === id && gain) return;
+  stopMusic();
+  const a = audio();
+  const bus = musicOut();
+  if (!a || !bus) {
+    current = id;
+    return;
+  }
+  current = id;
+  melody = makeMelody(TRACKS[id]);
+  step = 0;
+  nextTime = a.currentTime + 0.1;
+  gain = a.createGain();
+  gain.gain.setValueAtTime(0.0001, a.currentTime);
+  gain.gain.linearRampToValueAtTime(1, a.currentTime + 0.6);
+  gain.connect(bus);
+  timer = window.setInterval(schedule, 40);
+  schedule();
+}
+
+export function stopMusic() {
+  window.clearInterval(timer);
+  timer = 0;
+  current = null;
+  const a = audio();
+  if (gain && a) {
+    const g = gain;
+    g.gain.cancelScheduledValues(a.currentTime);
+    g.gain.setValueAtTime(g.gain.value, a.currentTime);
+    g.gain.linearRampToValueAtTime(0.0001, a.currentTime + 0.4);
+    setTimeout(() => g.disconnect(), 600);
+  }
+  gain = null;
+}
+
+/** The track that should play right now (for Settings and the first tap). */
+export const nowPlaying = () => current;
+
+/** Short fanfares: winning (also for achievements) or losing. Stops the music. */
+export function jingle(kind: 'victory' | 'defeat') {
+  stopMusic();
+  const a = audio();
+  const bus = musicOut();
+  if (!a || !bus || musicLevel() <= 0) return;
+  const at = a.currentTime + 0.45;
+  const list: [number, number, number][] =
+    kind === 'victory'
+      ? [[72, 0, 0.12], [76, 0.12, 0.12], [79, 0.24, 0.12], [84, 0.36, 0.3], [79, 0.7, 0.12], [84, 0.82, 0.7]]
+      : [[67, 0, 0.3], [66, 0.32, 0.3], [65, 0.64, 0.3], [64, 0.96, 0.9]];
+  for (const [m, t, d] of list) {
+    voice(a, bus, 'square', midiHz(m), at + t, d, 0.1);
+    voice(a, bus, 'triangle', midiHz(m - 12), at + t, d, 0.18);
+  }
+  if (kind === 'victory') for (let i = 0; i < 4; i++) drum(a, bus, i === 3 ? 's' : 'k', at + 0.82 + i * 0.001);
+}

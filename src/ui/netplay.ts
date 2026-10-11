@@ -4,9 +4,11 @@ import { t } from '../i18n';
 import { ONLINE_SNOWMEN, RoomHost, session, setSession, type NetResult, type StartPayload } from '../net/room';
 import { Mirror, encodeSnapshot } from '../net/snapshot';
 import { sfx } from '../sfx';
+import { save } from '../save';
 import { h } from './dom';
 import { startLoop } from './loop';
-import { bossNameFor, bossNames, giveReward, resultTitle } from './play';
+import { bossNameFor, bossNames, giveReward, matchFacts, matchTrack, resultTitle } from './play';
+import { jingle, playMusic } from '../music';
 import { onRoomClosed } from './roomScreen';
 import { go, register } from './router';
 
@@ -25,6 +27,7 @@ register('netplay', (root) => {
   let localIdx: number[] = [];
   let acc = 0;
   let menuOpen = false;
+  let startCoins = 0;
 
   const canvas = h('canvas', { class: 'game-canvas' });
   const overlay = h('div', { class: 'overlay hidden' });
@@ -78,9 +81,11 @@ register('netplay', (root) => {
         fish: !!r.fish,
         beachBoss: game.beach && r.mode === 'boss',
         solo: others.length === 1 && localIdx.includes(game.fighters.indexOf(others[0])),
+        facts: matchFacts(game, r, localIdx.map((i) => game.fighters[i]), startCoins),
       });
       if (won) sfx.win();
-    }
+      jingle(won ? 'victory' : 'defeat');
+    } else jingle('victory');
     const ranked = [...game.fighters].sort((a, b) => Number(b.alive) - Number(a.alive) || b.kos - a.kos);
     overlay.replaceChildren(
       h(
@@ -113,6 +118,8 @@ register('netplay', (root) => {
       bossWeapons: start.bossWeapons,
     });
     mirror = host ? null : new Mirror(game);
+    startCoins = save.data.coins;
+    playMusic(matchTrack(game));
     if (import.meta.env.DEV) (window as unknown as { __ng: Game }).__ng = game;
     // Joysticks for the players on this device, in joystick order.
     localIdx = start.specs.map((sp, i) => (sp.device === s.device && sp.human ? i : -1)).filter((i) => i >= 0).sort((a, b) => start.specs[a].local - start.specs[b].local);

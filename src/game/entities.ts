@@ -1,4 +1,4 @@
-import type { Controller, Intent, Vec } from './types';
+import type { Controller, Intent, SecretKind, Vec } from './types';
 import type { WeaponDef } from './weapons';
 import type { BotBrain } from './ai';
 import type { Finish } from './finish';
@@ -14,6 +14,8 @@ export const CAT_BOSS_HP = 10000;
 export const MASCOT_HP = 50000;
 export const BUFFALO_HP = 8000;
 export const FISH_HP = 9999;
+/** The secret bosses. */
+export const SECRET_HP: Record<SecretKind, number> = { queen: 12000, tide: 15000, guardian: 18000 };
 
 let nextId = 1;
 
@@ -49,6 +51,8 @@ export abstract class Body {
   poisonT = 0;
   poisonTick = 0;
   poisonSrc: Body | null = null;
+  /** Seconds left slowed down (Ice Shard, Root Trap). */
+  slowT = 0;
   abstract readonly kind: 'fighter' | 'snowman' | 'cat';
 
   constructor(x: number, y: number, w: number, h: number, hp: number, team: number, color: string) {
@@ -94,6 +98,8 @@ export interface FighterOpts {
   fish?: boolean;
   /** Starting HP (Sandbox), instead of the normal amount. */
   hp?: number;
+  /** One of the secret bosses. */
+  secret?: SecretKind;
 }
 
 export class Fighter extends Body {
@@ -107,6 +113,16 @@ export class Fighter extends Body {
   mascot: boolean;
   buffalo: boolean;
   fish: boolean;
+  secret: SecretKind | null;
+  /** The Snow Queen's Frozen Shield: blocks every hit until this much damage breaks it. */
+  iceShield = 0;
+  /** The Tide King's Water Jet: seconds left and where it points. */
+  jetT = 0;
+  jetAngle = 0;
+  jetTick = 0;
+  /** The Ancient Guardian's Leaf Storm: seconds left. */
+  leafT = 0;
+  leafTick = 0;
   /** Fire Sword's Inferno Slash: the arm sweeps through the slash. */
   slashT = 0;
   slashAngle = 0;
@@ -155,6 +171,11 @@ export class Fighter extends Body {
   /** Who hit this stickman last, and when (for the kill feed when they fall off the map). */
   lastHitBy: Fighter | null = null;
   lastHitT = -99;
+  /** For achievements: damage taken this match, hits landed in a row (and the best run), alive at 5 minutes. */
+  dmgTaken = 0;
+  streak = 0;
+  bestStreak = 0;
+  survived5 = false;
   /** Next game time this fighter's weapon may hit each body id again. */
   hitCd = new Map<number, number>();
   trail: Vec[] = [];
@@ -167,7 +188,7 @@ export class Fighter extends Body {
 
   constructor(o: FighterOpts) {
     const scale = o.boss ? 2.6 : 1;
-    const hp = o.hp ?? (o.mascot ? MASCOT_HP : o.cat ? CAT_BOSS_HP : o.buffalo ? BUFFALO_HP : o.fish ? FISH_HP : o.boss ? BOSS_HP : PLAYER_HP);
+    const hp = o.hp ?? (o.secret ? SECRET_HP[o.secret] : o.mascot ? MASCOT_HP : o.cat ? CAT_BOSS_HP : o.buffalo ? BUFFALO_HP : o.fish ? FISH_HP : o.boss ? BOSS_HP : PLAYER_HP);
     // Buffalo walks on four legs: wide and low.
     super(o.x, o.y, o.buffalo ? 190 : 30 * scale, o.buffalo ? 150 : 80 * scale, hp, o.team, o.color);
     this.name = o.name;
@@ -177,6 +198,7 @@ export class Fighter extends Body {
     this.mascot = !!o.mascot;
     this.buffalo = !!o.buffalo;
     this.fish = !!o.fish;
+    this.secret = o.secret ?? null;
     this.scale = scale;
     this.dmgMult = o.boss ? 1.5 : 1;
     this.speed = o.boss ? 300 : 380;
@@ -332,7 +354,10 @@ export type ProjKind =
   | 'dart'
   | 'memorybox'
   | 'rocket'
-  | 'wave';
+  | 'wave'
+  | 'shard'
+  | 'crash'
+  | 'vine';
 
 /** Thrown weapons that fly out and come back to the hand. */
 export const returns = (k: ProjKind) => k === 'boomerang' || k === 'axe' || k === 'six7';
@@ -359,6 +384,9 @@ export interface Projectile {
   burnDmg?: number;
   /** Tidal waves: which way it pushes. */
   dir?: number;
+  /** It hit someone (a shot that hits nobody breaks a Perfect Aim streak). */
+  hitAny?: boolean;
+  settled?: boolean;
 }
 
 export interface GroundBall {

@@ -11,8 +11,8 @@ import { save } from '../save';
 import { h, shareLink, toast } from './dom';
 import { friendRow, inviteButton } from './friends';
 import { mapThumb } from './icons';
-import { beachNotes, bossPicker, keepScroll, mapLabel } from './lobby';
-import { BEACH_MAP, BEACH_MODES } from '../game/types';
+import { SECRET_ICONS, beachNotes, bossPicker, keepScroll, mapLabel } from './lobby';
+import { BEACH_MAP, BEACH_MODES, SECRET_KINDS, isSecret } from '../game/types';
 import { go, register } from './router';
 
 export function roomLink(code: string) {
@@ -155,6 +155,8 @@ register('room', (root) => {
               ['cat', `🐱 ${t('cat')}`],
               ['mascot', `${mascotUnlocked(st.hostWeapons) ? '⚪' : '🔒'} ${t('mascot')}`],
               ['buffalo', `${st.hostBuffalo ? '🐃' : '🔒'} ${t('buffalo')}`],
+              // Secret bosses only show once the host has unlocked them.
+              ...SECRET_KINDS.filter((k) => st.hostSecrets?.includes(k)).map((k): [Mode, string] => [k, `${SECRET_ICONS[k]} ${t(k)}`]),
             ],
             (v) => {
               if (v === 'mascot' && !mascotUnlocked(st.hostWeapons)) return toast(t('hostMascotLocked', mascotProgress(st.hostWeapons)));
@@ -164,6 +166,7 @@ register('room', (root) => {
             },
           ),
           st.mode === 'buffalo' ? h('small', { class: 'muted' }, `🪙🏆 ${t('buffaloReward')}`) : null,
+          isSecret(st.mode) ? h('small', { class: 'muted' }, `🪙🏆 ${t(`${st.mode}Reward` as Key)}`) : null,
           ...beachNotes(st.mapId, st.mode),
           st.mode === 'mascot' ? h('small', { class: 'muted' }, `🪙🏆 ${t('mascotReward')}`) : null,
           st.mode === 'cat' ? h('small', { class: 'muted' }, `🪙🏆 ${t('catReward')}`) : null,

@@ -1,4 +1,6 @@
 import { TEAM_COLORS } from '../game/game';
+import { SECRET_HP } from '../game/entities';
+import { SECRET_KINDS } from '../game/types';
 import { allMaps } from '../game/maps';
 import type { BossKind, Difficulty, MatchConfig, SandboxBoss, SlotConfig } from '../game/types';
 import { WEAPONS } from '../game/weapons';
@@ -15,8 +17,8 @@ const MAX_SB_PLAYERS = 6;
 const MAX_SB_BOTS = 10;
 const MAX_SB_BOSSES = 6;
 const POWERS = [25, 50, 100, 200, 500, 1000];
-const BOSS_HP: Record<BossKind, number> = { boss: 5000, cat: 10000, mascot: 50000, buffalo: 8000, fish: 9999 };
-const BOSS_ICON: Record<BossKind, string> = { boss: '👹', cat: '🐱', mascot: '⚪', buffalo: '🐃', fish: '🐟' };
+const BOSS_HP: Record<BossKind, number> = { boss: 5000, cat: 10000, mascot: 50000, buffalo: 8000, fish: 9999, ...SECRET_HP };
+export const BOSS_ICON: Record<BossKind, string> = { boss: '👹', cat: '🐱', mascot: '⚪', buffalo: '🐃', fish: '🐟', queen: '❄️', tide: '🌊', guardian: '🌲' };
 
 function defaultSandbox(): MatchConfig {
   return {
@@ -33,6 +35,7 @@ register('sandbox', (root) => {
   const m: MatchConfig = structuredClone(save.data.lastSandbox ?? defaultSandbox());
   m.mode = 'sandbox';
   m.extraBosses ??= [];
+  m.extraBosses = m.extraBosses.filter((b) => b.kind in BOSS_HP && (!(SECRET_KINDS as string[]).includes(b.kind) || save.data.secrets.includes(b.kind)));
   if (!maps.some((x) => x.id === m.mapId)) m.mapId = 'arena';
 
   const body = h('div', { class: 'page-body' });
@@ -228,6 +231,8 @@ register('sandbox', (root) => {
           addBoss('mascot'),
           addBoss('buffalo'),
           addBoss('fish'),
+          // Secret bosses stay hidden until you unlock them.
+          ...SECRET_KINDS.filter((k) => save.data.secrets.includes(k)).map(addBoss),
         ),
         h('div', { class: 'slots' }, ...fighterRows, ...bossRows),
       ),
