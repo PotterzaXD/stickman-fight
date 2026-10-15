@@ -1,6 +1,7 @@
 import { TEAM_COLORS } from '../game/game';
-import { SECRET_HP } from '../game/entities';
-import { SECRET_KINDS } from '../game/types';
+import { MEMORY_ALLY, PIGEON_HP, SECRET_HP, SOLDIER_HP } from '../game/entities';
+import { HELPER_KINDS, SECRET_KINDS, type HelperKind, type SandboxHelper } from '../game/types';
+import { hasAch } from '../achievements';
 import { allMaps } from '../game/maps';
 import type { BossKind, Difficulty, MatchConfig, SandboxBoss, SlotConfig } from '../game/types';
 import { WEAPONS } from '../game/weapons';
@@ -8,17 +9,23 @@ import { t, teamName, type Key } from '../i18n';
 import { save } from '../save';
 import { h } from './dom';
 import { mapThumb } from './icons';
-import { keepScroll, localName, mapLabel } from './lobby';
+import { hatSelect, keepScroll, localName, mapLabel } from './lobby';
 import { coinChip } from './menu';
 import { bossNames } from './play';
 import { go, register } from './router';
 
 const MAX_SB_PLAYERS = 6;
-const MAX_SB_BOTS = 10;
-const MAX_SB_BOSSES = 6;
+/** Players and bots together. */
+const MAX_SB_FIGHTERS = 30;
+const MAX_SB_BOSSES = 20;
+const MAX_SB_HELPERS = 20;
 const POWERS = [25, 50, 100, 200, 500, 1000];
-const BOSS_HP: Record<BossKind, number> = { boss: 5000, cat: 10000, mascot: 50000, buffalo: 8000, fish: 9999, ...SECRET_HP };
-export const BOSS_ICON: Record<BossKind, string> = { boss: '👹', cat: '🐱', mascot: '⚪', buffalo: '🐃', fish: '🐟', queen: '❄️', tide: '🌊', guardian: '🌲' };
+const BOSS_HP: Record<BossKind, number> = { boss: 5000, cat: 10000, mascot: 50000, buffalo: 8000, fish: 9999, pigeon: PIGEON_HP, ...SECRET_HP };
+export const BOSS_ICON: Record<BossKind, string> = { boss: '👹', cat: '🐱', mascot: '⚪', buffalo: '🐃', fish: '🐟', pigeon: '🐦', queen: '❄️', tide: '🌊', guardian: '🌲' };
+const HELPER_ICON: Record<HelperKind, string> = { cat: '🐱', fish: '🐟', memory: '💭', soldier: '💂' };
+const HELPER_HP: Record<HelperKind, number> = { cat: 100, fish: 50, memory: MEMORY_ALLY.hp, soldier: SOLDIER_HP };
+/** The Pigeon shows up in Sandbox after you beat it once. */
+const pigeonOpen = () => hasAch('pigeonBeat');
 
 function defaultSandbox(): MatchConfig {
   return {
@@ -35,7 +42,8 @@ register('sandbox', (root) => {
   const m: MatchConfig = structuredClone(save.data.lastSandbox ?? defaultSandbox());
   m.mode = 'sandbox';
   m.extraBosses ??= [];
-  m.extraBosses = m.extraBosses.filter((b) => b.kind in BOSS_HP && (!(SECRET_KINDS as string[]).includes(b.kind) || save.data.secrets.includes(b.kind)));
+  m.extraBosses = m.extraBosses.filter((b) => b.kind in BOSS_HP && (!(SECRET_KINDS as string[]).includes(b.kind) || save.data.secrets.includes(b.kind)) && (b.kind !== 'pigeon' || pigeonOpen()));
+  m.helpers = (m.helpers ?? []).filter((x) => HELPER_KINDS.includes(x.kind));
   if (!maps.some((x) => x.id === m.mapId)) m.mapId = 'arena';
 
   const body = h('div', { class: 'page-body' });
@@ -138,6 +146,7 @@ register('sandbox', (root) => {
         human ? null : diffSel(s),
         hpBox(s, 500),
         powerSel(s),
+        hatSelect(s, !human),
         teamPicker(s),
         removeBtn(() => m.slots.splice(i, 1)),
       );
@@ -153,6 +162,29 @@ register('sandbox', (root) => {
         removeBtn(() => m.extraBosses!.splice(i, 1)),
       ),
     );
+    const helperRows = m.helpers!.map((hp: SandboxHelper, i) =>
+      h(
+        'div',
+        { class: 'slot' },
+        h('span', { class: 'slot-name', style: `--c:${TEAM_COLORS[hp.team]}` }, `${HELPER_ICON[hp.kind]} ${t(`helper.${hp.kind}` as Key)}`),
+        h('small', { class: 'muted' }, `❤️ ${HELPER_HP[hp.kind]}`),
+        teamPicker(hp),
+        removeBtn(() => m.helpers!.splice(i, 1)),
+      ),
+    );
+    const addHelper = (kind: HelperKind) =>
+      h(
+        'button',
+        {
+          class: 'btn small',
+          disabled: m.helpers!.length >= MAX_SB_HELPERS,
+          onclick: () => {
+            m.helpers!.push({ kind, team: 1 });
+            render();
+          },
+        },
+        `+ ${HELPER_ICON[kind]} ${t(`helper.${kind}` as Key)}`,
+      );
     const addBoss = (kind: BossKind) =>
       h(
         'button',
@@ -206,7 +238,7 @@ register('sandbox', (root) => {
             'button',
             {
               class: 'btn small',
-              disabled: humans >= MAX_SB_PLAYERS,
+              disabled: humans >= MAX_SB_PLAYERS || m.slots.length >= MAX_SB_FIGHTERS,
               onclick: () => {
                 m.slots.push({ kind: 'human', weapon: 'sword', team: 0, difficulty: 'medium', hp: 500, power: 100 });
                 render();
@@ -218,23 +250,33 @@ register('sandbox', (root) => {
             'button',
             {
               class: 'btn small',
-              disabled: bots >= MAX_SB_BOTS,
+              disabled: m.slots.length >= MAX_SB_FIGHTERS,
               onclick: () => {
                 m.slots.push({ kind: 'bot', weapon: 'random', team: 1, difficulty: 'medium', hp: 500, power: 100 });
                 render();
               },
             },
-            `${t('addBot')} ${bots}/${MAX_SB_BOTS}`,
+            `${t('addBot')} ${bots}/${MAX_SB_FIGHTERS - humans}`,
           ),
           addBoss('boss'),
           addBoss('cat'),
           addBoss('mascot'),
           addBoss('buffalo'),
           addBoss('fish'),
+          pigeonOpen() ? addBoss('pigeon') : null,
           // Secret bosses stay hidden until you unlock them.
           ...SECRET_KINDS.filter((k) => save.data.secrets.includes(k)).map(addBoss),
         ),
+        h('small', { class: 'muted' }, `👹 ${m.extraBosses!.length}/${MAX_SB_BOSSES}`),
         h('div', { class: 'slots' }, ...fighterRows, ...bossRows),
+      ),
+      h(
+        'section',
+        {},
+        h('h3', {}, `${t('helpers')} (${m.helpers!.length}/${MAX_SB_HELPERS})`),
+        h('p', { class: 'muted small' }, t('helpersDesc')),
+        h('div', { class: 'row gap wrap' }, ...HELPER_KINDS.map(addHelper)),
+        h('div', { class: 'slots' }, ...helperRows),
       ),
     );
   };

@@ -5,7 +5,9 @@ import { t } from '../i18n';
 import { drawCorpse } from './finish';
 import { THEMES } from './maps';
 import type { MapDef, Platform } from './types';
-import type { WeaponId } from './weapons';
+import { GUNS, type WeaponId } from './weapons';
+import { drawBravery, drawBubble, drawBubbleWand, drawGun67, drawPan, drawPistol, drawShotgun, drawSniper, drawSummoner, drawWaterGun } from './guns';
+import { drawHat } from './hats';
 
 type Ctx = CanvasRenderingContext2D;
 
@@ -117,6 +119,44 @@ export function drawBackground(ctx: Ctx, map: MapDef, vw: number, vh: number, ca
       const y = sea + 12 + hash(i + 61) * (vh - sea - 20);
       line(ctx, x, y, x + 18 + hash(i) * 20, y);
     }
+  } else if (th.deco === 'war') {
+    // Dusty battlefield: ruined buildings far away, smoke columns and flak puffs.
+    ctx.fillStyle = 'rgba(70,62,50,0.45)';
+    for (let i = 0; i < 9; i++) {
+      const bw = 50 + hash(i + 70) * 90;
+      const bh = vh * (0.12 + hash(i + 71) * 0.18);
+      const x = ((hash(i + 72) * (vw + 200) - par * 0.4) % (vw + 200) + vw + 200) % (vw + 200) - 100;
+      const y = vh * 0.72 - bh;
+      ctx.fillRect(x, y, bw, bh + vh);
+      // Broken top
+      ctx.beginPath();
+      ctx.moveTo(x, y);
+      ctx.lineTo(x + bw * 0.3, y - 14 - hash(i) * 18);
+      ctx.lineTo(x + bw * 0.55, y - 4);
+      ctx.lineTo(x + bw * 0.8, y - 20 - hash(i + 3) * 10);
+      ctx.lineTo(x + bw, y);
+      ctx.fill();
+    }
+    for (let i = 0; i < 3; i++) {
+      const sx = ((hash(i + 80) * vw - par * 0.5) % vw + vw) % vw;
+      for (let k = 0; k < 7; k++) {
+        const rise = (time * 0.12 + k / 7) % 1;
+        ctx.fillStyle = `rgba(90,85,80,${0.32 * (1 - rise)})`;
+        ctx.beginPath();
+        ctx.arc(sx + Math.sin(time + k) * 10 + rise * 40, vh * 0.7 - rise * vh * 0.55, 14 + rise * 40, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+    for (let i = 0; i < 4; i++) {
+      const ph = (time * 0.35 + hash(i + 90)) % 1;
+      if (ph > 0.25) continue;
+      const fx = hash(i + 91 + Math.floor(time * 0.35 + hash(i + 90))) * vw;
+      const fy = vh * (0.1 + hash(i + 92) * 0.25);
+      ctx.fillStyle = `rgba(50,45,40,${0.5 * (1 - ph * 4)})`;
+      ctx.beginPath();
+      ctx.arc(fx, fy, 8 + ph * 60, 0, Math.PI * 2);
+      ctx.fill();
+    }
   } else {
     for (let i = 0; i < 40; i++) {
       const x = ((hash(i) * vw - par) % vw + vw) % vw;
@@ -127,9 +167,40 @@ export function drawBackground(ctx: Ctx, map: MapDef, vw: number, vh: number, ca
   }
 }
 
-/** Concrete, lava and glass blocks from the map editor. */
+/** Concrete, lava, glass and sandbag blocks from the map editor. */
 function drawBlock(ctx: Ctx, p: Platform, time: number, gone: number) {
   const r = Math.min(8, p.h / 2);
+  if (p.kind === 'sandbag') {
+    // Rows of stacked sandbags, each row shifted by half a bag.
+    const rowH = Math.min(18, Math.max(10, p.h / Math.max(1, Math.round(p.h / 16))));
+    const bagW = 30;
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(p.x - 2, p.y - 2, p.w + 4, p.h + 4);
+    ctx.clip();
+    let row = 0;
+    for (let y = p.y + p.h - rowH; y > p.y - rowH + 1; y -= rowH, row++) {
+      for (let x = p.x - (row % 2 ? bagW / 2 : 0); x < p.x + p.w; x += bagW) {
+        const bx = Math.max(p.x, x);
+        const bw = Math.min(p.x + p.w, x + bagW) - bx;
+        if (bw < 6) continue;
+        ctx.fillStyle = (row + Math.round(x / bagW)) % 3 ? '#c8a165' : '#b8925a';
+        ctx.strokeStyle = '#6d5530';
+        ctx.lineWidth = 1.5;
+        roundRect(ctx, bx + 1, Math.max(p.y, y) + 1, bw - 2, rowH - 1, Math.min(7, rowH / 2));
+        ctx.fill();
+        ctx.stroke();
+        // Tied ends
+        ctx.strokeStyle = 'rgba(80,60,30,0.5)';
+        ctx.beginPath();
+        ctx.moveTo(bx + bw / 2, Math.max(p.y, y) + 3);
+        ctx.lineTo(bx + bw / 2, Math.max(p.y, y) + rowH - 3);
+        ctx.stroke();
+      }
+    }
+    ctx.restore();
+    return;
+  }
   if (p.kind === 'concrete') {
     ctx.fillStyle = '#9e9e9e';
     roundRect(ctx, p.x, p.y, p.w, p.h, r * 0.5);
@@ -816,6 +887,33 @@ export function drawWeaponShape(ctx: Ctx, id: WeaponId, len: number, s: number, 
         ctx.restore();
       }
       break;
+    case 'sniper':
+      drawSniper(ctx, len, s, ready);
+      break;
+    case 'shotgun':
+      drawShotgun(ctx, len, s);
+      break;
+    case 'pistol':
+      drawPistol(ctx, len, s);
+      break;
+    case 'gun67':
+      drawGun67(ctx, len, s, ready);
+      break;
+    case 'watergun':
+      drawWaterGun(ctx, len, s);
+      break;
+    case 'summoner':
+      drawSummoner(ctx, len, s, ready, performance.now() / 1000);
+      break;
+    case 'bravery':
+      drawBravery(ctx, len, s, performance.now() / 1000);
+      break;
+    case 'pan':
+      drawPan(ctx, len, s);
+      break;
+    case 'bubble':
+      drawBubbleWand(ctx, len, s, ready);
+      break;
     case 'catcall':
       // A golden bell to call the cats
       ctx.strokeStyle = '#8d6e63';
@@ -1396,6 +1494,7 @@ function drawPoison(ctx: Ctx, b: Body, time: number) {
 
 function drawFighter(ctx: Ctx, f: Fighter, time: number) {
   if (f.buffalo) return drawBuffalo(ctx, f);
+  if (f.pigeon) return drawPigeon(ctx, f, time);
   const s = f.scale;
   const { x, y } = f;
   const outline = f.boss && !f.mascot ? '#ff1744' : 'rgba(0,0,0,0.8)';
@@ -1445,6 +1544,8 @@ function drawFighter(ctx: Ctx, f: Fighter, time: number) {
     ctx.save();
     ctx.translate(hands[i].x, hands[i].y);
     ctx.rotate(f.angles[i]);
+    // Guns stay the right way up when you aim left.
+    if (GUNS.includes(f.weapons[i].id) && Math.cos(f.angles[i]) < 0) ctx.scale(1, -1);
     drawWeaponShape(ctx, f.weapons[i].id, f.reach(i), s, f.cds[i] <= 0 && !f.boomerangOut[i], f.boomerangOut[i]);
     ctx.restore();
   }
@@ -1499,6 +1600,7 @@ function drawFighter(ctx: Ctx, f: Fighter, time: number) {
     ctx.fill();
   }
   if (f.secret) drawSecretHead(ctx, f, head[0], head[1], s, time);
+  drawHat(ctx, f.hat, head[0], head[1], s, f.facing, time);
   if (f.stun > 0.25 && !f.boss) {
     ctx.fillStyle = '#ffeb3b';
     for (let i = 0; i < 3; i++) {
@@ -1521,23 +1623,6 @@ function drawFighter(ctx: Ctx, f: Fighter, time: number) {
     ctx.stroke();
   }
 
-  // Frozen Shield: an ice dome
-  if (f.iceShield > 0) {
-    const r = f.h * 0.7;
-    ctx.fillStyle = 'rgba(225,245,254,0.28)';
-    ctx.strokeStyle = 'rgba(179,229,252,0.95)';
-    ctx.lineWidth = 5;
-    ctx.beginPath();
-    ctx.arc(x, f.cy, r, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.stroke();
-    ctx.strokeStyle = 'rgba(255,255,255,0.7)';
-    ctx.lineWidth = 3;
-    for (let k = 0; k < 6; k++) {
-      const a = (k / 6) * Math.PI * 2 + 0.3;
-      line(ctx, x + Math.cos(a) * r * 0.55, f.cy + Math.sin(a) * r * 0.55, x + Math.cos(a) * r * 0.95, f.cy + Math.sin(a) * r * 0.95);
-    }
-  }
   // Leaf Storm: sharp leaves spinning around
   if (f.leafT > 0) {
     for (let k = 0; k < 22; k++) {
@@ -1591,6 +1676,180 @@ function drawFighter(ctx: Ctx, f: Fighter, time: number) {
   }
 }
 
+/** The giant Pigeon: grey body, shiny green and purple neck, orange eye, flapping wings. */
+function drawPigeon(ctx: Ctx, f: Fighter, time: number) {
+  const d = f.facing;
+  const cx = f.x;
+  const cy = f.y - f.h * 0.5;
+  const flap = Math.sin(f.walkPhase);
+  const body = f.hurtFlash > 0 ? '#eceff1' : '#90a4ae';
+  const o = '#37474f';
+  ctx.save();
+  ctx.translate(cx, cy);
+  // Drawn at 120 px tall, scaled up to the Pigeon's size.
+  const k = f.h / 120;
+  ctx.scale(d * k, k);
+  ctx.lineJoin = 'round';
+  ctx.lineCap = 'round';
+  // Feet dangling (pink)
+  ctx.strokeStyle = '#f48fb1';
+  ctx.lineWidth = 5;
+  for (const fx of [-12, 10]) {
+    line(ctx, fx, 30, fx - 4, 58);
+    line(ctx, fx - 4, 58, fx - 14, 62);
+    line(ctx, fx - 4, 58, fx + 6, 62);
+  }
+  // Tail
+  ctx.fillStyle = '#607d8b';
+  ctx.strokeStyle = o;
+  ctx.lineWidth = 3;
+  ctx.beginPath();
+  ctx.moveTo(-50, -2);
+  ctx.lineTo(-92, -16);
+  ctx.lineTo(-90, 14);
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
+  // Back wing
+  ctx.fillStyle = '#78909c';
+  ctx.beginPath();
+  ctx.moveTo(-10, -18);
+  ctx.quadraticCurveTo(-40, -50 - flap * 40, -78, -40 - flap * 55);
+  ctx.quadraticCurveTo(-50, -12, -20, -4);
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
+  // Body
+  ctx.fillStyle = body;
+  ctx.beginPath();
+  ctx.ellipse(-4, 4, 58, 38, -0.08, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.stroke();
+  // Neck: shiny green and purple
+  const neck = ctx.createLinearGradient(20, -40, 50, 10);
+  neck.addColorStop(0, '#7e57c2');
+  neck.addColorStop(0.5, '#26a69a');
+  neck.addColorStop(1, '#8bc34a');
+  ctx.fillStyle = neck;
+  ctx.beginPath();
+  ctx.ellipse(36, -14, 22, 28, 0.4, 0, Math.PI * 2);
+  ctx.fill();
+  // Wing stripes
+  ctx.strokeStyle = '#455a64';
+  ctx.lineWidth = 4;
+  line(ctx, -26, 2, -6, 8);
+  line(ctx, -30, 14, -10, 20);
+  // Front wing
+  ctx.fillStyle = '#b0bec5';
+  ctx.strokeStyle = o;
+  ctx.lineWidth = 3;
+  ctx.beginPath();
+  ctx.moveTo(-4, -6);
+  ctx.quadraticCurveTo(-30, -36 + flap * 44, -70, -30 + flap * 60);
+  ctx.quadraticCurveTo(-36, 6, -6, 10);
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
+  // Head
+  ctx.fillStyle = '#78909c';
+  ctx.beginPath();
+  ctx.arc(52, -40, 20, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.stroke();
+  // Beak (open when diving)
+  const open = f.pigeonState === 'dive' ? 6 + Math.sin(time * 30) * 3 : 0;
+  ctx.fillStyle = '#424242';
+  ctx.beginPath();
+  ctx.moveTo(68, -44);
+  ctx.lineTo(90, -40 - open);
+  ctx.lineTo(70, -36);
+  ctx.closePath();
+  ctx.fill();
+  ctx.beginPath();
+  ctx.moveTo(70, -36);
+  ctx.lineTo(88, -34 + open);
+  ctx.lineTo(68, -32);
+  ctx.closePath();
+  ctx.fill();
+  ctx.fillStyle = '#eceff1';
+  ctx.beginPath();
+  ctx.ellipse(70, -46, 5, 3, 0, 0, Math.PI * 2);
+  ctx.fill();
+  // Orange eye with a tiny angry pupil
+  ctx.fillStyle = '#ff9800';
+  ctx.beginPath();
+  ctx.arc(56, -46, 7, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = '#000';
+  ctx.beginPath();
+  ctx.arc(58, -46, 3.2, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.strokeStyle = '#263238';
+  ctx.lineWidth = 3;
+  line(ctx, 47, -56, 64, -52);
+  ctx.restore();
+}
+
+/** A spear soldier (Spear of Bravery, Summoner): a stickman in an army helmet with a spear. */
+function drawSoldier(ctx: Ctx, c: Cat) {
+  const { x, y } = c;
+  const d = c.facing;
+  const col = c.hurtFlash > 0 ? '#ffffff' : c.color;
+  const o = 'rgba(0,0,0,0.8)';
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+  const sw = c.onGround && Math.abs(c.vx) > 20 ? Math.sin(c.walkPhase) * 12 : 0;
+  const stab = c.attackT > 0.5;
+  const hand: [number, number] = stab ? [x + d * 20, y - 58] : [x + d * 12, y - 50];
+  const stroke = (w: number, cc: string) => {
+    ctx.strokeStyle = cc;
+    ctx.lineWidth = w;
+    ctx.beginPath();
+    ctx.moveTo(x - 9 + sw, y);
+    ctx.lineTo(x, y - 34);
+    ctx.lineTo(x + 9 - sw, y);
+    ctx.moveTo(x, y - 34);
+    ctx.lineTo(x, y - 62);
+    ctx.moveTo(x, y - 58);
+    ctx.lineTo(...hand);
+    ctx.moveTo(x, y - 58);
+    ctx.lineTo(x - d * 10, y - 42);
+    ctx.stroke();
+  };
+  stroke(8, o);
+  stroke(5, col);
+  // Spear
+  const len = stab ? 96 : 72;
+  ctx.strokeStyle = '#8d6e63';
+  ctx.lineWidth = 3.5;
+  line(ctx, hand[0] - d * 14, hand[1] + 2, hand[0] + d * (len - 14), hand[1] - 2);
+  ctx.fillStyle = '#cfd8dc';
+  ctx.beginPath();
+  ctx.moveTo(hand[0] + d * (len - 14), hand[1] - 7);
+  ctx.lineTo(hand[0] + d * len, hand[1] - 2);
+  ctx.lineTo(hand[0] + d * (len - 14), hand[1] + 3);
+  ctx.closePath();
+  ctx.fill();
+  // Head and helmet
+  ctx.fillStyle = col;
+  ctx.strokeStyle = o;
+  ctx.lineWidth = 3;
+  ctx.beginPath();
+  ctx.arc(x, y - 73, 11, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.stroke();
+  ctx.fillStyle = '#fff';
+  ctx.beginPath();
+  ctx.arc(x + d * 4, y - 74, 2.8, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = '#000';
+  ctx.beginPath();
+  ctx.arc(x + d * 5, y - 74, 1.4, 0, Math.PI * 2);
+  ctx.fill();
+  drawHat(ctx, 'helmet', x, y - 73, 1, d);
+  hpBar(ctx, x, y - c.h - 26, 34, c.hp / c.maxHp, c.owner.color === c.color ? c.color : c.color);
+}
+
 function drawSnowman(ctx: Ctx, m: Snowman) {
   const { x, y } = m;
   const f = m.facing;
@@ -1623,6 +1882,53 @@ function drawSnowman(ctx: Ctx, m: Snowman) {
 
 function drawProjectile(ctx: Ctx, p: Projectile, time: number) {
   switch (p.kind) {
+    case 'nerf': {
+      // Foam dart: blue body, orange tip
+      ctx.save();
+      ctx.translate(p.x, p.y);
+      ctx.rotate(Math.atan2(p.vy, p.vx));
+      ctx.fillStyle = '#1e88e5';
+      roundRect(ctx, -14, -3, 12, 6, 2);
+      ctx.fill();
+      ctx.fillStyle = '#ff9800';
+      roundRect(ctx, -3, -3.5, 6, 7, 3);
+      ctx.fill();
+      ctx.restore();
+      break;
+    }
+    case 'bullet67': {
+      ctx.save();
+      ctx.translate(p.x, p.y);
+      ctx.rotate(Math.atan2(p.vy, p.vx));
+      ctx.strokeStyle = 'rgba(255,235,59,0.5)';
+      ctx.lineWidth = 4;
+      line(ctx, -40, 0, -8, 0);
+      ctx.fillStyle = '#fbc02d';
+      roundRect(ctx, -9, -4, 14, 8, 4);
+      ctx.fill();
+      ctx.restore();
+      ctx.font = '900 13px "Baloo 2", system-ui, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillStyle = '#ffeb3b';
+      ctx.strokeStyle = 'rgba(0,0,0,0.8)';
+      ctx.lineWidth = 3;
+      ctx.strokeText('67', p.x, p.y - 10);
+      ctx.fillText('67', p.x, p.y - 10);
+      break;
+    }
+    case 'water':
+      ctx.fillStyle = 'rgba(41,182,246,0.85)';
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = 'rgba(255,255,255,0.7)';
+      ctx.beginPath();
+      ctx.arc(p.x - 2, p.y - 2, 2, 0, Math.PI * 2);
+      ctx.fill();
+      break;
+    case 'bubble':
+      drawBubble(ctx, p.x, p.y + Math.sin(time * 8) * 2, p.r);
+      break;
     case 'arrow': {
       const a = Math.atan2(p.vy, p.vx);
       ctx.save();
@@ -1961,6 +2267,7 @@ export function renderGame(g: Game, ctx: Ctx, vw: number, vh: number, dpr: numbe
     if (!c.alive) continue;
     if (c.variant === 'fish') drawFishMinion(ctx, c, g.time);
     else if (c.variant === 'memory') drawMemoryAlly(ctx, c);
+    else if (c.variant === 'soldier') drawSoldier(ctx, c);
     else drawCat(ctx, c);
   }
   for (const pe of g.peels) {
@@ -1989,6 +2296,16 @@ export function renderGame(g: Game, ctx: Ctx, vw: number, vh: number, dpr: numbe
   for (const p of g.projectiles) drawProjectile(ctx, p, g.time);
   for (const f of g.fighters) if (f.alive && f.jetT > 0) drawJet(ctx, f, g.time);
   for (const b of g.bolts) drawBolt(ctx, b);
+  for (const tr of g.tracers) {
+    ctx.globalAlpha = Math.min(1, tr.life / 0.12);
+    ctx.strokeStyle = tr.color;
+    ctx.lineWidth = tr.w;
+    ctx.lineCap = 'round';
+    line(ctx, tr.x1, tr.y1, tr.x2, tr.y2);
+  }
+  ctx.globalAlpha = 1;
+  // Trapped in a bubble
+  for (const b of g.bodies()) if (b.alive && b.bubbleT > 0) drawBubble(ctx, b.x, b.cy, Math.max(b.w, b.h) * 0.62 + Math.sin(g.time * 6) * 2);
 
   for (const r of g.rings) {
     ctx.strokeStyle = r.color;

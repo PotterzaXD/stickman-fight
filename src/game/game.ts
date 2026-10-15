@@ -7,6 +7,8 @@ import {
   GRAVITY,
   MAX_SNOWMEN,
   MEMORY_ALLY,
+  PISTOL_AMMO,
+  SOLDIER_HP,
   type CatVariant,
   SHIELD_MAX,
   Snowman,
@@ -20,6 +22,7 @@ import {
 } from './entities';
 import { MELEE_FINISH, PROJ_FINISH, makeCorpse, updateCorpses, type Corpse, type Finish } from './finish';
 import { THEMES, pickSpawns } from './maps';
+import { HELPER_KINDS, PIGEON_WEAPON, type SandboxHelper } from './types';
 import { feedCount, type FeedKind } from './killfeed';
 import { BEACH_MAP, BEACH_MODES, isBossMode, isSecret, type BossKind, type Difficulty, type FallMode, type MapDef, type Mode, type SandboxBoss } from './types';
 import { SHOP_WEAPONS, weapon } from './weapons';
@@ -44,6 +47,8 @@ export interface FighterSpec {
   /** Sandbox: starting HP and damage in percent. */
   hp?: number;
   power?: number;
+  /** Hat id ('none' = no hat). */
+  hat?: string;
 }
 
 export interface MatchResult {
@@ -76,6 +81,8 @@ export interface GameOpts {
   bossNames?: Partial<Record<BossKind, string>>;
   /** Sandbox: bosses added to the match. */
   extraBosses?: SandboxBoss[];
+  /** Sandbox: helpers added to the match (cats, fish, the Recall Memory boss, spear soldiers). */
+  helpers?: SandboxHelper[];
 }
 
 /** Potions: 25% chance on each KO and every 10 seconds from the sky. Heal 25% of max HP. */
@@ -99,6 +106,17 @@ export interface Peel {
   owner: Fighter;
   team: number;
   life: number;
+}
+
+/** A bullet's path (only a picture). */
+export interface Tracer {
+  x1: number;
+  y1: number;
+  x2: number;
+  y2: number;
+  life: number;
+  color: string;
+  w: number;
 }
 
 /** A lightning bolt from the Thunder Hammer (only a picture). */
@@ -138,14 +156,35 @@ export const RECALL = { summonCd: 21, strike: 50 };
 export const BUFFALO = { charge: 120, butt: 90 };
 /** The Fishy boss: trident hits, Trident Strike (+ lightning half the time), and the fish it calls. */
 export const FISHY = { melee: 30, strike: 99, lightning: 30, fish: { count: 4, hp: 50, dmg: 20, max: 12 } };
-/** The Snow Queen: Ice Shard (+ slow), Blizzard over the whole screen, and Frozen Shield. */
-export const QUEEN = { shard: 40, slowS: 2.5, blizzard: 25, blizzardS: 5, warnS: 1.3, shieldHp: 1500 };
+/** The Snow Queen: Ice Shard (+ slow) and Blizzard over the whole screen. */
+export const QUEEN = { shard: 40, slowS: 2.5, blizzard: 25, blizzardS: 5, warnS: 1.3 };
 /** The Tide King: Wave Crash, Water Jet (a beam that hits again and again) and Summon Fish. */
 export const TIDE = { crash: 60, jet: 15, jetS: 2.2, jetEvery: 0.22, jetLen: 950, fish: { count: 3, hp: 80, dmg: 20, max: 9 } };
 /** The Ancient Guardian: Vine Whip, Root Trap (slow + damage over time) and Leaf Storm. */
 export const GUARDIAN = { vine: 50, root: 20, rootS: 3, leaf: 20, leafS: 5, leafR: 320, leafEvery: 0.5 };
 /** Slowed fighters move at this much of their speed. */
 export const SLOW_SPEED = 0.45;
+
+/** Sniper: one shot, damage by where it hits. 10 s cooldown. */
+export const SNIPER = { head: 250, body: 225, legs: 199, range: 2600 };
+/** Shotgun: 180 up close (blown to pieces), 90 from far away (cut in half). */
+export const SHOTGUN = { close: 180, far: 90, closeR: 140, range: 760, pellets: 7, spread: 0.15 };
+/** Pistol: nerf bullets for 10, a second between shots, 3 s to reload after 5 shots. */
+export const PISTOL = { dmg: 10, reload: 3 };
+/** 67 Gun: one 100 damage bullet every 10 s. */
+export const GUN67 = { dmg: 100 };
+/** Summoner: 3 cats and 3 fish (weaker than the bosses'), 3 snowmen, the Recall Memory boss and a spear soldier. */
+export const SUMMONER = { cats: { count: 3, hp: 60, dmg: 6, max: 6 }, fish: { count: 3, hp: 40, dmg: 12, max: 6 }, snowmen: 3, soldier: { count: 1, hp: SOLDIER_HP, dmg: 20, max: 2 } };
+/** Spear of Bravery: 3 spear soldiers (300 HP, the spear at half strength). */
+export const BRAVERY = { count: 3, hp: SOLDIER_HP, dmg: 12, max: 6 };
+/** Frying Pan: BONK for 40 and seeing stars for 1.5 s. */
+export const PAN = { dmg: 40, stun: 1.5 };
+/** Water Gun: a spray of 6 drops (6 each) that push hard. */
+export const WATER = { drops: 6, dmg: 6, push: 780 };
+/** Bubble Wand: float in a bubble for 2 s, then it pops for 30. */
+export const BUBBLE = { dmg: 30, float: 2 };
+/** The Pigeon: dives at one fighter at a time; one peck is a KO. KO'd fighters come back after 3 s. */
+export const PIGEON = { diveEvery: 2.2, diveSpeed: 1150, giveUp: 2.6, respawn: 3 };
 
 /** Damage the normal boss does to the Fishy boss in the Beach cutscene. */
 export const CUTSCENE_DMG = 1000;
@@ -172,6 +211,7 @@ export type NetEvent =
   | ['r', number, number, number, number, string]
   | ['s', string]
   | ['z', number, number, number, number]
+  | ['l', number, number, number, number, string, number]
   | ['k', number, number, FeedKind, number];
 
 /** One line in the kill feed: fighter indexes (killer -1 = nobody), what happened, which joke. */
@@ -220,7 +260,10 @@ export class Game {
   potions: Potion[] = [];
   peels: Peel[] = [];
   bolts: Bolt[] = [];
+  tracers: Tracer[] = [];
   potionsOn: boolean;
+  /** The Pigeon: KO'd fighters come back. */
+  private respawns: { f: Fighter; at: number }[] = [];
   private potionClock = POTION_EVERY;
   private potionId = 1;
   /** Gravity on this map (the Space theme has low gravity). */
@@ -265,7 +308,9 @@ export class Game {
     const spawns = pickSpawns(map, specs.length + (opts.mode === 'boss' ? 1 : 0));
     specs.forEach((s, i) => {
       const sp = spawns[i];
-      const f = new Fighter({ name: s.name, color: s.color, team: s.team, human: s.human, weapons: [weapon(s.weapon)], x: sp.x, y: sp.y - 2, hp: s.hp });
+      // The Pigeon: everyone holds a shotgun.
+      const wid = opts.mode === 'pigeon' ? PIGEON_WEAPON : s.weapon;
+      const f = new Fighter({ name: s.name, color: s.color, team: s.team, human: s.human, weapons: [weapon(wid)], x: sp.x, y: sp.y - 2, hp: s.hp, hat: s.hat });
       if (s.power) f.power = s.power / 100;
       f.facing = sp.x < map.w / 2 ? 1 : -1;
       if (!s.human) f.brain = new BotBrain(s.difficulty);
@@ -334,11 +379,13 @@ export class Game {
     const names = opts.bossNames ?? {};
     if (opts.mode === 'buffalo') this.addBoss('buffalo', names.buffalo ?? opts.bossName ?? 'Buffalo', BOSS_TEAM, 0);
     if (isSecret(opts.mode)) this.addBoss(opts.mode, names[opts.mode] ?? opts.bossName ?? 'Boss', BOSS_TEAM, 0);
+    if (opts.mode === 'pigeon') this.addBoss('pigeon', names.pigeon ?? opts.bossName ?? 'Pigeon', BOSS_TEAM, 0);
     // Sandbox: any bosses, on any team, with any HP.
     (opts.extraBosses ?? []).forEach((b, k) => {
       const f = this.addBoss(b.kind, names[b.kind] ?? b.kind, b.team, k, b.hp);
       if (b.power) f.power = b.power / 100;
     });
+    this.addHelpers(opts.helpers ?? []);
     if (this.beach) {
       this.fish = this.addBoss('fish', names.fish ?? 'Fishy', BOSS_TEAM, 0);
       if (this.mode === 'boss') {
@@ -371,8 +418,10 @@ export class Game {
         ? ['kingtrident']
         : kind === 'guardian'
         ? ['vinestaff']
+        : kind === 'pigeon'
+        ? ['beak']
         : randomBossWeapons();
-    const color = { boss: '#263238', cat: '#ff9800', mascot: '#ffffff', buffalo: '#5d4037', fish: '#1e88e5', queen: '#81d4fa', tide: '#0277bd', guardian: '#558b2f' }[kind];
+    const color = { boss: '#263238', cat: '#ff9800', mascot: '#ffffff', buffalo: '#5d4037', fish: '#1e88e5', pigeon: '#90a4ae', queen: '#81d4fa', tide: '#0277bd', guardian: '#558b2f' }[kind];
     const f = new Fighter({
       name,
       color,
@@ -387,11 +436,32 @@ export class Game {
       buffalo: kind === 'buffalo',
       fish: kind === 'fish',
       secret: isSecret(kind) ? kind : undefined,
+      pigeon: kind === 'pigeon',
       hp,
     });
+    // The Pigeon flies in from above.
+    if (f.pigeon) f.y -= 250;
     f.brain = new BotBrain('boss');
     this.fighters.push(f);
     return f;
+  }
+
+  /** Sandbox: helpers on any team (they fight for the first fighter on their team). */
+  private addHelpers(list: SandboxHelper[]) {
+    if (!list.length || !this.fighters.length) return;
+    const spots = pickSpawns(this.map, Math.min(24, list.length));
+    list.forEach((hp, k) => {
+      if (!HELPER_KINDS.includes(hp.kind)) return;
+      const owner = this.fighters.find((f) => f.team === hp.team && !f.boss) ?? this.fighters.find((f) => f.team === hp.team) ?? this.fighters[0];
+      const sp = spots[k % spots.length];
+      const o = hp.kind === 'cat' ? BOSS_CATS : hp.kind === 'fish' ? FISHY.fish : hp.kind === 'memory' ? MEMORY_ALLY : { hp: SOLDIER_HP, dmg: SUMMONER.soldier.dmg };
+      const c = new Cat(owner, sp.x + (k >= spots.length ? 30 : 0), sp.y - 4, o.hp, o.dmg, hp.kind);
+      // Sandbox helpers stay until they are beaten.
+      c.life = Infinity;
+      c.team = hp.team;
+      c.color = TEAM_COLORS[hp.team] ?? owner.color;
+      this.cats.push(c);
+    });
   }
 
   // ---------- the Beach ----------
@@ -583,6 +653,7 @@ export class Game {
       else if (e[0] === 'r') this.rings.push({ x: e[1], y: e[2], r: 10, maxR: e[3], life: e[4], max: e[4], color: e[5] });
       else if (e[0] === 's' && e[1] in sfx) (sfx as unknown as Record<string, () => void>)[e[1]]();
       else if (e[0] === 'z') this.bolts.push({ x1: e[1], y1: e[2], x2: e[3], y2: e[4], life: 0.3 });
+      else if (e[0] === 'l') this.tracers.push({ x1: e[1], y1: e[2], x2: e[3], y2: e[4], life: 0.18, color: e[5], w: e[6] });
       else if (e[0] === 'k') this.pushFeed({ victim: e[1], killer: e[2], kind: e[3], n: e[4], t: FEED_LIFE });
     }
   }
@@ -640,6 +711,8 @@ export class Game {
       if (b.onGround) b.vx *= 0.8;
     }
     for (const b of this.bodies()) if (b.slowT > 0) b.slowT -= dt;
+    this.updateBubbles(dt);
+    this.updateRespawns();
     this.markSurvivors();
     if (this.cut) this.updateCutscene(dt);
     this.updateBlizzard(dt);
@@ -694,6 +767,7 @@ export class Game {
     f.slashT -= dt;
     f.buttAnim -= dt;
     f.summonCd = Math.max(0, f.summonCd - dt);
+    if (f.pigeon) return this.updatePigeon(f, dt);
 
     let it = f.human ? f.humanIntent(dt) : f.brain!.think(dt, f, this);
     // Cutscene: nobody moves on their own.
@@ -899,21 +973,6 @@ export class Game {
       if (target.shieldHp <= 0) this.breakShield(target);
       return false;
     }
-    if (target instanceof Fighter && target.iceShield > 0) {
-      // Frozen Shield: blocks everything until it breaks.
-      target.iceShield -= amount;
-      this.text(target.x + (Math.random() - 0.5) * 30, target.y - target.h - 10, `🛡️${amount}`, '#b3e5fc', 18);
-      this.burst(target.x + (Math.random() - 0.5) * target.w, target.cy, '#e1f5fe', 5, 220);
-      this.play('block');
-      if (target.iceShield <= 0) {
-        target.iceShield = 0;
-        this.text(target.x, target.y - target.h - 40, 'SHATTERED!', '#4fc3f7', 30);
-        this.burst(target.x, target.cy, '#b3e5fc', 40, 520);
-        this.ring(target.x, target.cy, 200, 0.4, '#e1f5fe');
-        this.play('glass');
-      }
-      return false;
-    }
     const heavy = target instanceof Fighter && target.boss;
     if (heavy) {
       kx *= 0.25;
@@ -972,7 +1031,15 @@ export class Game {
     } else if (how !== 'void') {
       const c = makeCorpse(b, how);
       if (c) this.corpses.push(c);
+      if (how === 'pieces') {
+        // Blown to pieces: confetti and a big KABOOM.
+        for (const col of ['#ff5252', '#ffeb3b', '#69f0ae', '#40c4ff', '#e040fb']) this.burst(b.x, b.cy, col, 7, 560);
+        this.text(b.x, b.y - b.h - 60, 'KABOOM! 🎉', '#ffeb3b', 32);
+        this.play('boom');
+      }
     }
+    // The Pigeon: KO'd fighters come back in a moment.
+    if (b instanceof Fighter && !b.boss && this.mode === 'pigeon' && !this.demo) this.respawns.push({ f: b, at: this.time + PIGEON.respawn });
     if (b.kind === 'fighter') {
       this.text(b.x, b.y - b.h - 30, 'KO!', '#ffeb3b', 34);
       if (how !== 'void') this.shake = Math.min(18, this.shake + 8);
@@ -987,7 +1054,7 @@ export class Game {
 
   /** Add a goofy line to the kill feed (and send it to the other devices). */
   private feedKill(v: Fighter, killer: Fighter | null, how: Finish, env?: FeedKind) {
-    let kind: FeedKind = env ?? 'kill';
+    let kind: FeedKind = env ?? (killer?.pigeon ? 'peck' : 'kill');
     if (how === 'void') kind = this.map.theme === 'beach' ? 'water' : this.map.theme === 'lava' ? 'lava' : 'void';
     // Knocked off the map (or into lava) by someone a moment ago: they get the credit.
     if (!killer && v.lastHitBy && v.lastHitBy !== v && this.time - v.lastHitT < BLAME_S) killer = v.lastHitBy;
@@ -1229,11 +1296,10 @@ export class Game {
         break;
       }
       case 'scepter': {
-        // The Snow Queen takes turns: Ice Shard, Blizzard, Frozen Shield (shards again if one is still going).
+        // The Snow Queen takes turns: Ice Shard, then Blizzard (shards again if a storm is still going).
         const n = f.fishNext;
-        f.fishNext = (n + 1) % 3;
+        f.fishNext = (n + 1) % 2;
         if (n === 1 && !this.blizzard) this.startBlizzard(f);
-        else if (n === 2 && f.iceShield <= 0) this.frozenShield(f);
         else this.iceShards(f, i, angle);
         break;
       }
@@ -1255,6 +1321,47 @@ export class Game {
         else this.leafStorm(f);
         break;
       }
+      case 'sniper':
+        this.sniperShot(f, tip.x, tip.y, angle);
+        break;
+      case 'shotgun':
+        this.shotgunBlast(f, tip.x, tip.y, angle);
+        break;
+      case 'pistol':
+        this.spawnProj('nerf', f, tip.x, tip.y, angle, 1500, 250, PISTOL.dmg, i);
+        // After 5 shots it needs 3 seconds to reload.
+        f.ammo[i]--;
+        if (f.ammo[i] <= 0) {
+          f.ammo[i] = PISTOL_AMMO;
+          f.cds[i] = PISTOL.reload;
+          this.text(f.x, f.y - f.h - 30, '🔄', '#ffffff', 22);
+        }
+        break;
+      case 'gun67':
+        this.spawnProj('bullet67', f, tip.x, tip.y, angle, 2100, 0, GUN67.dmg, i);
+        this.burst(tip.x, tip.y, '#ffeb3b', 8, 220);
+        this.text(f.x, f.y - f.h - 30, '67!', '#ffeb3b', 26);
+        break;
+      case 'summoner':
+        this.summonAll(f);
+        break;
+      case 'bravery':
+        this.callCats(f, BRAVERY, 'soldier');
+        this.text(f.x, f.y - f.h - 56, '⚔️ CHARGE!', '#ffd54f', 24);
+        break;
+      case 'pan':
+        this.panBonk(f, i, angle);
+        break;
+      case 'watergun':
+        for (let k = 0; k < WATER.drops; k++) {
+          const spread = (k / (WATER.drops - 1) - 0.5) * 0.4 + (Math.random() - 0.5) * 0.06;
+          this.spawnProj('water', f, tip.x, tip.y, angle + spread, 1150 + Math.random() * 250, 700, WATER.dmg, i);
+        }
+        this.play('splash');
+        break;
+      case 'bubble':
+        this.spawnProj('bubble', f, tip.x, tip.y, angle, 620, -80, BUBBLE.dmg, i);
+        break;
       case 'stick':
       case 'mascotstick': {
         // Giant stick slam: leap up, then smash down.
@@ -1269,6 +1376,258 @@ export class Game {
         this.play('jump');
         break;
       }
+    }
+  }
+
+  // ---------- guns and the new weapons ----------
+
+  /** A bullet's path from (x, y): the first enemy it reaches, or the wall that stops it (sandbags stop bullets). */
+  private rayCast(x: number, y: number, angle: number, maxLen: number, team: number, by: Body): { hit: Body | null; x: number; y: number } {
+    const cos = Math.cos(angle);
+    const sin = Math.sin(angle);
+    const bodies = this.bodies().filter((e) => e.alive && e.team !== team);
+    const plats = this.map.platforms;
+    // A platform you are standing inside doesn't stop your own shot.
+    const inside = (i: number, px: number, py: number) => px >= plats[i].x && px <= plats[i].x + plats[i].w && py >= plats[i].y && py <= plats[i].y + plats[i].h;
+    const start = new Set(plats.map((_, i) => i).filter((i) => inside(i, x, y)));
+    for (let d = 0; d <= maxLen; d += 6) {
+      const px = x + cos * d;
+      const py = y + sin * d;
+      for (const e of bodies) if (e.contains(px, py, 2)) return { hit: e, x: px, y: py };
+      for (let i = 0; i < plats.length; i++) {
+        if (!this.solid(i) || start.has(i) || !inside(i, px, py)) continue;
+        if (plats[i].kind === 'glass') this.breakGlassAt(px, py, 8, by);
+        else this.burst(px, py, plats[i].kind === 'sandbag' ? '#c8a165' : '#bdbdbd', 6, 180);
+        return { hit: null, x: px, y: py };
+      }
+    }
+    return { hit: null, x: x + cos * maxLen, y: y + sin * maxLen };
+  }
+
+  private tracer(x1: number, y1: number, x2: number, y2: number, color: string, w: number) {
+    this.tracers.push({ x1, y1, x2, y2, life: 0.18, color, w });
+    if (this.record) this.events.push(['l', Math.round(x1), Math.round(y1), Math.round(x2), Math.round(y2), color, w]);
+  }
+
+  /** Sniper: one shot that goes far. Headshot 250, body 225, legs 199. */
+  private sniperShot(f: Fighter, x: number, y: number, angle: number) {
+    const r = this.rayCast(x, y, angle, SNIPER.range, f.team, f);
+    this.tracer(x, y, r.x, r.y, '#fff59d', 3);
+    this.burst(x, y, '#ffeb3b', 10, 260);
+    this.shake = Math.min(18, this.shake + 6);
+    this.play('heavy');
+    const e = r.hit;
+    // A miss ends a Perfect Aim streak.
+    if (!e) {
+      f.streak = 0;
+      return;
+    }
+    // Where on the body: the top of a stickman is the head, the bottom is the legs.
+    const k = (r.y - (e.y - e.h)) / e.h;
+    const zone = e instanceof Fighter && !e.buffalo && !e.pigeon ? (k < 0.24 ? 'head' : k > 0.58 ? 'legs' : 'body') : 'body';
+    const dmg = SNIPER[zone];
+    const dir = Math.cos(angle) >= 0 ? 1 : -1;
+    if (zone === 'head') this.text(e.x, e.y - e.h - 48, 'HEADSHOT!', '#ff5252', 30);
+    else if (zone === 'legs') this.text(e.x, e.y - e.h - 48, 'LEGSHOT', '#ffcc80', 22);
+    this.damage(e, dmg, f, dir * 700, -400, zone === 'head' ? 'fling' : 'ragdoll');
+  }
+
+  /** Shotgun: 7 pellets in a spread. Each enemy hit takes 180 up close, 90 from far away. */
+  private shotgunBlast(f: Fighter, x: number, y: number, angle: number) {
+    const hits = new Set<Body>();
+    for (let k = 0; k < SHOTGUN.pellets; k++) {
+      const a = angle + (k / (SHOTGUN.pellets - 1) - 0.5) * 2 * SHOTGUN.spread + (Math.random() - 0.5) * 0.04;
+      const r = this.rayCast(x, y, a, SHOTGUN.range, f.team, f);
+      this.tracer(x, y, r.x, r.y, '#ffe082', 2);
+      if (r.hit) hits.add(r.hit);
+    }
+    this.burst(x, y, '#ffb300', 14, 320);
+    this.shake = Math.min(18, this.shake + 7);
+    this.play('boom');
+    const dir = Math.cos(angle) >= 0 ? 1 : -1;
+    for (const e of hits) {
+      const gap = Math.hypot(e.x - f.x, e.cy - f.cy) - e.w / 2;
+      const close = gap <= SHOTGUN.closeR * (f.scale > 1 ? 1.6 : 1);
+      this.damage(e, close ? SHOTGUN.close : SHOTGUN.far, f, dir * (close ? 900 : 500), close ? -650 : -350, close ? 'pieces' : 'half');
+    }
+    if (!hits.size) f.streak = 0;
+  }
+
+  /** Summoner: 3 cats, 3 fish, 3 snowmen, the Recall Memory boss and a spear soldier, all at once. */
+  private summonAll(f: Fighter) {
+    this.callCats(f, SUMMONER.cats, 'cat');
+    this.callCats(f, SUMMONER.fish, 'fish');
+    this.callCats(f, SUMMONER.soldier, 'soldier');
+    if (!this.cats.some((c) => c.alive && c.owner === f && c.variant === 'memory')) this.summonMemory(f);
+    for (let k = 0; k < SUMMONER.snowmen; k++) {
+      if (this.snowmen.filter((m) => m.alive && m.owner === f).length >= this.maxSnowmen) break;
+      const m = new Snowman(f, f.x + (k - 1) * 56, f.y - 6);
+      m.vy = -400;
+      this.snowmen.push(m);
+      this.burst(m.x, m.y - 30, '#ffffff', 10, 260);
+    }
+    this.ring(f.x, f.y, 160, 0.5, '#e040fb');
+    this.text(f.x, f.y - f.h - 56, '✨ SUMMON! ✨', '#e040fb', 28);
+  }
+
+  /** Frying Pan: BONK everyone in front of you. They see stars for a moment. */
+  private panBonk(f: Fighter, slot: number, angle: number) {
+    f.slashT = 0.3;
+    f.slashAngle = angle;
+    f.slashSlot = slot;
+    const sh = f.shoulder();
+    const R = f.reach(slot) + 50 * f.scale;
+    const dir = Math.cos(angle) >= 0 ? 1 : -1;
+    f.facing = dir;
+    let any = false;
+    for (const e of this.bodies()) {
+      if (!e.alive || e.team === f.team) continue;
+      const dx = e.x - sh.x;
+      if (Math.hypot(dx, e.cy - sh.y) > R + e.w / 2 || dx * dir < -10) continue;
+      f.hitCd.set(e.id, this.time + 0.5);
+      if (this.damage(e, PAN.dmg * f.dmgMult, f, dir * 380, -320, 'fling') && e.alive) {
+        e.stun = Math.max(e.stun, PAN.stun);
+        this.text(e.x, e.y - e.h - 36, 'BONK!', '#ffeb3b', 30);
+      }
+      any = true;
+    }
+    if (!any) this.play('throw');
+  }
+
+  /** Bubble Wand: trapped enemies float up, then the bubble pops. */
+  private updateBubbles(dt: number) {
+    for (const b of this.bodies()) {
+      if (b.bubbleT <= 0) continue;
+      b.bubbleT -= dt;
+      if (!b.alive) {
+        b.bubbleT = 0;
+        continue;
+      }
+      b.stun = Math.max(b.stun, 0.4);
+      b.vx *= Math.max(0, 1 - 3 * dt);
+      b.vy = -150;
+      b.onGround = false;
+      if (b.bubbleT > 0) continue;
+      b.bubbleT = 0;
+      this.burst(b.x, b.cy, '#b3e5fc', 16, 320);
+      this.text(b.x, b.y - b.h - 30, 'POP!', '#e1f5fe', 26);
+      this.play('glass');
+      this.damage(b, BUBBLE.dmg, b.bubbleSrc, 0, -250, 'ragdoll');
+    }
+  }
+
+  // ---------- the Pigeon ----------
+
+  /** Where the Pigeon hovers: high over the middle, drifting side to side. */
+  private pigeonHome(f: Fighter) {
+    const top = Math.min(...this.map.platforms.map((p) => p.y), this.map.h * 0.6);
+    return { x: this.map.w / 2 + Math.sin(this.time * 0.45 + f.id) * this.map.w * 0.33, y: top - 160 };
+  }
+
+  /** The Pigeon flies, dives at one enemy at a time and KOs it with one peck. */
+  private updatePigeon(f: Fighter, dt: number) {
+    f.onGround = false;
+    f.stun = 0;
+    f.frozenT = 0;
+    f.bubbleT = 0;
+    if (this.cut) return;
+    let tx = 0;
+    let ty = 0;
+    let speed = 420;
+    if (f.pigeonState === 'hover') {
+      const home = this.pigeonHome(f);
+      tx = home.x;
+      ty = home.y;
+      f.pigeonT -= dt;
+      if (f.pigeonT <= 0) {
+        // Pick someone to peck (one at a time).
+        const prey = this.bodies().filter((e) => e.alive && e.team !== f.team && !(e instanceof Fighter && e.boss));
+        const fighters = prey.filter((e) => e instanceof Fighter);
+        const pool = fighters.length ? fighters : prey;
+        if (pool.length) {
+          f.pigeonTarget = pool[Math.floor(Math.random() * pool.length)];
+          f.pigeonState = 'dive';
+          f.pigeonT = PIGEON.giveUp;
+          this.text(f.x, f.y - f.h - 20, 'COO!', '#ffffff', 28);
+          this.play('jump');
+        } else f.pigeonT = 0.5;
+      }
+    } else if (f.pigeonState === 'dive') {
+      const t = f.pigeonTarget;
+      f.pigeonT -= dt;
+      if (!t || !t.alive || f.pigeonT <= 0) {
+        f.pigeonState = 'up';
+      } else {
+        tx = t.x;
+        ty = t.y + 10;
+        speed = PIGEON.diveSpeed;
+        // Peck! (the beak is at the front of the bird)
+        const bx = f.x + f.facing * f.w * 0.42;
+        const by = f.y - f.h * 0.45;
+        if (Math.hypot(t.x - bx, t.cy - by) < t.w / 2 + 46 || t.contains(bx, by, 20)) {
+          this.text(t.x, t.y - t.h - 40, 'PECK!', '#ffeb3b', 32);
+          this.burst(t.x, t.cy, '#eceff1', 14, 360);
+          this.damage(t, Math.max(1, t.hp) * 100 + 99999, f, f.facing * 900, -900, 'fling');
+          f.pigeonState = 'up';
+        }
+      }
+    }
+    if (f.pigeonState === 'up') {
+      const home = this.pigeonHome(f);
+      tx = home.x;
+      ty = home.y;
+      speed = 700;
+      if (Math.hypot(home.x - f.x, home.y - f.y) < 90) {
+        f.pigeonState = 'hover';
+        f.pigeonT = PIGEON.diveEvery;
+      }
+    }
+    // Fly toward (tx, ty).
+    const dx = tx - f.x;
+    const dy = ty - f.y;
+    const d = Math.hypot(dx, dy) || 1;
+    const want = Math.min(speed, d * 3);
+    const k = Math.min(1, (f.pigeonState === 'dive' ? 7 : 3) * dt);
+    f.vx += ((dx / d) * want - f.vx) * k;
+    f.vy += ((dy / d) * want - f.vy) * k;
+    f.x = clamp(f.x + f.vx * dt, -200, this.map.w + 200);
+    f.y = clamp(f.y + f.vy * dt, -600, this.map.h + 100);
+    if (Math.abs(f.vx) > 20) f.facing = sign(f.vx);
+    f.walkPhase += dt * (f.pigeonState === 'dive' ? 22 : 12);
+  }
+
+  /** The Pigeon: KO'd fighters come back with full HP. */
+  private updateRespawns() {
+    if (!this.respawns.length) return;
+    const due = this.respawns.filter((r) => this.time >= r.at);
+    if (!due.length) return;
+    this.respawns = this.respawns.filter((r) => this.time < r.at);
+    const spots = pickSpawns(this.map, 8);
+    for (const { f } of due) {
+      if (f.alive) continue;
+      const sp = spots[Math.floor(Math.random() * spots.length)];
+      f.alive = true;
+      f.hp = f.maxHp;
+      f.x = sp.x;
+      f.y = sp.y - 2;
+      f.vx = 0;
+      f.vy = 0;
+      f.stun = 0;
+      f.burnT = 0;
+      f.poisonT = 0;
+      f.frozenT = 0;
+      f.slowT = 0;
+      f.bubbleT = 0;
+      f.shieldHp = SHIELD_MAX;
+      f.shieldBroken = false;
+      f.slamming = false;
+      f.finish = 'pop';
+      f.cds = f.cds.map(() => 0);
+      f.boomerangOut = f.boomerangOut.map(() => false);
+      f.trail = [];
+      this.ring(f.x, f.y, 90, 0.5, f.color);
+      this.burst(f.x, f.y - 40, f.color, 14, 260);
+      this.text(f.x, f.y - f.h - 24, '↩', '#ffffff', 26);
     }
   }
 
@@ -1312,15 +1671,6 @@ export class Game {
       this.damage(e, QUEEN.blizzard * (owner.dmgMult / 1.5), owner, e.vx * 0.6, 0, 'shatter');
       if (e.alive) this.burst(e.x, e.cy, '#e1f5fe', 4, 160);
     }
-  }
-
-  /** Frozen Shield: an ice dome that blocks every hit until it breaks. */
-  private frozenShield(f: Fighter) {
-    f.iceShield = QUEEN.shieldHp;
-    this.ring(f.x, f.cy, f.h * 0.75, 0.5, '#e1f5fe');
-    this.burst(f.x, f.cy, '#b3e5fc', 24, 360);
-    this.text(f.x, f.y - f.h - 30, '🛡️❄️', '#e1f5fe', 34);
-    this.play('glass');
   }
 
   /** Wave Crash: two huge waves roll out both ways: 60 damage and a big knockback. */
@@ -1615,7 +1965,7 @@ export class Game {
 
   /** Call Cat AI: little cats appear around the caller. */
   private callCats(f: Fighter, o: { count: number; hp: number; dmg: number; max: number }, variant: CatVariant = 'cat') {
-    const icon = variant === 'fish' ? '🐟' : '🐱';
+    const icon = variant === 'fish' ? '🐟' : variant === 'soldier' ? '💂' : '🐱';
     const have = this.cats.filter((c) => c.alive && c.owner === f && c.variant === variant).length;
     const n = Math.min(o.count, o.max - have);
     if (n <= 0) {
@@ -1630,7 +1980,7 @@ export class Game {
       this.cats.push(c);
       this.burst(x, f.y - 20, '#ffcc80', 6, 220);
     }
-    this.ring(f.x, f.y, 90 * f.scale, 0.4, variant === 'fish' ? '#4fc3f7' : '#ffb74d');
+    this.ring(f.x, f.y, 90 * f.scale, 0.4, variant === 'fish' ? '#4fc3f7' : variant === 'soldier' ? '#ffd54f' : '#ffb74d');
     this.text(f.x, f.y - f.h - 30, `${icon} ×${n}`, variant === 'fish' ? '#81d4fa' : '#ffcc80', 28);
     this.play('snowman');
   }
@@ -1639,7 +1989,9 @@ export class Game {
   catBite(c: Cat, e: Body) {
     c.attackT = 0.8;
     const dir = sign(e.x - c.x) || c.facing;
-    this.damage(e, c.touchDmg, c, dir * (c.variant === 'memory' ? 520 : 260), c.variant === 'memory' ? -420 : -220, c.variant === 'memory' ? 'ragdoll' : 'trip');
+    c.facing = dir;
+    const big = c.variant === 'memory' || c.variant === 'soldier';
+    this.damage(e, c.touchDmg, c, dir * (big ? 480 : 260), big ? -380 : -220, big ? 'ragdoll' : 'trip');
   }
 
   /** Soup lands: a yellow splash that hurts and burns every enemy close by. */
@@ -1668,9 +2020,9 @@ export class Game {
     const scale = owner instanceof Fighter ? owner.scale : 1;
     const big = kind === 'boomerang' || kind === 'bomb' || kind === 'axe' || kind === 'fireball' || kind === 'six7' || kind === 'soup';
     const r =
-      { arrow: 5, snowball: 11, minisnow: 8, boomerang: 16, bomb: 11, axe: 22, shuriken: 8, laser: 6, fireball: 14, six7: 24, poop: 10, soup: 14, icebolt: 9, banana: 10, fireslash: 34, dart: 6, memorybox: 12, rocket: 10, wave: 60, shard: 10, crash: 80, vine: 14 }[kind] *
+      { arrow: 5, snowball: 11, minisnow: 8, boomerang: 16, bomb: 11, axe: 22, shuriken: 8, laser: 6, fireball: 14, six7: 24, poop: 10, soup: 14, icebolt: 9, banana: 10, fireslash: 34, dart: 6, memorybox: 12, rocket: 10, wave: 60, shard: 10, crash: 80, vine: 14, nerf: 6, bullet67: 7, water: 7, bubble: 18 }[kind] *
       (big || kind === 'fireslash' ? scale : 1);
-    const life = { arrow: 2, snowball: 3, minisnow: 3, boomerang: 3.5, bomb: 1.5, axe: 3.5, shuriken: 2, laser: 0.7, fireball: 2, six7: 3.5, poop: 3, soup: 3, icebolt: 2, banana: 3, fireslash: 0.7, dart: 2, memorybox: 0.35, rocket: 2, wave: 1.7, shard: 1.6, crash: 1.9, vine: 0.42 }[kind];
+    const life = { arrow: 2, snowball: 3, minisnow: 3, boomerang: 3.5, bomb: 1.5, axe: 3.5, shuriken: 2, laser: 0.7, fireball: 2, six7: 3.5, poop: 3, soup: 3, icebolt: 2, banana: 3, fireslash: 0.7, dart: 2, memorybox: 0.35, rocket: 2, wave: 1.7, shard: 1.6, crash: 1.9, vine: 0.42, nerf: 2, bullet67: 1.2, water: 0.9, bubble: 2.6 }[kind];
     this.projectiles.push({
       kind,
       x,
@@ -1823,6 +2175,23 @@ export class Game {
         else if (p.kind === 'dart') {
           if (this.damage(e, p.dmg, p.owner, dir * 200, -150, PROJ_FINISH[p.kind]) && e.alive) this.setPoison(e, p.owner);
           this.burst(p.x, p.y, '#76ff03', 8, 200);
+        } else if (p.kind === 'water') {
+          // Water pushes hard.
+          this.damage(e, p.dmg, p.owner, dir * WATER.push, -380, 'fling');
+          this.burst(p.x, p.y, '#4fc3f7', 6, 200);
+        } else if (p.kind === 'bubble') {
+          // Trapped in a bubble: float up, then pop. Bosses are too big to float.
+          this.burst(p.x, p.y, '#b3e5fc', 10, 220);
+          if (e instanceof Fighter && e.boss) this.damage(e, p.dmg, p.owner, 0, 0, 'pop');
+          else if (e.bubbleT <= 0) {
+            e.bubbleT = BUBBLE.float;
+            e.bubbleSrc = p.owner;
+            this.text(e.x, e.y - e.h - 30, '🫧', '#e1f5fe', 28);
+            if (e instanceof Fighter && p.owner instanceof Fighter) {
+              e.lastHitBy = p.owner;
+              e.lastHitT = this.time;
+            }
+          }
         } else if (p.kind === 'memorybox') {
           this.damage(e, p.dmg, p.owner, dir * 500, -350, PROJ_FINISH[p.kind]);
           this.burst(p.x, p.y, '#b388ff', 14, 300);
@@ -2056,6 +2425,8 @@ export class Game {
       // Only the bosses you fight count (on the Beach the normal bosses were on your side).
       const bosses = this.bosses.filter((b) => b.team === BOSS_TEAM);
       if (bosses.length && bosses.every((b) => !b.alive)) return { decided: true, team: 0 };
+      // The Pigeon: KO'd fighters come back, so only beating it ends the match.
+      if (this.mode === 'pigeon') return { decided: false, team: null };
       if (!alive.some((f) => !f.boss)) return { decided: true, team: BOSS_TEAM };
       return { decided: false, team: null };
     }
@@ -2126,6 +2497,8 @@ export class Game {
     }
     this.rings = this.rings.filter((r) => r.life > 0);
     for (const b of this.bolts) b.life -= dt;
+    for (const tr of this.tracers) tr.life -= dt;
+    this.tracers = this.tracers.filter((tr) => tr.life > 0);
     for (const f of this.feed) f.t -= dt;
     this.feed = this.feed.filter((f) => f.t > 0);
     this.bolts = this.bolts.filter((b) => b.life > 0);

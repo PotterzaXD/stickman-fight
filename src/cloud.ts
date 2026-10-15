@@ -49,6 +49,7 @@ function merge(local: SaveData, remote: SaveData): SaveData {
   return {
     ...newer,
     owned: Array.from(new Set([...local.owned, ...remote.owned])),
+    hats: Array.from(new Set([...local.hats, ...remote.hats])),
     achievements: Array.from(new Set([...local.achievements, ...remote.achievements])),
     secrets: Array.from(new Set([...local.secrets, ...remote.secrets])),
     stats: {

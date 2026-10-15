@@ -289,8 +289,34 @@ export class BotBrain {
           // Call Fish any time; the waves and the strike when someone is close.
           if (f.fishNext === 1 || dist < 600) angle = Math.atan2(dy, dx);
           break;
+        case 'sniper':
+          if (dist < 1800) angle = Math.atan2(dy, dx);
+          break;
+        case 'shotgun':
+          // Best up close, but it still hits from far away.
+          if (dist < 680) angle = Math.atan2(dy, dx);
+          break;
+        case 'pistol':
+          if (dist < 900) angle = ballisticAngle(dx, dy, 1500, 250);
+          break;
+        case 'gun67':
+          if (dist < 1400) angle = Math.atan2(dy, dx);
+          break;
+        case 'summoner':
+        case 'bravery':
+          if (dist < 1000) angle = -Math.PI / 2;
+          break;
+        case 'pan':
+          if (dist < f.reach(i) + 60) angle = Math.atan2(dy, dx);
+          break;
+        case 'watergun':
+          if (dist < 520) angle = ballisticAngle(dx, dy, 1250, 700);
+          break;
+        case 'bubble':
+          if (dist < 650) angle = Math.atan2(dy, dx);
+          break;
         case 'scepter':
-          // Blizzard and Frozen Shield any time; Ice Shard at range.
+          // Blizzard any time; Ice Shard at range.
           if (f.fishNext !== 0 || dist < 1100) angle = Math.atan2(dy, dx);
           break;
         case 'kingtrident':
@@ -374,18 +400,20 @@ export function updateCat(c: Cat, dt: number, g: Game) {
     if (np) c.moveX = sign(np.x + np.w / 2 - c.x);
   }
   // The boss ally walks a bit slower; fish flop about quickly.
-  const speed = c.variant === 'memory' ? 280 : c.variant === 'fish' ? 360 : 330;
+  const speed = c.variant === 'memory' ? 280 : c.variant === 'fish' ? 360 : c.variant === 'soldier' ? 300 : 330;
   if (c.stun > 0) c.vx *= Math.max(0, 1 - 2 * dt);
   else c.vx += (c.moveX * speed - c.vx) * Math.min(1, (c.onGround ? 10 : 4) * dt);
   if (c.moveX) c.facing = sign(c.moveX);
   const t = c.target && c.target.alive ? c.target : null;
   if (t && c.onGround && t.cy < c.y - 90 && rand() < dt * 2.5) {
-    c.vy = c.variant === 'memory' ? -1000 : -900;
+    c.vy = c.variant === 'memory' || c.variant === 'soldier' ? -1000 : -900;
     c.onGround = false;
   }
   if (c.attackT > 0) return;
   for (const e of g.bodies()) {
-    if (!e.alive || e.team === c.team || !e.contains(c.x, c.cy, c.w / 2)) continue;
+    // Spear soldiers poke from a spear's length away.
+    const reach = c.variant === 'soldier' ? c.w / 2 + 55 : c.w / 2;
+    if (!e.alive || e.team === c.team || !e.contains(c.x, c.cy, reach)) continue;
     g.catBite(c, e);
     break;
   }

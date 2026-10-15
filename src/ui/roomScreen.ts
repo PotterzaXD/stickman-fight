@@ -3,6 +3,7 @@ import { TEAM_COLORS } from '../game/game';
 import { allMaps } from '../game/maps';
 import type { Difficulty, FallMode, Mode } from '../game/types';
 import { WEAPONS } from '../game/weapons';
+import { HATS } from '../game/hats';
 import { t, teamName, type Key } from '../i18n';
 import { MAX_ROOM, MIN_ROOM, ONLINE_COLORS, RoomHost, mascotProgress, mascotUnlocked, session, setSession, type Member, type RoomState } from '../net/room';
 import { cloudEnabled } from '../cloud';
@@ -71,7 +72,7 @@ register('room', (root) => {
     }
     const mine = (m: Member) => m.device === s.device;
     const canEdit = (m: Member) => mine(m) || (isHost && m.kind === 'bot');
-    const set = (m: Member, p: { weapon?: string; team?: number; difficulty?: Difficulty }) => (isHost ? (s as RoomHost).setMember(m.id, p) : s.setMember(m.id, p));
+    const set = (m: Member, p: { weapon?: string; team?: number; difficulty?: Difficulty; hat?: string }) => (isHost ? (s as RoomHost).setMember(m.id, p) : s.setMember(m.id, p));
     const host = isHost ? (s as RoomHost) : null;
 
     const seg = <T extends string>(value: T, opts: [T, string][], pick: (v: T) => void) =>
@@ -85,6 +86,21 @@ register('room', (root) => {
         ...WEAPONS.filter((w) => st.hostWeapons.includes(w.id)).map((w) => h('option', { value: w.id }, t(`w.${w.id}` as Key))),
       );
       sel.value = m.weapon;
+      return sel;
+    };
+
+    // Hats: your players wear your hats; the host can give bots a hat or a random one.
+    const hatSel = (m: Member) => {
+      const bot = m.kind === 'bot';
+      const sel = h(
+        'select',
+        { disabled: !canEdit(m), 'aria-label': t('hat'), onchange: (e: Event) => set(m, { hat: (e.target as HTMLSelectElement).value }) },
+        h('option', { value: 'none' }, `🎩 ${t('hatNone')}`),
+        bot ? h('option', { value: 'random' }, `🎲 ${t('random')}`) : null,
+        ...HATS.filter((x) => (canEdit(m) ? save.data.hats.includes(x.id) : x.id === m.hat)).map((x) => h('option', { value: x.id }, `🎩 ${t(`hat.${x.id}` as Key)}`)),
+      );
+      sel.value = m.hat ?? 'none';
+      if (sel.value === '') sel.value = 'none';
       return sel;
     };
 
@@ -105,6 +121,7 @@ register('room', (root) => {
         m.waiting ? h('span', { class: 'tag wait' }, `⏳ ${t('waitingNext')}`) : null,
         weaponSel(m),
         m.kind === 'bot' ? diff : null,
+        hatSel(m),
         st.mode === 'team'
           ? h(
               'div',

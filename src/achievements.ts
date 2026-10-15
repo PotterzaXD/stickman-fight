@@ -12,6 +12,7 @@ export const ACHIEVEMENTS = [
   'mascotBeat',
   'buffaloBeat',
   'fishBeat',
+  'pigeonBeat',
   'firstWin',
   'untouched',
   'lastBreath',

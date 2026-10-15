@@ -23,23 +23,26 @@ export interface Intent {
 }
 
 export type Difficulty = 'easy' | 'medium' | 'hard';
-export type Mode = 'ffa' | 'team' | 'boss' | 'cat' | 'mascot' | 'buffalo' | 'sandbox' | SecretKind;
+export type Mode = 'ffa' | 'team' | 'boss' | 'cat' | 'mascot' | 'buffalo' | 'pigeon' | 'sandbox' | SecretKind;
 
 /** The secret bosses: hidden until you meet their unlock conditions. */
 export type SecretKind = 'queen' | 'tide' | 'guardian';
 export const SECRET_KINDS: SecretKind[] = ['queen', 'tide', 'guardian'];
 export const isSecret = (m: string): m is SecretKind => (SECRET_KINDS as string[]).includes(m);
 
-/** Boss Fight, Grandfather Cat, the Mascot, Buffalo and the secret bosses: everyone teams up against the boss. */
-export const isBossMode = (m: Mode) => m === 'boss' || m === 'cat' || m === 'mascot' || m === 'buffalo' || isSecret(m);
+/** Boss Fight, Grandfather Cat, the Mascot, Buffalo, the Pigeon and the secret bosses: everyone teams up against the boss. */
+export const isBossMode = (m: Mode) => m === 'boss' || m === 'cat' || m === 'mascot' || m === 'buffalo' || m === 'pigeon' || isSecret(m);
+/** The Pigeon: up to this many fighters, everyone holds a shotgun, and KO'd fighters come back. */
+export const PIGEON_MAX = 30;
+export const PIGEON_WEAPON = 'shotgun';
 /** The Beach: only these modes (the Fishy boss shows up in all of them). */
 export const BEACH_MODES: Mode[] = ['ffa', 'team', 'boss'];
 export const BEACH_MAP = 'beach';
 export type FallMode = 'ko' | 'bounce';
-export type ThemeId = 'day' | 'sunset' | 'night' | 'snow' | 'lava' | 'space' | 'beach';
+export type ThemeId = 'day' | 'sunset' | 'night' | 'snow' | 'lava' | 'space' | 'beach' | 'war';
 
-/** Special blocks from the map editor. No kind = a normal platform. */
-export type BlockKind = 'concrete' | 'lava' | 'glass';
+/** Special blocks from the map editor. No kind = a normal platform. Sandbags stop bullets. */
+export type BlockKind = 'concrete' | 'lava' | 'glass' | 'sandbag';
 
 export interface Platform {
   x: number;
@@ -73,10 +76,12 @@ export interface SlotConfig {
   /** Sandbox only: starting HP and damage in percent. */
   hp?: number;
   power?: number;
+  /** Hat id, 'none', or 'random' (bots only). */
+  hat?: string;
 }
 
 /** Bosses you can add in Sandbox. */
-export type BossKind = 'boss' | 'cat' | 'mascot' | 'buffalo' | 'fish' | SecretKind;
+export type BossKind = 'boss' | 'cat' | 'mascot' | 'buffalo' | 'fish' | 'pigeon' | SecretKind;
 
 export interface SandboxBoss {
   kind: BossKind;
@@ -84,6 +89,15 @@ export interface SandboxBoss {
   hp: number;
   /** Damage in percent. */
   power: number;
+}
+
+/** Helpers you can drop into Sandbox: AI cats, fish, the Recall Memory boss and spear soldiers. */
+export type HelperKind = 'cat' | 'fish' | 'memory' | 'soldier';
+export const HELPER_KINDS: HelperKind[] = ['cat', 'fish', 'memory', 'soldier'];
+
+export interface SandboxHelper {
+  kind: HelperKind;
+  team: number;
 }
 
 export interface MatchConfig {
@@ -94,4 +108,6 @@ export interface MatchConfig {
   bosses?: number;
   /** Sandbox: bosses added to the match. */
   extraBosses?: SandboxBoss[];
+  /** Sandbox: helpers added to the match. */
+  helpers?: SandboxHelper[];
 }

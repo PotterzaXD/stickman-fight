@@ -7,8 +7,8 @@ import type { ProjKind } from './entities';
  * Death finishers: how a stickman goes down.
  * pop = the original burst. void = fell off the map: no pop, no finisher.
  */
-export type Finish = 'pop' | 'ragdoll' | 'fling' | 'half' | 'ashes' | 'sky' | 'trip' | 'void' | 'shatter' | 'zap' | 'slip';
-export const FINISHES: Finish[] = ['pop', 'ragdoll', 'fling', 'half', 'ashes', 'sky', 'trip', 'void', 'shatter', 'zap', 'slip'];
+export type Finish = 'pop' | 'ragdoll' | 'fling' | 'half' | 'ashes' | 'sky' | 'trip' | 'void' | 'shatter' | 'zap' | 'slip' | 'pieces';
+export const FINISHES: Finish[] = ['pop', 'ragdoll', 'fling', 'half', 'ashes', 'sky', 'trip', 'void', 'shatter', 'zap', 'slip', 'pieces'];
 
 /** Finisher for a normal weapon hit (and the sword dash / spear thrust). Weapons not listed keep the pop. */
 export const MELEE_FINISH: Partial<Record<WeaponId, Finish>> = {
@@ -41,6 +41,15 @@ export const MELEE_FINISH: Partial<Record<WeaponId, Finish>> = {
   horns: 'fling',
   headbutt: 'fling',
   trident: 'ragdoll',
+  sniper: 'ragdoll',
+  shotgun: 'ragdoll',
+  pistol: 'ragdoll',
+  gun67: 'sky',
+  summoner: 'ragdoll',
+  bravery: 'ragdoll',
+  pan: 'fling',
+  watergun: 'ragdoll',
+  bubble: 'ragdoll',
 };
 
 /** Finisher for a skill shot. */
@@ -61,7 +70,25 @@ export const PROJ_FINISH: Partial<Record<ProjKind, Finish>> = {
   dart: 'ragdoll',
   memorybox: 'fling',
   rocket: 'fling',
+  nerf: 'ragdoll',
+  bullet67: 'sky',
+  water: 'fling',
+  bubble: 'pop',
 };
+
+/** One flying body part (shotgun point blank: blown to pieces). */
+export interface Part {
+  kind: 'head' | 'torso' | 'limb';
+  x: number;
+  y: number;
+  vx: number;
+  vy: number;
+  rot: number;
+  vr: number;
+  len: number;
+  /** Bounces left (the head boings a few times). */
+  bounces: number;
+}
 
 interface Pt {
   x: number;
@@ -100,6 +127,8 @@ export interface Corpse {
   mascot: boolean;
   t: number;
   life: number;
+  /** Body parts flying apart (pieces). */
+  parts?: Part[];
   /** Ragdoll points (ragdoll, fling, half). */
   pts?: Pt[];
   sticks?: [number, number, number][];
@@ -203,6 +232,30 @@ export function makeCorpse(f: Fighter, style: Finish): Corpse | null {
     c.vy = -700;
     c.vr = -dir * 16;
     c.life = 2.5;
+  } else if (style === 'pieces') {
+    // Blown to pieces: head, body, two arms and two legs fly every way, spinning.
+    const s = f.scale;
+    const push = Math.sign(f.vx) || -f.facing || 1;
+    const kinds: [Part['kind'], number, number][] = [
+      ['head', 0, -73],
+      ['torso', 0, -48],
+      ['limb', -10, -50],
+      ['limb', 10, -50],
+      ['limb', -6, -16],
+      ['limb', 6, -16],
+    ];
+    c.parts = kinds.map(([kind, dx, dy], i) => ({
+      kind,
+      x: f.x + dx * s,
+      y: f.y + dy * s,
+      vx: push * (250 + Math.random() * 500) + (dx || (i % 2 ? 1 : -1) * 6) * 45,
+      vy: -(700 + Math.random() * 700) * (kind === 'head' ? 1.3 : 1),
+      rot: Math.random() * 6,
+      vr: (Math.random() - 0.5) * 26,
+      len: (kind === 'torso' ? 28 : 22) * s,
+      bounces: kind === 'head' ? 4 : 2,
+    }));
+    c.life = 3.5;
   } else if (style === 'ashes') c.life = 3;
   else if (style === 'shatter') c.life = 1.2;
   else if (style === 'zap') c.life = 1.4;
@@ -252,6 +305,34 @@ export function updateCorpses(g: Game, dt: number) {
             // Friction on the ground
             p.px = p.x - (p.x - p.px) * 0.6;
             p.py = p.y;
+          }
+        }
+      }
+      continue;
+    }
+    if (c.parts) {
+      for (const p of c.parts) {
+        const prevY = p.y;
+        p.vy += grav * dt;
+        p.x += p.vx * dt;
+        p.y += p.vy * dt;
+        p.rot += p.vr * dt;
+        if (p.vy > 0) {
+          const ly = landY(g, p.x, prevY, p.y);
+          if (ly !== null) {
+            p.y = ly;
+            if (p.bounces > 0) {
+              // Boing!
+              p.bounces--;
+              p.vy = -Math.abs(p.vy) * 0.55;
+              p.vx *= 0.7;
+              p.vr *= 0.7;
+              if (p.kind === 'head' && p.bounces === 3) g.text(p.x, p.y - 30, 'boing!', '#ffeb3b', 20);
+            } else {
+              p.vy = 0;
+              p.vx *= 0.8;
+              p.vr *= 0.8;
+            }
           }
         }
       }
@@ -409,11 +490,67 @@ function drawRagdoll(ctx: Ctx, c: Corpse) {
   }
 }
 
+/** Blown to pieces: spinning arms and legs, and the head with googly eyes and its tongue out. */
+function drawPieces(ctx: Ctx, c: Corpse, outline: string, time: number) {
+  const s = c.s;
+  ctx.lineCap = 'round';
+  for (const p of c.parts!) {
+    ctx.save();
+    ctx.translate(p.x, p.y);
+    ctx.rotate(p.rot);
+    if (p.kind === 'head') {
+      ctx.fillStyle = c.color;
+      ctx.strokeStyle = outline;
+      ctx.lineWidth = 3 * s;
+      ctx.beginPath();
+      ctx.arc(0, 0, 11 * s, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+      // Googly eyes that roll around
+      for (const [ex, sz] of [[-4, 4], [4.5, 3.2]] as [number, number][]) {
+        ctx.fillStyle = '#fff';
+        ctx.strokeStyle = '#000';
+        ctx.lineWidth = 1 * s;
+        ctx.beginPath();
+        ctx.arc(ex * s, -2 * s, sz * s, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+        const a = time * 9 + ex;
+        ctx.fillStyle = '#000';
+        ctx.beginPath();
+        ctx.arc(ex * s + Math.cos(a) * sz * 0.45 * s, -2 * s + Math.sin(a) * sz * 0.45 * s, sz * 0.45 * s, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      // Tongue out
+      ctx.fillStyle = '#ef5350';
+      ctx.beginPath();
+      ctx.ellipse(1 * s, 7 * s, 2.6 * s, 4 * s, 0.2, 0, Math.PI * 2);
+      ctx.fill();
+    } else {
+      for (const [w, col] of [
+        [8, outline],
+        [5, c.color],
+      ] as [number, string][]) {
+        ctx.strokeStyle = col;
+        ctx.lineWidth = w * s;
+        ctx.beginPath();
+        ctx.moveTo(-p.len / 2, 0);
+        ctx.lineTo(p.len / 2, 0);
+        ctx.stroke();
+      }
+    }
+    ctx.restore();
+  }
+}
+
 export function drawCorpse(ctx: Ctx, c: Corpse, time: number) {
   const fade = Math.min(1, (c.life - c.t) / 0.8);
   ctx.globalAlpha = Math.max(0, fade);
   const outline = c.boss && !c.mascot ? '#ff1744' : 'rgba(0,0,0,0.8)';
   switch (c.style) {
+    case 'pieces':
+      drawPieces(ctx, c, outline, time);
+      break;
     case 'ragdoll':
     case 'fling':
     case 'half':
