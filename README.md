@@ -33,9 +33,11 @@ On a computer you can test with the keyboard: WASD is P1, the arrow keys are P2 
 
   Buffalo unlocks when you fight the Mascot **all by yourself** (no other players or bots) and get knocked out, which also gives the **What an Buffalo** achievement. Online, the host needs it unlocked. Beating Buffalo gives **3,000 coins** every time.
 
-- **Secret bosses:** there are secret bosses hidden in the game. They stay hidden until you meet their unlock conditions, then show up as new modes in Play (and online, when the host has them). We won't spoil them here.
+- **The Pigeon:** a giant pigeon with 500,000 HP. Everyone gets a Shotgun (the weapon picker is locked) and you can bring up to 30 players and bots. The pigeon hovers, then dives and pecks one fighter at a time: one peck is a KO. Knocked out fighters come back after 3 seconds, and there is no time limit, so the match only ends when the pigeon goes down. It has its own looping chiptune theme. Beating it gives **5,000 coins** every time, the **Bird Down** achievement, and adds the pigeon to Sandbox. Offline only.
 
-- **Sandbox** (its own button on the main menu): add any players, bots and bosses (Boss, Grandfather Cat, Mascot, Buffalo, Fishy boss, and any secret bosses you have unlocked), put them on teams, and change each one's HP and power. You can try every weapon there. Sandbox matches never change your coins.
+- **Secret bosses:** there are secret bosses hidden in the game. They show as locked **🔒 ???** buttons in Play; tap one (or read the **Secret boss hints** box) for a hint on how to unlock it, with your progress where it can be counted. When you meet the conditions, they show up as new modes in Play (and online, when the host has them).
+
+- **Sandbox** (its own button on the main menu): add any players, bots and bosses (Boss, Grandfather Cat, Mascot, Buffalo, Fishy boss, the Pigeon once you beat it, and any secret bosses you have unlocked), put them on teams, and change each one's HP and power. Sandbox takes up to 30 players and bots and up to 20 bosses. You can also add up to 20 **helpers**: AI cats, fish, the Recall Memory boss and spear soldiers, each on the team you choose. You can try every weapon there. Sandbox matches never change your coins.
 
 You can have up to 6 players and 6 bots at once. Each bot has its own difficulty: CPU-easy, CPU-medium or CPU-hard. With no players, you watch the bots fight.
 
@@ -71,9 +73,24 @@ Winning gives 3–5 coins. When bots or the boss win, you get 1 coin. Beating th
 | Boxing Glove | 350 | Mega Punch: the glove springs out for 45 and sends them flying |
 | Magnet | 450 | Pulls every enemy close by toward you (15) |
 | Rocket Launcher | 750 | A rocket that flies straight and explodes (85) |
+| Sniper | 900 | One big shot, cooldown 10 seconds. Headshot 250, body shot 225, leg shot 199 |
+| Shotgun | 600 | A blast of pellets, cooldown 2 seconds. Up close (about one stickman away) it does 180, from far away 90 |
+| Pistol | 150 | Shoots nerf bullets for 10 damage. 1 second between shots, and after 5 shots it reloads for 3 seconds |
+| 67 Gun | 500 | One shot for 100 damage, cooldown 10 seconds |
+| Summoner | 1,100 | Calls 3 cats, 3 fish and 3 snowmen (all weaker than normal), the Recall Memory boss, and a spear soldier (300 HP, hits for 20) |
+| Spear of Bravery | 800 | Calls 3 spear soldiers (300 HP each, half-strength spears) |
+| Frying Pan | 300 | BONK: 40 damage and the enemy sees stars for 1.5 seconds |
+| Water Gun | 200 | Sprays water that pushes enemies far away (6 a drop) |
+| Bubble Wand | 350 | Traps an enemy in a bubble. They float up, then it pops for 30 |
 | The Grandfather Cat Treasure | Reward | Not sold. Beat Grandfather Cat to get it. Its skills take turns: Sud Gang Som (12 damage, then 6 a second for 5 seconds), then Call Cat AI (3 cats with 60 HP that do 6 damage) |
 
 All players and bots on the device share the weapons you buy.
+
+Bullets from the guns stop at solid platforms and at sandbags, so you can hide behind cover.
+
+## Hats
+
+The shop has a **Hats** tab with 12 hats (50 to 300 coins): Cap, Party Hat, Chef Hat, Army Helmet, Propeller Beanie, Pirate Hat, Top Hat, Cowboy Hat, Viking Helmet, Wizard Hat, Crown and Halo. In Play, Sandbox and online rooms you pick a hat for each player and bot: a hat you own, no hat, or **Random** (a random hat you own). Bosses never wear hats.
 
 **Snowball:**
 
@@ -100,6 +117,12 @@ How a stickman goes down depends on what knocked it out:
 | Ice Wand | Frozen, then shatters into ice |
 | Thunder Hammer | Skeleton flash, then smoke |
 | Banana | Slips and spins away |
+| Sniper | Flung away on a headshot, ragdoll otherwise |
+| Frying Pan | Flung away |
+| Bubble Wand | Ragdoll, or the original pop when the bubble pops |
+| Shotgun from far away | Cut in half |
+| Shotgun up close | Explodes into pieces, with confetti and a bouncing googly-eyed head |
+| The Pigeon's peck | Flung away |
 | Falling into the void | Just falls: no pop, no finisher |
 
 Anything not in the table (Katana, Snowball, snowmen, lava) keeps the original pop.
@@ -125,7 +148,7 @@ Every KO shows a goofy line down the right side of the screen, with the names in
 
 ## Music and sound
 
-The game makes its own chiptune music (no audio files): a title theme, a chill Sandbox theme, a theme for each map style (day, sunset, night, snow, lava, space and beach), boss music, a theme for each secret boss, and short victory and defeat jingles. There are sound effects for hits, heavy hits, blocks, slashes, shots, boss skills, buttons, screen changes, achievements and secret boss unlocks.
+The game makes its own chiptune music (no audio files): a title theme, a chill Sandbox theme, a theme for each map style (day, sunset, night, snow, lava, space, beach and war), boss music, a looping theme for the Pigeon, a theme for each secret boss, and short victory and defeat jingles. There are sound effects for hits, heavy hits, blocks, slashes, shots, boss skills, buttons, screen changes, achievements and secret boss unlocks.
 
 In **Settings** there are separate **Music** and **Sound effects** sliders (0-100%) with their own mute buttons. They are saved on this device.
 
@@ -142,6 +165,7 @@ Tap **🏆 Achievements** on the main menu. They count in normal matches and in 
 | Icon Breaker | Beat the Mascot |
 | Bull Rider | Beat Buffalo |
 | Fish Fry | Beat the Fishy boss |
+| Bird Down | Beat the Pigeon |
 | First Victory | Win your very first match |
 | Untouched | Win a match without taking any damage |
 | Last Breath | Win a match with less than 50 HP left |
@@ -161,7 +185,9 @@ In **Settings** you can turn healing potions on or off (on by default). When the
 
 ## Maps
 
-There are 14 built-in maps: Classic Arena, Sky Islands, The Tower, Long Bridge, Snowy Peak, The Pit, Volcano, Concrete Factory, Glass Palace, Rooftops, Frozen Lake, **Space**, the **Beach** and **Elevator Chaos**.
+There are 15 built-in maps: Classic Arena, Sky Islands, The Tower, Long Bridge, Snowy Peak, The Pit, Volcano, Concrete Factory, Glass Palace, Rooftops, Frozen Lake, **Space**, the **Beach**, **Elevator Chaos** and the **War Zone**.
+
+The War Zone is a battlefield with sandbag walls, bunkers and towers to hide behind. It has its own war theme in the editor and its own music.
 
 Elevator Chaos has moving platforms: a ferry that slides across the gap, two lifts that go up and down, and a fast shuttle along the top. They carry whoever stands on them, so time your jumps. Moving platforms have yellow and black stripes underneath.
 
@@ -173,6 +199,7 @@ Besides normal platforms, you can build with special blocks:
 
 - **Concrete:** a solid block that never breaks.
 - **Lava:** landing on it takes 40 HP and throws you up into the air.
+- **Sandbag:** you can walk through it sideways, but it blocks bullets and thrown weapons. Good cover for gun fights.
 - **Glass:** any weapon skill that hits it breaks it, for example an arrow, a laser, a bomb, the sword's dash or the hammer's slam. Broken glass comes back after 10 seconds.
 
 ## Names

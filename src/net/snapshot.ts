@@ -26,7 +26,7 @@ export interface Snapshot {
   bz?: [number, number];
 }
 
-const KINDS: ProjKind[] = ['arrow', 'snowball', 'minisnow', 'boomerang', 'bomb', 'axe', 'shuriken', 'laser', 'fireball', 'six7', 'poop', 'soup', 'icebolt', 'banana', 'fireslash', 'dart', 'memorybox', 'rocket', 'wave', 'shard', 'crash', 'vine'];
+const KINDS: ProjKind[] = ['arrow', 'snowball', 'minisnow', 'boomerang', 'bomb', 'axe', 'shuriken', 'laser', 'fireball', 'six7', 'poop', 'soup', 'icebolt', 'banana', 'fireslash', 'dart', 'memorybox', 'rocket', 'wave', 'shard', 'crash', 'vine', 'nerf', 'bullet67', 'water', 'bubble'];
 const r1 = (v: number) => Math.round(v);
 const r2 = (v: number) => Math.round(v * 100) / 100;
 
@@ -45,7 +45,7 @@ const SHIELD = 1,
   FROZEN = 2048,
   BUTT = 4096,
   POISON = 8192,
-  ICE = 16384,
+  BUBBLE = 16384,
   JET = 32768,
   LEAF = 65536,
   SLOW = 131072;
@@ -76,7 +76,7 @@ export function encodeSnapshot(g: Game): Snapshot {
       if (f.frozenT > 0) fl |= FROZEN;
       if (f.buttAnim > 0) fl |= BUTT;
       if (f.poisonT > 0) fl |= POISON;
-      if (f.iceShield > 0) fl |= ICE;
+      if (f.bubbleT > 0) fl |= BUBBLE;
       if (f.jetT > 0) fl |= JET;
       if (f.leafT > 0) fl |= LEAF;
       if (f.slowT > 0) fl |= SLOW;
@@ -146,7 +146,7 @@ export class Mirror {
       f.frozenT = fl & FROZEN ? 1 : 0;
       f.buttAnim = fl & BUTT ? 0.1 : 0;
       f.poisonT = fl & POISON ? 1 : 0;
-      f.iceShield = fl & ICE ? 1 : 0;
+      f.bubbleT = fl & BUBBLE ? 1 : 0;
       f.jetT = fl & JET ? 1 : 0;
       f.leafT = fl & LEAF ? 1 : 0;
       f.slowT = fl & SLOW ? 1 : 0;

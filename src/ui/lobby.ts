@@ -1,6 +1,8 @@
 import { BOT_COLORS, PLAYER_COLORS, TEAM_COLORS } from '../game/game';
 import { allMaps } from '../game/maps';
-import { BEACH_MAP, BEACH_MODES, SECRET_KINDS, isBossMode, isSecret, type SecretKind, type Difficulty, type MapDef, type MatchConfig, type Mode, type SlotConfig } from '../game/types';
+import { BEACH_MAP, BEACH_MODES, PIGEON_MAX, SECRET_KINDS, isBossMode, isSecret, type SecretKind, type Difficulty, type MapDef, type MatchConfig, type Mode, type SlotConfig } from '../game/types';
+import { BUILTIN_MAPS } from '../game/maps';
+import { HATS } from '../game/hats';
 import { hasAch } from '../achievements';
 import { WEAPONS } from '../game/weapons';
 import { t, teamName, type Key } from '../i18n';
@@ -15,6 +17,43 @@ import { go, register } from './router';
 export const MAX_PLAYERS = 6;
 export const MAX_BOTS = 6;
 export const MAX_BOSSES = 3;
+
+/** Bots allowed in this mode (the Pigeon fits up to 30 fighters). */
+export const maxBots = (mode: Mode, humans: number) => (mode === 'pigeon' ? PIGEON_MAX - humans : MAX_BOTS);
+
+/** Hat picker for a slot: players pick from their hats, bots can also get a random one. */
+export function hatSelect(s: SlotConfig, bot: boolean) {
+  const sel = h(
+    'select',
+    { 'aria-label': t('hat'), onchange: (e: Event) => (s.hat = (e.target as HTMLSelectElement).value) },
+    h('option', { value: 'none' }, `🚫 ${t('hatNone')}`),
+    bot ? h('option', { value: 'random' }, `🎲 ${t('random')}`) : null,
+    ...HATS.filter((x) => save.data.hats.includes(x.id)).map((x) => h('option', { value: x.id }, t(`hat.${x.id}` as Key))),
+  );
+  const want = s.hat ?? 'none';
+  sel.value = want === 'random' ? (bot ? 'random' : 'none') : save.data.hats.includes(want) ? want : 'none';
+  return h('label', { class: 'field' }, h('small', {}, `🎩 ${t('hat')}`), sel);
+}
+
+/** Hints for the secret bosses you haven't unlocked yet (with your progress). */
+export function secretHints(): HTMLElement | null {
+  const locked = SECRET_KINDS.filter((k) => !save.data.secrets.includes(k));
+  if (!locked.length) return null;
+  const st = save.data.stats;
+  const progress: Record<SecretKind, string> = {
+    queen: t('hintProgress', { n: Math.min(3, st.catSnowWins), total: 3 }),
+    tide: '',
+    guardian: t('hintProgress', { n: BUILTIN_MAPS.filter((m) => st.mapsWon.includes(m.id)).length, total: BUILTIN_MAPS.length }),
+  };
+  return h(
+    'div',
+    { class: 'hints' },
+    h('b', {}, `🔮 ${t('hintsTitle')}`),
+    ...locked.map((k) =>
+      h('p', { class: 'hint' }, h('span', { class: 'hint-q' }, `${SECRET_ICONS[k]} ???`), ' ', t(`hint.${k}` as Key), progress[k] ? h('small', { class: 'muted' }, ` (${progress[k]})`) : null),
+    ),
+  );
+}
 
 /** "Bosses: 1 2 3" buttons for Boss Fight. */
 export function bossPicker(value: number, pick: ((n: number) => void) | null, beach = false) {
@@ -163,6 +202,14 @@ register('lobby', (root, arg) => {
             if (mode === 'buffalo' && !hasAch('buffalo')) return toast(t('buffaloLocked'));
             if (m.mapId === BEACH_MAP && !BEACH_MODES.includes(mode)) return toast(t('beachOnly'));
             m.mode = mode;
+            // Leaving the Pigeon: only 6 bots fit in the other modes.
+            let extra = m.slots.filter((s) => s.kind === 'bot').length - maxBots(mode, 0);
+            if (extra > 0) toast(t('botsTrimmed', { n: MAX_BOTS }));
+            for (let i = m.slots.length - 1; i >= 0 && extra > 0; i--) {
+              if (m.slots[i].kind !== 'bot') continue;
+              m.slots.splice(i, 1);
+              extra--;
+            }
             render();
           },
         },
@@ -190,6 +237,8 @@ register('lobby', (root, arg) => {
     );
 
     const weaponSelect = (s: SlotConfig) => {
+      // The Pigeon: everyone gets a shotgun.
+      if (m.mode === 'pigeon') return h('select', { disabled: true }, h('option', {}, t('w.shotgun')));
       const sel = h(
         'select',
         {
@@ -245,6 +294,7 @@ register('lobby', (root, arg) => {
           : h('span', { class: 'slot-name', style: `--c:${looks[i].color}` }, '🤖 ', looks[i].name),
         h('label', { class: 'field' }, h('small', {}, t('weapon')), weaponSelect(s)),
         s.kind === 'bot' ? h('label', { class: 'field' }, h('small', {}, '⚙'), diffSelect(s)) : null,
+        hatSelect(s, s.kind === 'bot'),
         m.mode === 'team' ? teamPicker(s) : null,
         h(
           'button',
@@ -277,12 +327,18 @@ register('lobby', (root, arg) => {
           modeBtn('cat', '🐱'),
           modeBtn('mascot', '⚪'),
           modeBtn('buffalo', '🐃'),
+          modeBtn('pigeon', '🐦'),
           // Secret bosses only show up once you have unlocked them.
           ...SECRET_KINDS.filter((k) => save.data.secrets.includes(k)).map((k) => modeBtn(k, SECRET_ICONS[k])),
+          // Locked ones show as ??? with a hint.
+          ...SECRET_KINDS.filter((k) => !save.data.secrets.includes(k)).map((k) =>
+            h('button', { class: 'seg locked', onclick: () => toast(t(`hint.${k}` as Key)) }, `🔒 ???`),
+          ),
         ),
         h('p', { class: 'muted' }, t(`${m.mode}Desc` as Key)),
         isSecret(m.mode) ? h('small', { class: 'muted' }, `🪙🏆 ${t(`${m.mode}Reward` as Key)}`) : null,
         m.mode === 'buffalo' ? h('small', { class: 'muted' }, `🪙🏆 ${t('buffaloReward')}`) : null,
+        m.mode === 'pigeon' ? h('small', { class: 'muted' }, `🪙🏆 ${t('pigeonReward')}`) : null,
         ...beachNotes(m.mapId, m.mode),
         m.mode === 'cat' ? h('small', { class: 'muted' }, `🪙🏆 ${t('catReward')}`) : null,
         m.mode === 'mascot' ? h('small', { class: 'muted' }, `🪙🏆 ${t('mascotReward')}`) : null,
@@ -297,6 +353,7 @@ register('lobby', (root, arg) => {
             )
           : null,
       ),
+      secretHints() ?? '',
       h('section', {}, h('h3', {}, t('map')), h('div', { class: 'map-row' }, ...mapCards)),
       h(
         'section',
@@ -312,7 +369,7 @@ register('lobby', (root, arg) => {
               'button',
               {
                 class: 'btn small',
-                disabled: humans >= MAX_PLAYERS,
+                disabled: humans >= MAX_PLAYERS || (m.mode === 'pigeon' && m.slots.length >= PIGEON_MAX),
                 onclick: () => {
                   m.slots.push({ kind: 'human', weapon: 'sword', team: leastTeam(), difficulty: 'medium' });
                   render();
@@ -324,13 +381,13 @@ register('lobby', (root, arg) => {
               'button',
               {
                 class: 'btn small',
-                disabled: bots >= MAX_BOTS,
+                disabled: bots >= maxBots(m.mode, humans),
                 onclick: () => {
                   m.slots.push({ kind: 'bot', weapon: 'random', team: leastTeam(), difficulty: 'medium' });
                   render();
                 },
               },
-              `${t('addBot')} ${bots}/${MAX_BOTS}`,
+              `${t('addBot')} ${bots}/${maxBots(m.mode, humans)}`,
             ),
           ),
         ),

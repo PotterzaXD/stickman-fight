@@ -1,7 +1,8 @@
 import { BOSS_TEAM, Game, TEAM_COLORS, type FighterSpec, type MatchResult } from '../game/game';
 import { achName, grant, hasAch, type AchievementId } from '../achievements';
 import type { Fighter } from '../game/entities';
-import { SECRET_KINDS, isSecret, type BossKind, type SecretKind } from '../game/types';
+import { PIGEON_WEAPON, SECRET_KINDS, isSecret, type BossKind, type SecretKind } from '../game/types';
+import { resolveHat } from '../game/hats';
 import { ALL_OWNABLE, WEAPONS } from '../game/weapons';
 import { BUILTIN_MAPS } from '../game/maps';
 import { jingle, playMusic, type TrackId } from '../music';
@@ -28,7 +29,9 @@ function buildSpecs(match: MatchConfig): FighterSpec[] {
     color: sandbox ? TEAM_COLORS[s.team] ?? TEAM_COLORS[0] : looks[i].color,
     team: match.mode === 'team' || sandbox ? s.team : isBossMode(match.mode) ? 0 : i,
     human: s.kind === 'human',
-    weapon: s.weapon === 'random' ? pool[Math.floor(Math.random() * pool.length)] : s.weapon,
+    // The Pigeon: everyone holds a shotgun.
+    weapon: match.mode === 'pigeon' ? PIGEON_WEAPON : s.weapon === 'random' ? pool[Math.floor(Math.random() * pool.length)] : s.weapon,
+    hat: resolveHat(s.hat, save.data.hats),
     difficulty: s.difficulty,
     playerIndex: looks[i].playerIndex,
     hp: sandbox ? s.hp : undefined,
@@ -44,6 +47,7 @@ export function bossNames(): Record<BossKind, string> {
     mascot: t('mascot_name'),
     buffalo: t('buffalo_name'),
     fish: t('fish_name'),
+    pigeon: t('pigeon_name'),
     queen: t('queen_name'),
     tide: t('tide_name'),
     guardian: t('guardian_name'),
@@ -51,7 +55,7 @@ export function bossNames(): Record<BossKind, string> {
 }
 
 export function bossNameFor(mode: Mode): string {
-  if (isSecret(mode) || mode === 'mascot' || mode === 'cat' || mode === 'buffalo') return bossNames()[mode];
+  if (isSecret(mode) || mode === 'mascot' || mode === 'cat' || mode === 'buffalo' || mode === 'pigeon') return bossNames()[mode];
   return t('boss_name');
 }
 
@@ -61,6 +65,7 @@ export const CAT_COINS = 1000;
 export const MASCOT_COINS = 5000;
 export const BUFFALO_COINS = 3000;
 export const FISH_COINS = 1000;
+export const PIGEON_COINS = 5000;
 export const SECRET_COINS: Record<SecretKind, number> = { queen: 4000, tide: 5000, guardian: 6000 };
 const SECRET_ICON: Record<SecretKind, string> = { queen: '❄️', tide: '🌊', guardian: '🌲' };
 /** Grandfather Cat wins on a snow map that wake the Snow Queen. */
@@ -107,7 +112,7 @@ export function matchFacts(game: Game, r: Pick<MatchResult, 'winners' | 'winnerT
 }
 
 function bossKind(f: Fighter): BossKind {
-  return f.secret ?? (f.mascot ? 'mascot' : f.cat ? 'cat' : f.buffalo ? 'buffalo' : f.fish ? 'fish' : 'boss');
+  return f.secret ?? (f.mascot ? 'mascot' : f.cat ? 'cat' : f.buffalo ? 'buffalo' : f.fish ? 'fish' : f.pigeon ? 'pigeon' : 'boss');
 }
 
 export interface RewardInfo {
@@ -135,6 +140,8 @@ function matchAchievements(r: RewardInfo): AchievementId[] {
   if (mode === 'mascot' && r.solo) ach.push('buffalo');
   if (won && mode === 'buffalo') ach.push('buffaloBeat');
   if (r.fish) ach.push('fishBeat');
+  // Beating the Pigeon also puts it in Sandbox.
+  if (won && mode === 'pigeon') ach.push('pigeonBeat');
   if (won) ach.push('firstWin');
   if (!f) return ach;
   const beat = (k: BossKind) => won && (mode === k || f.beaten.includes(k));
@@ -196,6 +203,8 @@ export function giveReward(r: RewardInfo): HTMLElement[] {
     ? CAT_COINS
     : mode === 'buffalo'
     ? BUFFALO_COINS
+    : mode === 'pigeon'
+    ? PIGEON_COINS
     : mode === 'boss'
     ? beachBoss
       ? 0
@@ -212,6 +221,7 @@ export function giveReward(r: RewardInfo): HTMLElement[] {
     if (stick) d.owned.push('mascotstick');
     if (trident) d.owned.push('trident');
   });
+  const pigeonNew = won && mode === 'pigeon' && !hasAch('pigeonBeat');
   const fresh = grant(matchAchievements(r));
   const woke = wakeSecrets(r);
   setTimeout(() => sfx.coin(), 400);
@@ -220,6 +230,7 @@ export function giveReward(r: RewardInfo): HTMLElement[] {
   if (treasure) out.push(h('p', { class: 'treasure-got' }, t('treasureGot')));
   if (stick) out.push(h('p', { class: 'treasure-got' }, t('mascotStickGot')));
   if (trident) out.push(h('p', { class: 'treasure-got' }, t('tridentGot')));
+  if (pigeonNew) out.push(h('p', { class: 'treasure-got' }, t('pigeonSandbox')));
   out.push(...achLines(fresh));
   for (const k of woke) out.push(h('p', { class: 'treasure-got secret-got' }, `${SECRET_ICON[k]} ${t('secretUnlocked', { name: bossNames()[k] })}`));
   if (woke.length) setTimeout(() => sfx.secret(), 1600);
@@ -237,6 +248,7 @@ export function resultTitle(r: Pick<MatchResult, 'mode' | 'winnerTeam' | 'winner
   if (beach && r.mode === 'boss') return t('fishDefeated');
   if (isSecret(r.mode)) return t(r.winnerTeam === BOSS_TEAM ? 'secretWon' : 'secretDefeated', { name: bossNames()[r.mode] });
   if (r.mode === 'buffalo') return r.winnerTeam === BOSS_TEAM ? t('buffaloWon') : t('buffaloDefeated');
+  if (r.mode === 'pigeon') return t('pigeonDefeated');
   if (r.mode === 'mascot') return r.winnerTeam === BOSS_TEAM ? t('mascotWon') : t('mascotDefeated');
   if (r.mode === 'cat') return r.winnerTeam === BOSS_TEAM ? t('catWon') : t('catDefeated');
   if (r.mode === 'boss') return r.winnerTeam === BOSS_TEAM ? t(bosses > 1 ? 'bossesWon' : 'bossWon') : t(bosses > 1 ? 'bossesDefeated' : 'bossDefeated');
@@ -249,6 +261,7 @@ export function resultTitle(r: Pick<MatchResult, 'mode' | 'winnerTeam' | 'winner
 export function matchTrack(game: Game): TrackId {
   const secret = game.bosses.find((b) => b.secret && b.team !== 0)?.secret ?? game.bosses.find((b) => b.secret)?.secret;
   if (secret) return secret;
+  if (game.mode === 'pigeon' || game.bosses.some((b) => b.pigeon)) return 'pigeon';
   if (isBossMode(game.mode) || (game.mode === 'sandbox' && game.bosses.length)) return 'boss';
   if (game.mode === 'sandbox') return 'sandbox';
   return game.map.theme;
@@ -338,6 +351,7 @@ register('play', (root, { match, fromEditor }) => {
       bosses: match.bosses,
       potions: save.data.settings.potions,
       extraBosses: match.mode === 'sandbox' ? match.extraBosses : undefined,
+      helpers: match.mode === 'sandbox' ? match.helpers : undefined,
     });
     game.onOver = showResult;
     startCoins = save.data.coins;

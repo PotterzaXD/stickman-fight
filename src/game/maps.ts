@@ -4,7 +4,7 @@ export interface Theme {
   sky: [string, string];
   plat: string;
   top: string;
-  deco: 'clouds' | 'stars' | 'snow' | 'embers' | 'space' | 'beach';
+  deco: 'clouds' | 'stars' | 'snow' | 'embers' | 'space' | 'beach' | 'war';
   /** Gravity multiplier (space: low gravity, you jump higher and fall slower). */
   gravity?: number;
 }
@@ -17,9 +17,10 @@ export const THEMES: Record<ThemeId, Theme> = {
   lava: { sky: ['#2b0f0f', '#a1301a'], plat: '#3e2723', top: '#ff7043', deco: 'embers' },
   space: { sky: ['#05010f', '#1a1240'], plat: '#4a4458', top: '#9e97b8', deco: 'space', gravity: 0.55 },
   beach: { sky: ['#4fc3f7', '#fff3e0'], plat: '#c8955a', top: '#ffe0a3', deco: 'beach' },
+  war: { sky: ['#7d7461', '#d9c9a8'], plat: '#5d4e37', top: '#7a8450', deco: 'war' },
 };
 
-export const THEME_IDS: ThemeId[] = ['day', 'sunset', 'night', 'snow', 'lava', 'space', 'beach'];
+export const THEME_IDS: ThemeId[] = ['day', 'sunset', 'night', 'snow', 'lava', 'space', 'beach', 'war'];
 
 const P = (x: number, y: number, w: number, h = 24): Platform => ({ x, y, w, h });
 /** Special block: concrete, lava or glass. */
@@ -28,7 +29,7 @@ const M = (x: number, y: number, w: number, dx: number, dy: number, period: numb
 const B = (kind: BlockKind, x: number, y: number, w: number, h = 24): Platform => ({ x, y, w, h, kind });
 
 /** Block kinds in shared map links (0 = normal platform). */
-const BLOCK_CODES: (BlockKind | undefined)[] = [undefined, 'concrete', 'lava', 'glass'];
+const BLOCK_CODES: (BlockKind | undefined)[] = [undefined, 'concrete', 'lava', 'glass', 'sandbag'];
 
 export const BUILTIN_MAPS: MapDef[] = [
   {
@@ -258,6 +259,35 @@ export const BUILTIN_MAPS: MapDef[] = [
       M(260, 280, 190, 1090, 0, 8, 0.25),
       P(170, 540, 170),
       P(1460, 540, 170),
+    ],
+    spawns: [],
+  },
+  {
+    // The War map: hide behind the sandbags, they stop bullets.
+    id: 'war',
+    name: 'm.war',
+    w: 2000,
+    h: 1000,
+    theme: 'war',
+    builtin: true,
+    platforms: [
+      P(80, 800, 1840, 70),
+      // Sandbag walls on the battlefield
+      B('sandbag', 330, 730, 90, 70),
+      B('sandbag', 760, 745, 70, 55),
+      B('sandbag', 1170, 745, 70, 55),
+      B('sandbag', 1580, 730, 90, 70),
+      // Two bunkers, a hill in the middle and two watchtowers
+      P(150, 580, 300),
+      B('sandbag', 380, 530, 70, 50),
+      P(1550, 580, 300),
+      B('sandbag', 1550, 530, 70, 50),
+      P(800, 560, 400),
+      B('sandbag', 800, 515, 60, 45),
+      B('sandbag', 1140, 515, 60, 45),
+      P(500, 400, 180),
+      P(1320, 400, 180),
+      P(880, 270, 240),
     ],
     spawns: [],
   },

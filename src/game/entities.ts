@@ -14,10 +14,13 @@ export const CAT_BOSS_HP = 10000;
 export const MASCOT_HP = 50000;
 export const BUFFALO_HP = 8000;
 export const FISH_HP = 9999;
+export const PIGEON_HP = 500000;
 /** The secret bosses. */
 export const SECRET_HP: Record<SecretKind, number> = { queen: 12000, tide: 15000, guardian: 18000 };
 
 let nextId = 1;
+/** Pistol shots before it reloads. */
+export const PISTOL_AMMO = 5;
 
 export abstract class Body {
   readonly id = nextId++;
@@ -53,6 +56,9 @@ export abstract class Body {
   poisonSrc: Body | null = null;
   /** Seconds left slowed down (Ice Shard, Root Trap). */
   slowT = 0;
+  /** Bubble Wand: seconds left floating in a bubble (pops for damage at the end). */
+  bubbleT = 0;
+  bubbleSrc: Body | null = null;
   abstract readonly kind: 'fighter' | 'snowman' | 'cat';
 
   constructor(x: number, y: number, w: number, h: number, hp: number, team: number, color: string) {
@@ -100,6 +106,10 @@ export interface FighterOpts {
   hp?: number;
   /** One of the secret bosses. */
   secret?: SecretKind;
+  /** The giant Pigeon (flies, and KOs with one peck). */
+  pigeon?: boolean;
+  /** Hat id (or 'none'). */
+  hat?: string;
 }
 
 export class Fighter extends Body {
@@ -114,8 +124,15 @@ export class Fighter extends Body {
   buffalo: boolean;
   fish: boolean;
   secret: SecretKind | null;
-  /** The Snow Queen's Frozen Shield: blocks every hit until this much damage breaks it. */
-  iceShield = 0;
+  pigeon: boolean;
+  /** The Pigeon: what it is doing, the fighter it is going for, and seconds until the next dive. */
+  pigeonState: 'hover' | 'dive' | 'up' = 'hover';
+  pigeonTarget: Body | null = null;
+  pigeonT = 2.5;
+  /** Hat id ('none' = no hat). */
+  hat: string;
+  /** Pistol: shots left before it reloads. */
+  ammo: number[];
   /** The Tide King's Water Jet: seconds left and where it points. */
   jetT = 0;
   jetAngle = 0;
@@ -188,9 +205,9 @@ export class Fighter extends Body {
 
   constructor(o: FighterOpts) {
     const scale = o.boss ? 2.6 : 1;
-    const hp = o.hp ?? (o.secret ? SECRET_HP[o.secret] : o.mascot ? MASCOT_HP : o.cat ? CAT_BOSS_HP : o.buffalo ? BUFFALO_HP : o.fish ? FISH_HP : o.boss ? BOSS_HP : PLAYER_HP);
-    // Buffalo walks on four legs: wide and low.
-    super(o.x, o.y, o.buffalo ? 190 : 30 * scale, o.buffalo ? 150 : 80 * scale, hp, o.team, o.color);
+    const hp = o.hp ?? (o.secret ? SECRET_HP[o.secret] : o.pigeon ? PIGEON_HP : o.mascot ? MASCOT_HP : o.cat ? CAT_BOSS_HP : o.buffalo ? BUFFALO_HP : o.fish ? FISH_HP : o.boss ? BOSS_HP : PLAYER_HP);
+    // Buffalo walks on four legs: wide and low. The Pigeon is a big round bird.
+    super(o.x, o.y, o.buffalo ? 190 : o.pigeon ? 200 : 30 * scale, o.buffalo ? 150 : o.pigeon ? 160 : 80 * scale, hp, o.team, o.color);
     this.name = o.name;
     this.human = o.human;
     this.boss = !!o.boss;
@@ -199,6 +216,8 @@ export class Fighter extends Body {
     this.buffalo = !!o.buffalo;
     this.fish = !!o.fish;
     this.secret = o.secret ?? null;
+    this.pigeon = !!o.pigeon;
+    this.hat = o.boss ? 'none' : o.hat ?? 'none';
     this.scale = scale;
     this.dmgMult = o.boss ? 1.5 : 1;
     this.speed = o.boss ? 300 : 380;
@@ -207,6 +226,7 @@ export class Fighter extends Body {
     this.angVel = o.weapons.map(() => 0);
     this.cds = o.weapons.map(() => 0);
     this.boomerangOut = o.weapons.map(() => false);
+    this.ammo = o.weapons.map(() => PISTOL_AMMO);
   }
 
   shoulder(): Vec {
@@ -301,9 +321,11 @@ export class Snowman extends Body {
   }
 }
 
-/** What a helper looks like: a cat, a fish from the Fishy boss, or the purple boss ally from Recall Memory. */
-export type CatVariant = 'cat' | 'fish' | 'memory';
-export const CAT_VARIANTS: CatVariant[] = ['cat', 'fish', 'memory'];
+/** What a helper looks like: a cat, a fish from the Fishy boss, the purple boss ally from Recall Memory, or a spear soldier. */
+export type CatVariant = 'cat' | 'fish' | 'memory' | 'soldier';
+export const CAT_VARIANTS: CatVariant[] = ['cat', 'fish', 'memory', 'soldier'];
+/** A spear soldier (Spear of Bravery, Summoner, Sandbox): 300 HP. */
+export const SOLDIER_HP = 300;
 /** Recall Memory's boss ally: 1,000 HP, 30 damage, fades away after 20 seconds. */
 export const MEMORY_ALLY = { hp: 1000, dmg: 30, life: 20 };
 
@@ -326,7 +348,7 @@ export class Cat extends Body {
 
   constructor(owner: Fighter, x: number, y: number, hp: number, touchDmg: number, variant: CatVariant = 'cat') {
     // The boss ally is bigger than a stickman (80) but smaller than the bosses (208).
-    super(x, y, variant === 'memory' ? 46 : 34, variant === 'memory' ? 128 : 30, hp, owner.team, owner.color);
+    super(x, y, variant === 'memory' ? 46 : variant === 'soldier' ? 30 : 34, variant === 'memory' ? 128 : variant === 'soldier' ? 80 : 30, hp, owner.team, owner.color);
     this.owner = owner;
     this.touchDmg = touchDmg;
     this.facing = owner.facing;
@@ -357,7 +379,11 @@ export type ProjKind =
   | 'wave'
   | 'shard'
   | 'crash'
-  | 'vine';
+  | 'vine'
+  | 'nerf'
+  | 'bullet67'
+  | 'water'
+  | 'bubble';
 
 /** Thrown weapons that fly out and come back to the hand. */
 export const returns = (k: ProjKind) => k === 'boomerang' || k === 'axe' || k === 'six7';

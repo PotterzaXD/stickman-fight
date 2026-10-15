@@ -4,6 +4,8 @@ import type { Lang } from './i18n';
 export interface SaveData {
   coins: number;
   owned: string[];
+  /** Hats bought in the hat shop. */
+  hats: string[];
   customMaps: MapDef[];
   /** potions: healing potions drop in matches (on by default). Music and sound volumes are 0-100. */
   settings: { lang: Lang; fallMode: FallMode; potions: boolean; musicVol: number; sfxVol: number; musicMute: boolean; sfxMute: boolean };
@@ -46,6 +48,7 @@ function defaults(): SaveData {
   return {
     coins: 0,
     owned: [...FREE_WEAPONS],
+    hats: [],
     customMaps: [],
     achievements: [],
     secrets: [],
@@ -69,6 +72,7 @@ export function normalize(raw: unknown): SaveData {
   return {
     coins: Number.isFinite(r.coins) ? Math.max(0, Math.floor(r.coins as number)) : d.coins,
     owned: Array.from(new Set([...FREE_WEAPONS, ...(Array.isArray(r.owned) ? r.owned.filter((x) => typeof x === 'string') : [])])),
+    hats: strs(r.hats),
     customMaps: Array.isArray(r.customMaps) ? r.customMaps.filter((m) => m && Array.isArray(m.platforms)) : [],
     settings: {
       lang: r.settings?.lang === 'th' || r.settings?.lang === 'en' ? r.settings.lang : d.settings.lang,

@@ -4,9 +4,10 @@ import { TEAM_COLORS, randomBossWeapons, type FighterSpec, type MatchResult } fr
 import { BEACH_MAP, BEACH_MODES, isBossMode, isSecret, type Controller, type Difficulty, type FallMode, type MapDef, type Mode } from '../game/types';
 import { cleanName, save } from '../save';
 import { MASCOT_WEAPONS } from '../game/weapons';
+import { HATS, hatExists, resolveHat } from '../game/hats';
 import type { Snapshot } from './snapshot';
 
-export const PROTO = 5;
+export const PROTO = 6;
 export const MIN_ROOM = 2;
 export const MAX_ROOM = 20;
 export const MAX_LOCAL = 6;
@@ -31,6 +32,8 @@ export interface Member {
   weapon: string;
   team: number;
   difficulty: Difficulty;
+  /** Hat id, 'none', or 'random' (bots: rolled from the host's hats). */
+  hat?: string;
   /** Joined during a match: plays from the next round. */
   waiting?: boolean;
 }
@@ -88,7 +91,7 @@ type Msg =
   | { t: 'lobby'; state: RoomState }
   | { t: 'start'; start: StartPayload }
   | { t: 'over'; result: NetResult }
-  | { t: 'set'; id: string; weapon?: string; team?: number; name?: string }
+  | { t: 'set'; id: string; weapon?: string; team?: number; name?: string; hat?: string }
   | { t: 'in'; s: number[][] }
   | { t: 'closed'; reason: 'host-left' | 'kicked' }
   | { t: 'bye' }
@@ -438,7 +441,8 @@ export class RoomHost extends Emitter<RoomEvents> {
     }
   }
 
-  private patch(mem: Member, p: { weapon?: string; team?: number; name?: string; difficulty?: Difficulty }) {
+  private patch(mem: Member, p: { weapon?: string; team?: number; name?: string; difficulty?: Difficulty; hat?: string }) {
+    if (p.hat && (p.hat === 'none' || p.hat === 'random' || hatExists(p.hat))) mem.hat = p.hat;
     if (p.weapon && (p.weapon === 'random' || this.state.hostWeapons.includes(p.weapon))) mem.weapon = p.weapon;
     if (typeof p.team === 'number' && p.team >= 0 && p.team < TEAM_COLORS.length) mem.team = p.team;
     if (p.difficulty) mem.difficulty = p.difficulty;
@@ -450,7 +454,7 @@ export class RoomHost extends Emitter<RoomEvents> {
   }
 
   /** Host changes any member (team, weapon, bot difficulty). */
-  setMember(id: string, p: { weapon?: string; team?: number; name?: string; difficulty?: Difficulty }) {
+  setMember(id: string, p: { weapon?: string; team?: number; name?: string; difficulty?: Difficulty; hat?: string }) {
     const mem = this.state.members.find((x) => x.id === id);
     if (mem) this.patch(mem, p);
   }
@@ -539,6 +543,8 @@ export class RoomHost extends Emitter<RoomEvents> {
       human: m.kind === 'human',
       weapon: m.weapon === 'random' ? st.hostWeapons[Math.floor(Math.random() * st.hostWeapons.length)] : m.weapon,
       difficulty: m.difficulty,
+      // Random hats for bots come from the host's hats.
+      hat: resolveHat(m.hat, m.hat === 'random' ? save.data.hats : HATS.map((x) => x.id)),
       playerIndex: m.kind === 'human' ? m.local : -1,
       memberId: m.id,
       device: m.device,
@@ -690,7 +696,7 @@ export class RoomClient extends Emitter<RoomEvents> {
     }
   }
 
-  setMember(id: string, p: { weapon?: string; team?: number; name?: string }) {
+  setMember(id: string, p: { weapon?: string; team?: number; name?: string; hat?: string }) {
     sendJson(this.rel, { t: 'set', id, ...p });
   }
 

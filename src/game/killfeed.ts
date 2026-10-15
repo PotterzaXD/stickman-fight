@@ -5,7 +5,7 @@ import { save } from '../save';
  * 'kill' = knocked out by someone. The others are the map's fault (nobody hit them first).
  * 'water'/'void'/'lava' with a killer = someone knocked them in.
  */
-export type FeedKind = 'kill' | 'water' | 'void' | 'lava' | 'burn';
+export type FeedKind = 'kill' | 'water' | 'void' | 'lava' | 'burn' | 'peck';
 
 const EN: Record<FeedKind, { solo: string[]; by: string[] }> = {
   kill: {
@@ -48,6 +48,10 @@ const EN: Record<FeedKind, { solo: string[]; by: string[] }> = {
     solo: ['{v} spontaneously combusted. Classic {v}'],
     by: ['{k} turned {v} into toast 🍞', '{k} set {v} on fire and {v} just… let it happen'],
   },
+  peck: {
+    solo: ['{v} got pecked. Just one peck'],
+    by: ['{k} pecked {v} into next week', '{k} mistook {v} for a breadcrumb 🍞', '{v} got one-pecked by {k}. Embarrassing', '{k} took {v} back to the nest 🪺', '{k} said COO and {v} was gone'],
+  },
 };
 
 const TH: Record<FeedKind, { solo: string[]; by: string[] }> = {
@@ -85,6 +89,10 @@ const TH: Record<FeedKind, { solo: string[]; by: string[] }> = {
   burn: {
     solo: ['{v} ติดไฟเองซะงั้น'],
     by: ['{k} ทำให้ {v} กลายเป็นขนมปังปิ้ง 🍞', '{k} จุดไฟใส่ {v} แล้ว {v} ก็ปล่อยให้มันไหม้'],
+  },
+  peck: {
+    solo: ['{v} โดนจิกทีเดียวจบ'],
+    by: ['{k} จิก {v} ไปถึงอาทิตย์หน้า', '{k} นึกว่า {v} เป็นเศษขนมปัง 🍞', '{v} โดน {k} จิกทีเดียวจอด น่าอาย', '{k} คาบ {v} กลับรัง 🪺', '{k} ร้องกุ๊กกรู แล้ว {v} ก็หายไป'],
   },
 };
 

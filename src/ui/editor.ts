@@ -91,7 +91,7 @@ register('maps', (root) => {
 });
 
 type Tool = 'platform' | BlockKind | 'spawn' | 'erase';
-const BLOCKS: BlockKind[] = ['concrete', 'lava', 'glass'];
+const BLOCKS: BlockKind[] = ['concrete', 'lava', 'glass', 'sandbag'];
 const isBlock = (t: Tool): t is BlockKind => (BLOCKS as string[]).includes(t);
 
 register('editor', (root, { map }) => {
@@ -253,6 +253,7 @@ register('editor', (root, { map }) => {
           ['concrete', `🧱 ${t('toolConcrete')}`],
           ['lava', `🌋 ${t('toolLava')}`],
           ['glass', `🪟 ${t('toolGlass')}`],
+          ['sandbag', `🟫 ${t('toolSandbag')}`],
           ['spawn', `🧍 ${t('toolSpawn')}`],
           ['erase', `🧽 ${t('toolErase')}`],
         ] as [Tool, string][]

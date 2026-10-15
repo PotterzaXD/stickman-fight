@@ -15,7 +15,9 @@ export type TrackId =
   | 'lava'
   | 'space'
   | 'beach'
+  | 'war'
   | 'boss'
+  | 'pigeon'
   | 'queen'
   | 'tide'
   | 'guardian';
@@ -69,6 +71,10 @@ const TRACKS: Record<TrackId, TrackDef> = {
   lava: { bpm: 152, root: 61, scale: PHRYG, chords: [0, 1, 0, 6], lead: 'sawtooth', bass: 'sawtooth', arp: null, drums: [DRIVE, 'k.k.s.h.k.k.s.ss'], busy: 0.7, bassRhythm: 'xxx.xxx.xxx.xx.x', seed: 47 },
   space: { bpm: 108, root: 62, scale: LYDIAN, chords: [0, 1, 0, 4], lead: 'sine', bass: 'triangle', arp: 'sine', drums: ['k.......h.......', 'k.....h.....s...'], busy: 0.35, bassRhythm: 'x.......x.......', seed: 53, leadOct: 1 },
   beach: { bpm: 118, root: 67, scale: MAJOR, chords: [0, 3, 4, 0], lead: 'triangle', bass: 'square', arp: 'triangle', drums: ['k..h..h.s..h..h.', 'k..h..h.s..h.hh.'], busy: 0.6, bassRhythm: 'x..x..x...x..x..', seed: 59, swing: 0.15 },
+  // The War map: marching snare and a brave minor tune
+  war: { bpm: 126, root: 55, scale: DORIAN, chords: [0, 5, 6, 4], lead: 'square', bass: 'triangle', arp: null, drums: ['k...s.ssk...s.s.', 'k.ssk.s.k.ssss.s'], busy: 0.55, bassRhythm: 'x...x...x.x.x...', seed: 83 },
+  // The Pigeon: a silly, bouncy theme that loops for as long as the fight goes on
+  pigeon: { bpm: 150, root: 62, scale: MAJOR, chords: [0, 4, 5, 3, 0, 4, 1, 4], lead: 'square', bass: 'triangle', arp: 'square', drums: ['k.h.s.h.k.k.s.h.', 'k.hks.h.k.h.s.hh'], busy: 0.75, bassRhythm: 'x.xx..x.x.xx..x.', seed: 97, swing: 0.08, leadOct: 1 },
   // Standard bosses: fast and intense
   boss: { bpm: 168, root: 57, scale: HARM, chords: [0, 5, 3, 4], lead: 'square', bass: 'sawtooth', arp: 'square', drums: [DRIVE, 'k.hks.hkk.hks.ss'], busy: 0.8, bassRhythm: 'xxxxxxxxxxxxxxxx', seed: 61 },
   // The Snow Queen: icy synths and fast arps
