@@ -73,7 +73,7 @@ register('netplay', (root) => {
     const bosses = game.bosses.length;
     if (localIdx.length) {
       const won = r.winners.some((f) => localIdx.includes(game.fighters.indexOf(f))) && r.winnerTeam !== 99;
-      const others = game.fighters.filter((f) => !f.boss);
+      const others = game.fighters.filter((f) => !f.boss && !f.cloneOf);
       coinLine = giveReward({
         mode: r.mode,
         won,
@@ -86,7 +86,7 @@ register('netplay', (root) => {
       if (won) sfx.win();
       jingle(won ? 'victory' : 'defeat');
     } else jingle('victory');
-    const ranked = [...game.fighters].sort((a, b) => Number(b.alive) - Number(a.alive) || b.kos - a.kos);
+    const ranked = game.fighters.filter((f) => !f.cloneOf).sort((a, b) => Number(b.alive) - Number(a.alive) || b.kos - a.kos);
     overlay.replaceChildren(
       h(
         'div',

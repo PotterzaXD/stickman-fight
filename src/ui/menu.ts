@@ -94,6 +94,7 @@ register('menu', (root) => {
           h('button', { class: 'btn big primary', onclick: () => go('lobby') }, `⚔️ ${t('play')}`),
           h('button', { class: 'btn big online with-friends', onclick: () => go('online') }, `🌐 ${t('online')}`),
           h('button', { class: 'btn big friends', onclick: () => go('friends') }, `👥 ${t('friends')}`),
+          h('button', { class: 'btn big stickbrawl', onclick: () => go('stickbrawl') }, `🥊 ${t('stickBrawl')}`),
           h('button', { class: 'btn big', onclick: () => go('shop') }, `🛒 ${t('shop')}`),
           h('button', { class: 'btn big', onclick: () => go('sandbox') }, `🧪 ${t('sandbox')}`),
           h('button', { class: 'btn big', onclick: () => go('achievements') }, `🏆 ${t('achievements')}`),

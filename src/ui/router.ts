@@ -16,6 +16,7 @@ export interface Routes {
   friends: undefined;
   achievements: undefined;
   sandbox: undefined;
+  stickbrawl: undefined;
 }
 
 export type Screen<K extends keyof Routes> = (root: HTMLElement, arg: Routes[K]) => (() => void) | void;
@@ -38,8 +39,8 @@ export function go<K extends keyof Routes>(name: K, ...arg: undefined extends Ro
   root.replaceChildren();
   root.scrollTop = 0;
   const s = screens[name] as Screen<K>;
-  // Menus play the title theme; Sandbox has its own. Matches pick their own music.
-  if (name !== 'play' && name !== 'netplay') playMusic(name === 'sandbox' ? 'sandbox' : 'menu');
+  // Menus play the title theme; Sandbox has its own. Matches pick their own music, and Stick Brawl has none.
+  if (name !== 'play' && name !== 'netplay' && name !== 'stickbrawl') playMusic(name === 'sandbox' ? 'sandbox' : 'menu');
   sfx.transition();
   cleanup = s(root, arg[0] as Routes[K]);
 }

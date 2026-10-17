@@ -1,4 +1,4 @@
-import type { Fighter } from './entities';
+import type { Cat, Fighter } from './entities';
 import type { Game } from './game';
 import type { WeaponId } from './weapons';
 import type { ProjKind } from './entities';
@@ -140,7 +140,12 @@ export interface Corpse {
   rot: number;
   vr: number;
   done?: boolean;
+  /** Not a stickman: a cat's grave, a cooked fish, the fried Pigeon, or the Recall Memory boss fading away. */
+  prop?: Prop;
+  facing?: number;
 }
+
+export type Prop = 'grave' | 'cooked' | 'fried' | 'fade';
 
 function ragdoll(f: Fighter, vx: number, vy: number, spin: number, cut: boolean) {
   const s = f.scale;
@@ -187,6 +192,8 @@ function ragdoll(f: Fighter, vx: number, vy: number, spin: number, cut: boolean)
 /** Make the body that stays behind after a stickman is knocked out. */
 export function makeCorpse(f: Fighter, style: Finish): Corpse | null {
   if (style === 'pop' || style === 'void') return null;
+  // The Pigeon comes down fried: crispy brown and black.
+  if (f.pigeon) return propCorpse('fried', f.x, f.y, f.color, f.facing, 8);
   const c: Corpse = {
     style,
     color: f.color,
@@ -262,6 +269,28 @@ export function makeCorpse(f: Fighter, style: Finish): Corpse | null {
   return c;
 }
 
+function propCorpse(prop: Prop, x: number, y: number, color: string, facing: number, life: number): Corpse {
+  return { style: 'trip', prop, color, s: 1, boss: false, mascot: false, t: 0, life, x, y, vx: 0, vy: prop === 'fade' ? 0 : -250, rot: 0, vr: 0, facing };
+}
+
+/** What a helper leaves behind when it goes down (not when it falls into the void). Snowmen just pop. */
+export function helperCorpse(c: Cat): Corpse | null {
+  switch (c.variant) {
+    case 'cat':
+      return propCorpse('grave', c.x, c.y, c.color, c.facing, 6);
+    case 'fish':
+      return propCorpse('cooked', c.x, c.y, c.color, c.facing, 6);
+    case 'memory':
+      return propCorpse('fade', c.x, c.y, c.color, c.facing, 1.4);
+    case 'soldier': {
+      // Ragdoll like a stickman (a soldier is stickman sized).
+      const body = { x: c.x, y: c.y, vx: c.vx, vy: c.vy, facing: c.facing, color: c.color, scale: 1, boss: false, mascot: false, pigeon: false } as Fighter;
+      return makeCorpse(body, 'ragdoll');
+    }
+  }
+  return null;
+}
+
 function landY(g: Game, x: number, prevY: number, y: number): number | null {
   let best: number | null = null;
   g.map.platforms.forEach((p, i) => {
@@ -276,6 +305,23 @@ export function updateCorpses(g: Game, dt: number) {
   const grav = g.gravity;
   for (const c of g.corpses) {
     c.t += dt;
+    if (c.prop) {
+      // The Recall Memory boss floats up as it fades; the rest drop to the ground and stay a while.
+      if (c.prop === 'fade') c.y -= 40 * dt;
+      else {
+        const prevY = c.y;
+        c.vy += grav * dt;
+        c.y += c.vy * dt;
+        if (c.vy > 0) {
+          const ly = landY(g, c.x, prevY, c.y);
+          if (ly !== null) {
+            c.y = ly;
+            c.vy = 0;
+          }
+        }
+      }
+      continue;
+    }
     if (c.pts && c.sticks) {
       for (const p of c.pts) {
         const vx = (p.x - p.px) * 0.995;

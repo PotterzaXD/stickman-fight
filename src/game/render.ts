@@ -2,7 +2,7 @@ import type { Body, Cat, Fighter, Snowman, Projectile } from './entities';
 import { BOSS_TEAM, FEED_LIFE, type Game } from './game';
 import { feedParts } from './killfeed';
 import { t } from '../i18n';
-import { drawCorpse } from './finish';
+import { drawCorpse, type Corpse } from './finish';
 import { THEMES } from './maps';
 import type { MapDef, Platform } from './types';
 import { GUNS, type WeaponId } from './weapons';
@@ -1122,7 +1122,7 @@ function drawFishMinion(ctx: Ctx, c: Cat, time: number) {
 }
 
 /** The purple boss ally from Recall Memory: purple lines, a black head, no weapon. */
-function drawMemoryAlly(ctx: Ctx, c: Cat) {
+function drawMemoryAlly(ctx: Ctx, c: Cat, bar = true) {
   const { x, y } = c;
   const f = c.facing;
   const k = c.h / 128;
@@ -1166,7 +1166,173 @@ function drawMemoryAlly(ctx: Ctx, c: Cat) {
   ctx.fill();
   ctx.stroke();
   ctx.globalAlpha = 1;
-  hpBar(ctx, x, y - c.h - 18, 44, c.hp / c.maxHp, c.owner.color);
+  if (bar) hpBar(ctx, x, y - c.h - 18, 44, c.hp / c.maxHp, c.owner.color);
+}
+
+/** What a helper (or the Pigeon) leaves behind: a cat's grave, a cooked fish, the fried Pigeon, or the Recall Memory boss fading away. */
+function drawProp(ctx: Ctx, c: Corpse, time: number) {
+  const d = c.facing ?? 1;
+  const { x, y } = c;
+  if (c.prop === 'fade') {
+    // The same pose, fading out while it floats up.
+    const ghost = { x, y, facing: d, h: 128, hurtFlash: 0, onGround: true, vx: 0, walkPhase: 0, attackT: 0, life: Math.max(0, 1 - c.t / c.life) * 1.5 } as Cat;
+    drawMemoryAlly(ctx, ghost, false);
+    return;
+  }
+  ctx.globalAlpha = Math.max(0, Math.min(1, (c.life - c.t) / 0.8));
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+  // A little steam over the cooked ones.
+  const steam = (sx: number, sy: number, n: number, h: number) => {
+    ctx.strokeStyle = 'rgba(255,255,255,0.55)';
+    ctx.lineWidth = 2.5;
+    for (let k = 0; k < n; k++) {
+      const bx = sx + (k - (n - 1) / 2) * 14;
+      const up = ((time * 30 + k * 11) % h) * 0.6;
+      ctx.beginPath();
+      ctx.moveTo(bx, sy - up);
+      ctx.quadraticCurveTo(bx + 6, sy - up - 8, bx, sy - up - 16);
+      ctx.quadraticCurveTo(bx - 6, sy - up - 24, bx, sy - up - 32);
+      ctx.stroke();
+    }
+  };
+  if (c.prop === 'grave') {
+    // A small gravestone with cat ears, RIP on it, and a paw print.
+    ctx.fillStyle = '#9e9e9e';
+    ctx.strokeStyle = '#424242';
+    ctx.lineWidth = 2.5;
+    ctx.beginPath();
+    ctx.moveTo(x - 14, y - 34);
+    ctx.lineTo(x - 18, y - 46);
+    ctx.lineTo(x - 7, y - 40);
+    ctx.lineTo(x + 7, y - 40);
+    ctx.lineTo(x + 18, y - 46);
+    ctx.lineTo(x + 14, y - 34);
+    ctx.lineTo(x + 15, y);
+    ctx.lineTo(x - 15, y);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+    ctx.fillStyle = '#424242';
+    ctx.font = 'bold 10px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('RIP', x, y - 22);
+    for (const [px, py, r] of [[0, -9, 3.2], [-4, -14, 1.6], [0, -15.5, 1.6], [4, -14, 1.6]] as const) {
+      ctx.beginPath();
+      ctx.arc(x + px, y + py, r, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    // A bit of dirt in front.
+    ctx.fillStyle = '#6d4c41';
+    ctx.beginPath();
+    ctx.ellipse(x, y, 22, 4, 0, 0, Math.PI * 2);
+    ctx.fill();
+  } else if (c.prop === 'cooked') {
+    // A cooked fish on a plate, with grill marks.
+    ctx.fillStyle = '#fafafa';
+    ctx.strokeStyle = '#bdbdbd';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.ellipse(x, y - 3, 30, 6, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+    ctx.save();
+    ctx.translate(x, y - 12);
+    ctx.fillStyle = '#d68a3c';
+    ctx.strokeStyle = '#6d3b12';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(-d * 12, 0);
+    ctx.lineTo(-d * 24, -8);
+    ctx.lineTo(-d * 24, 8);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.ellipse(0, 0, 17, 9, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+    ctx.strokeStyle = '#4e2a0c';
+    ctx.lineWidth = 2.2;
+    for (const gx of [-8, -1, 6]) {
+      ctx.beginPath();
+      ctx.moveTo(gx - 3, -7);
+      ctx.lineTo(gx + 3, 7);
+      ctx.stroke();
+    }
+    // A cooked eye: an X.
+    ctx.lineWidth = 1.6;
+    ctx.beginPath();
+    ctx.moveTo(d * 8 - 2.5, -5.5);
+    ctx.lineTo(d * 8 + 2.5, -0.5);
+    ctx.moveTo(d * 8 + 2.5, -5.5);
+    ctx.lineTo(d * 8 - 2.5, -0.5);
+    ctx.stroke();
+    ctx.restore();
+    steam(x, y - 26, 2, 30);
+  } else if (c.prop === 'fried') {
+    // The Pigeon, fried crispy: a big golden-brown roast with black burnt spots, legs up.
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.strokeStyle = '#1b0f08';
+    ctx.lineWidth = 5;
+    // Drumsticks up in the air: crispy meat with a bone sticking out.
+    for (const side of [-1, 1]) {
+      ctx.strokeStyle = '#efebe9';
+      ctx.lineWidth = 6;
+      line(ctx, side * 40, -84, side * 52, -112);
+      ctx.fillStyle = '#efebe9';
+      for (const k of [-1, 1]) {
+        ctx.beginPath();
+        ctx.arc(side * 52 + k * 5, -114, 5, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.fillStyle = '#7a4214';
+      ctx.strokeStyle = '#1b0f08';
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.ellipse(side * 34, -70, 13, 22, side * -0.45, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+    }
+    ctx.strokeStyle = '#1b0f08';
+    ctx.lineWidth = 5;
+    // Body
+    const grad = ctx.createRadialGradient(-20, -60, 10, 0, -40, 100);
+    grad.addColorStop(0, '#c77a2c');
+    grad.addColorStop(0.55, '#8a4b17');
+    grad.addColorStop(1, '#3e2108');
+    ctx.fillStyle = grad;
+    ctx.beginPath();
+    ctx.ellipse(0, -42, 92, 44, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+    // Burnt black spots and crispy cracks
+    ctx.fillStyle = '#120a05';
+    for (const [sx, sy, r] of [[-50, -54, 11], [30, -66, 9], [56, -34, 13], [-14, -26, 8], [-70, -30, 7], [8, -52, 6]] as const) {
+      ctx.beginPath();
+      ctx.ellipse(sx, sy, r, r * 0.7, 0.4, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.strokeStyle = '#2b1606';
+    ctx.lineWidth = 2.5;
+    for (const [sx, sy] of [[-30, -70], [40, -48], [-60, -44], [10, -36]] as const) {
+      ctx.beginPath();
+      ctx.moveTo(sx, sy);
+      ctx.lineTo(sx + 9, sy + 6);
+      ctx.lineTo(sx + 4, sy + 13);
+      ctx.stroke();
+    }
+    // Shine
+    ctx.strokeStyle = 'rgba(255,224,178,0.5)';
+    ctx.lineWidth = 4;
+    ctx.beginPath();
+    ctx.arc(-24, -56, 40, Math.PI * 1.1, Math.PI * 1.45);
+    ctx.stroke();
+    ctx.restore();
+    steam(x, y - 92, 4, 50);
+  }
+  ctx.globalAlpha = 1;
 }
 
 /** An AI cat called by Grandfather Cat. */
@@ -1799,7 +1965,8 @@ function drawSoldier(ctx: Ctx, c: Cat) {
   ctx.lineCap = 'round';
   ctx.lineJoin = 'round';
   const sw = c.onGround && Math.abs(c.vx) > 20 ? Math.sin(c.walkPhase) * 12 : 0;
-  const stab = c.attackT > 0.5;
+  const thrust = c.thrustT > 0;
+  const stab = c.attackT > 0.5 || thrust;
   const hand: [number, number] = stab ? [x + d * 20, y - 58] : [x + d * 12, y - 50];
   const stroke = (w: number, cc: string) => {
     ctx.strokeStyle = cc;
@@ -1819,7 +1986,7 @@ function drawSoldier(ctx: Ctx, c: Cat) {
   stroke(8, o);
   stroke(5, col);
   // Spear
-  const len = stab ? 96 : 72;
+  const len = thrust ? 130 : stab ? 96 : 72;
   ctx.strokeStyle = '#8d6e63';
   ctx.lineWidth = 3.5;
   line(ctx, hand[0] - d * 14, hand[1] + 2, hand[0] + d * (len - 14), hand[1] - 2);
@@ -2275,7 +2442,10 @@ export function renderGame(g: Game, ctx: Ctx, vw: number, vh: number, dpr: numbe
     drawBanana(ctx, pe.x, pe.y - 4, 9, 0.3);
   }
   for (const po of g.potions) drawPotion(ctx, po.x, po.y, g.time);
-  for (const c of g.corpses) drawCorpse(ctx, c, g.time);
+  for (const c of g.corpses) {
+    if (c.prop) drawProp(ctx, c, g.time);
+    else drawCorpse(ctx, c, g.time);
+  }
 
   // Weapon swing trails
   for (const f of g.fighters) {
@@ -2338,7 +2508,8 @@ export function renderGame(g: Game, ctx: Ctx, vw: number, vh: number, dpr: numbe
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   if (g.blizzard) drawBlizzard(ctx, g.blizzard, vw, vh, g.time);
   // (On the Beach, bosses on your side that went down in the cutscene drop off the list.)
-  const bars = g.bosses.filter((b) => b.alive || b.team === BOSS_TEAM);
+  // The Pigeon has no bar: nobody gets to see how much of its 500,000 HP is left.
+  const bars = g.bosses.filter((b) => (b.alive || b.team === BOSS_TEAM) && !b.pigeon);
   for (const [k, boss] of bars.entries()) {
     const w = Math.min(520, vw * 0.5);
     const x = vw / 2 - w / 2;

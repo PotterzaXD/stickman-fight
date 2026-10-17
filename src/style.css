@@ -908,3 +908,18 @@ select {
 .hint-q {
   font-weight: 800;
 }
+
+/* ---------- Stick Brawl (a separate game in its own frame) ---------- */
+.menu-buttons .btn.stickbrawl {
+  grid-column: 1 / -1;
+  background: linear-gradient(90deg, #ff5d5d, #ffcf4d);
+  color: #2b0707;
+}
+.stickbrawl-frame {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  border: 0;
+  background: #0b0e14;
+}

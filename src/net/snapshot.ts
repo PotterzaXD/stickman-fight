@@ -1,4 +1,5 @@
 import { CAT_VARIANTS, Cat, Fighter, Snowman, type ProjKind, type Projectile } from '../game/entities';
+import type { WeaponId } from '../game/weapons';
 import type { Game, NetEvent } from '../game/game';
 import { FINISHES, makeCorpse } from '../game/finish';
 import type { Key } from '../i18n';
@@ -24,6 +25,8 @@ export interface Snapshot {
   gl?: number[][];
   /** The Snow Queen's Blizzard: [warning seconds left, storm seconds left]. */
   bz?: [number, number];
+  /** Summoner's Clones (extra fighters after the ones from the start): [fighter index, owner index, weapon id]. */
+  cl?: [number, number, string][];
 }
 
 const KINDS: ProjKind[] = ['arrow', 'snowball', 'minisnow', 'boomerang', 'bomb', 'axe', 'shuriken', 'laser', 'fireball', 'six7', 'poop', 'soup', 'icebolt', 'banana', 'fireslash', 'dart', 'memorybox', 'rocket', 'wave', 'shard', 'crash', 'vine', 'nerf', 'bullet67', 'water', 'bubble'];
@@ -88,9 +91,11 @@ export function encodeSnapshot(g: Game): Snapshot {
     e: g.events,
     po: g.potions.map((p) => [p.id, r1(p.x), r1(p.y)]),
     pe: g.peels.map((p) => [r1(p.x), r1(p.y), r2(p.life)]),
-    c: g.cats.map((c) => [c.id, ownerIndex(g, c.owner), r1(c.x), r1(c.y), r1(c.hp), c.facing, c.hurtFlash > 0 ? 1 : 0, c.maxHp, r1(c.vx), CAT_VARIANTS.indexOf(c.variant), c.life === Infinity ? -1 : r2(c.life), c.attackT > 0.5 ? 1 : 0]),
+    c: g.cats.map((c) => [c.id, ownerIndex(g, c.owner), r1(c.x), r1(c.y), r1(c.hp), c.facing, c.hurtFlash > 0 ? 1 : 0, c.maxHp, r1(c.vx), CAT_VARIANTS.indexOf(c.variant), c.life === Infinity ? -1 : r2(c.life), c.thrustT > 0 ? 2 : c.attackT > 0.5 ? 1 : 0]),
     gl: g.glassT.flatMap((t, i) => (t > 0 ? [[i, r2(t)]] : [])),
   };
+  const clones = g.fighters.flatMap((f, i): [number, number, string][] => (f.cloneOf ? [[i, g.fighters.indexOf(f.cloneOf), f.weapons[0].id]] : []));
+  if (clones.length) snap.cl = clones;
   if (g.caption) snap.cap = [g.caption.key, g.caption.who, r2(g.caption.t)];
   if (g.blizzard) snap.bz = [r2(g.blizzard.warn), r2(g.blizzard.t)];
   g.events = [];
@@ -110,6 +115,12 @@ export class Mirror {
     g.shake = Math.max(g.shake, s.sh);
     // Keep the clock close to the host's so moving platforms line up.
     if (Math.abs(g.time - s.tm) > 0.15) g.time = s.tm;
+    // New Clones from the host's Summoner: add them in the same order so the fighter indexes match.
+    for (const [i, oi, wid] of s.cl ?? []) {
+      if (i !== g.fighters.length || !g.fighters[oi]) continue;
+      const c = g.addClone(g.fighters[oi], wid as WeaponId);
+      c.alive = false;
+    }
     s.f.forEach((a, i) => {
       const f = g.fighters[i];
       if (!f) return;
@@ -202,6 +213,7 @@ export class Mirror {
       }
       c.life = life === undefined || life < 0 ? Infinity : life;
       if (biting) c.attackT = 0.7;
+      c.thrustT = biting === 2 ? 0.1 : 0;
       c.hp = hp;
       c.facing = facing;
       c.vx = vx;
@@ -217,6 +229,8 @@ export class Mirror {
     }
     for (const [id, c] of [...this.cats]) {
       if (seenCats.has(id)) continue;
+      // Gone on the host: leave the same remains here (not when it fell into the void).
+      if (c.y < g.map.h + 150) g.helperRemains(c);
       this.cats.delete(id);
       this.target.delete(c);
     }
