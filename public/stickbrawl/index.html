@@ -1,0 +1,1346 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>STICK BRAWL ARENA</title>
+<style>
+  :root{
+    --ink:#0b0e14;
+    --panel:#11151f;
+    --panel2:#161c29;
+    --line:#2a3346;
+    --frost:#7fd7ff;
+    --frost2:#bdeeff;
+    --hot:#ff5d5d;
+    --gold:#ffcf4d;
+    --teamA:#ff5d6c;
+    --teamB:#4da3ff;
+    --text:#e8eef7;
+    --sub:#8b96ab;
+  }
+  *{box-sizing:border-box; -webkit-tap-highlight-color:transparent; user-select:none;}
+  html,body{margin:0;padding:0;background:var(--ink);color:var(--text);
+    font-family:'Segoe UI',system-ui,-apple-system,Arial,sans-serif; overflow:hidden; height:100%;}
+  #app{position:relative; width:100vw; height:100vh; overflow:hidden;}
+
+  canvas{display:block; background:linear-gradient(#1c2438,#0e121c 60%);}
+
+  .screen{position:absolute; inset:0; display:flex; flex-direction:column; align-items:center;
+    background:radial-gradient(circle at 50% -10%, #1b2436 0%, #0b0e14 70%); overflow-y:auto; padding:18px 14px 30px;}
+  .hidden{display:none !important;}
+
+  .logo{font-size:34px; font-weight:900; letter-spacing:2px; margin:14px 0 2px;
+    color:var(--frost2); text-shadow:0 0 18px rgba(127,215,255,.55), 3px 3px 0 #08323f;}
+  .logo span{color:var(--hot); text-shadow:0 0 18px rgba(255,93,93,.55), 3px 3px 0 #5a0d0d;}
+  .tag{color:var(--sub); font-size:12px; margin-bottom:14px; letter-spacing:1px;}
+
+  .coinbar{position:absolute; top:10px; right:10px; background:var(--panel);
+    border:1px solid var(--line); border-radius:30px; padding:6px 14px 6px 8px;
+    display:flex; align-items:center; gap:6px; font-weight:800; font-size:14px; z-index:5;}
+  .coinbar .ic{width:20px;height:20px;border-radius:50%;background:radial-gradient(circle at 35% 30%, #fff6cf, var(--gold) 60%, #a87800);
+    box-shadow:0 0 8px rgba(255,207,77,.6);}
+
+  .card{width:100%; max-width:480px; background:var(--panel); border:1px solid var(--line);
+    border-radius:16px; padding:14px 16px; margin:8px 0;}
+  .card h3{margin:0 0 10px; font-size:14px; letter-spacing:1px; color:var(--frost); text-transform:uppercase;}
+
+  .row{display:flex; gap:8px; flex-wrap:wrap;}
+  .opt{flex:1; min-width:80px; text-align:center; padding:10px 6px; border-radius:10px;
+    background:var(--panel2); border:2px solid var(--line); cursor:pointer; font-weight:700; font-size:13px; transition:.12s;}
+  .opt.sel{border-color:var(--frost); background:linear-gradient(#1c3a4a,#142533); color:var(--frost2); box-shadow:0 0 10px rgba(127,215,255,.3);}
+  .opt small{display:block; color:var(--sub); font-weight:400; font-size:10px; margin-top:2px;}
+
+  .stepper{display:flex; align-items:center; justify-content:space-between; background:var(--panel2);
+    border:1px solid var(--line); border-radius:10px; padding:8px 10px;}
+  .stepper .val{font-size:20px; font-weight:900; color:var(--frost2); min-width:30px; text-align:center;}
+  .stepbtn{width:36px;height:36px;border-radius:8px;background:var(--ink);border:1px solid var(--line);
+    color:var(--text); font-size:18px; font-weight:900; cursor:pointer;}
+
+  .btn{padding:13px 22px; border-radius:12px; border:none; font-weight:900; font-size:15px;
+    letter-spacing:.5px; cursor:pointer; color:#06222b;
+    background:linear-gradient(180deg, var(--frost2), var(--frost));
+    box-shadow:0 4px 0 #1c5b6f, 0 6px 14px rgba(0,0,0,.4);}
+  .btn:active{transform:translateY(3px); box-shadow:0 1px 0 #1c5b6f;}
+  .btn.alt{background:linear-gradient(180deg,#ffd98a,var(--gold)); box-shadow:0 4px 0 #8a5e00, 0 6px 14px rgba(0,0,0,.4); color:#332100;}
+  .btn.danger{background:linear-gradient(180deg,#ff9b9b,var(--hot)); box-shadow:0 4px 0 #7a1414; color:#2b0000;}
+  .btn.small{padding:8px 12px; font-size:12px; border-radius:8px; box-shadow:0 3px 0 rgba(0,0,0,.4);}
+  .btn:disabled{opacity:.4; cursor:default;}
+  .btnbar{display:flex; gap:10px; margin-top:6px; width:100%; max-width:480px;}
+  .btnbar .btn{flex:1;}
+
+  .shopitem{display:flex; align-items:center; gap:10px; background:var(--panel2); border:1px solid var(--line);
+    border-radius:12px; padding:10px; margin-bottom:8px;}
+  .shopitem .icon{width:46px;height:46px;border-radius:10px; display:flex; align-items:center; justify-content:center;
+    font-size:22px; background:var(--ink); border:1px solid var(--line); flex-shrink:0;}
+  .shopitem .info{flex:1;}
+  .shopitem .info b{font-size:14px;}
+  .shopitem .info .desc{font-size:11px; color:var(--sub); margin-top:1px;}
+  .shopitem .stats{font-size:10px; color:var(--frost); margin-top:3px;}
+  .pricebtn{min-width:78px; text-align:center;}
+
+  /* HUD */
+  #hud{position:absolute; inset:0; pointer-events:none; z-index:3;}
+  .hpbars{position:absolute; top:54px; left:8px; right:8px; display:flex; justify-content:space-between; gap:8px; z-index:4;}
+  .hpgroup{display:flex; flex-direction:column; gap:4px; max-width:46%;}
+  .hpgroup.right{align-items:flex-end;}
+  .hpwrap{width:140px; height:13px; background:#000c; border:1px solid #fff2; border-radius:7px; overflow:hidden; box-shadow:0 1px 4px rgba(0,0,0,.6);}
+  .hpwrap .fill{height:100%; transition:width .15s;}
+  .hpname{font-size:11px; font-weight:800; color:#fff; text-shadow:0 0 4px #000, 0 0 2px #000;}
+
+  .matchmsg{position:absolute; top:38%; left:50%; transform:translate(-50%,-50%); font-size:40px; font-weight:900;
+    color:var(--frost2); text-shadow:0 0 20px #000, 0 0 30px rgba(127,215,255,.8); text-align:center; letter-spacing:2px;}
+
+  /* controls */
+  .joywrap{position:absolute; left:24px; bottom:24px; width:120px; height:120px; border-radius:50%;
+    background:rgba(255,255,255,.06); border:2px solid rgba(255,255,255,.18); pointer-events:auto; touch-action:none;}
+  .joynub{position:absolute; width:54px; height:54px; left:33px; top:33px; border-radius:50%;
+    background:radial-gradient(circle at 35% 30%, #cdeeff, var(--frost) 70%); box-shadow:0 0 10px rgba(127,215,255,.6);}
+
+  .actionbtns{position:absolute; right:18px; bottom:20px; display:flex; flex-direction:column; gap:10px; pointer-events:auto;}
+  .abtn{width:72px;height:72px;border-radius:50%; border:2px solid rgba(255,255,255,.25); font-size:11px; font-weight:900;
+    color:#fff; display:flex; align-items:center; justify-content:center; text-align:center; line-height:1.1;}
+  .abtn.punch{background:radial-gradient(circle at 35% 30%, #ffb3b3, #c92b2b 70%);}
+  .abtn.jump{background:radial-gradient(circle at 35% 30%, #c9d6ff, #3a55c9 70%); width:58px;height:58px; align-self:flex-end;}
+  .abtn.special{background:radial-gradient(circle at 35% 30%, #cdeeff, #1c6fa3 70%);}
+  .abtn:active{filter:brightness(1.3);}
+
+  .pausebtn{position:absolute; top:8px; left:8px; width:34px;height:34px;border-radius:8px; background:#0007;
+    border:1px solid #fff3; color:#fff; font-size:16px; pointer-events:auto; z-index:6;}
+
+  .resultcard{position:absolute; inset:0; background:rgba(5,8,14,.88); display:flex; flex-direction:column;
+    align-items:center; justify-content:center; z-index:10; text-align:center; padding:20px;}
+  .resultcard h1{font-size:32px; margin:0 0 6px;}
+  .resultcard .coinsgain{font-size:22px; font-weight:900; color:var(--gold); margin:10px 0 18px;}
+
+  .smallnote{font-size:11px; color:var(--sub); text-align:center; max-width:440px; margin-top:4px;}
+  .tip{font-size:10px;color:var(--sub);}
+  ::-webkit-scrollbar{width:0;height:0;}
+</style>
+</head>
+<body>
+<div id="app">
+
+  <!-- ============ MAIN MENU ============ -->
+  <div id="menuScreen" class="screen">
+    <div class="logo">STICK <span>BRAWL</span> ARENA</div>
+    <div class="tag">snow, steel & stickmen — one device, total chaos</div>
+
+    <div class="card" style="display:flex; align-items:center; gap:14px; justify-content:space-between;">
+      <div style="display:flex; gap:14px; flex-wrap:wrap;">
+        <div style="text-align:center;"><div style="font-size:18px;font-weight:900;color:#ffd54d;" id="statWins">0</div><div class="tip">Wins</div></div>
+        <div style="text-align:center;"><div style="font-size:18px;font-weight:900;color:#ff5d6c;" id="statLosses">0</div><div class="tip">Losses</div></div>
+        <div style="text-align:center;"><div style="font-size:18px;font-weight:900;color:#7fd7ff;" id="statStreak">0</div><div class="tip">Streak</div></div>
+        <div style="text-align:center;"><div style="font-size:18px;font-weight:900;color:#b34dff;" id="statBoss">0</div><div class="tip">Bosses</div></div>
+      </div>
+      <button class="btn alt small" id="dailyBonusBtn" style="white-space:nowrap;">🎁 Claim</button>
+    </div>
+
+    <div class="card">
+      <h3>① Mode</h3>
+      <div class="row" id="modeRow">
+        <div class="opt sel" data-mode="pvb">Player vs Bots</div>
+        <div class="opt" data-mode="pvp">Player vs Player</div>
+        <div class="opt" data-mode="bvb">Bot vs Bot</div>
+        <div class="opt" data-mode="boss">👹 Boss Fight</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3 id="botCardTitle">② Bots in arena</h3>
+      <div class="stepper">
+        <div class="stepbtn" id="botMinus">−</div>
+        <div class="val" id="botVal">2</div>
+        <div class="stepbtn" id="botPlus">+</div>
+      </div>
+      <div class="smallnote" id="botNote">These bots will fight against you.</div>
+    </div>
+
+    <div class="card" id="playerCountCard">
+      <h3>③ Human players (local)</h3>
+      <div class="stepper">
+        <div class="stepbtn" id="plMinus">−</div>
+        <div class="val" id="plVal">1</div>
+        <div class="stepbtn" id="plPlus">+</div>
+      </div>
+      <div class="smallnote" id="plNote">Player 1 uses joystick. Extra players share this keyboard.</div>
+    </div>
+
+    <div class="card" id="teamCard">
+      <h3>④ Teams</h3>
+      <div class="row" id="teamRow">
+        <div class="opt sel" data-team="off">Free for All</div>
+        <div class="opt" data-team="on">2 Teams (Red vs Blue)</div>
+      </div>
+      <div class="smallnote" id="teamNote"></div>
+    </div>
+
+    <div class="card">
+      <h3>⑤ Map</h3>
+      <div class="row" id="mapRow">
+        <div class="opt sel" data-map="snowy">❄️ Snowy Peaks</div>
+        <div class="opt" data-map="lava">🌋 Lava Pit</div>
+        <div class="opt" data-map="night">🌃 Neon Night</div>
+        <div class="opt" data-map="forest">🌲 Forest Arena</div>
+        <div class="opt" data-map="parkour">🏃 Parkour Zone</div>
+      </div>
+    </div>
+
+    <div class="btnbar">
+      <button class="btn alt" id="openShop">🛒 Shop</button>
+      <button class="btn" id="startFight">⚔ Start Fight</button>
+    </div>
+    <div class="btnbar" style="max-width:480px;">
+      <button class="btn danger" id="exitMenuBtn" style="flex:1;">✖ Exit Game</button>
+    </div>
+    <div class="smallnote">Win a fight to earn gold. Even if the bots beat you, you still pick up a small consolation payout. Beat the Boss for a big bonus!</div>
+  </div>
+
+  <!-- ============ SHOP ============ -->
+  <div id="shopScreen" class="screen hidden">
+    <div class="logo" style="font-size:24px;">🛒 ARMORY & ROSTER</div>
+    <div class="tag">spend gold on weapons and extra fighter slots</div>
+
+    <div class="card" style="max-width:520px;">
+      <h3>Weapons</h3>
+      <div id="weaponList"></div>
+    </div>
+
+    <div class="card" style="max-width:520px;">
+      <h3>Extra Player Slots</h3>
+      <div id="slotList"></div>
+    </div>
+
+    <div class="card" style="max-width:520px;">
+      <h3>Equip Weapon — Player 1</h3>
+      <div class="row" id="equipRow"></div>
+    </div>
+
+    <div class="card" style="max-width:520px;">
+      <h3>Skins</h3>
+      <div id="skinList"></div>
+    </div>
+
+    <div class="card" style="max-width:520px;">
+      <h3>Equip Skin</h3>
+      <div class="row" id="equipSkinRow"></div>
+    </div>
+
+    <button class="btn" id="closeShop" style="margin-top:6px;">← Back to Menu</button>
+  </div>
+
+  <!-- ============ GAME ============ -->
+  <div id="gameScreen" class="screen hidden" style="padding:0;">
+    <canvas id="cv"></canvas>
+    <div id="hud">
+      <button class="pausebtn" id="pauseBtn">☰</button>
+      <div class="hpbars">
+        <div class="hpgroup" id="hpLeft"></div>
+        <div class="hpgroup right" id="hpRight"></div>
+      </div>
+      <div class="matchmsg hidden" id="matchMsg"></div>
+
+      <div class="joywrap" id="joy">
+        <div class="joynub" id="joyNub"></div>
+      </div>
+      <div class="actionbtns">
+        <div class="abtn jump" id="btnJump">JUMP</div>
+        <div class="abtn special hidden" id="btnSpecial3" style="background:radial-gradient(circle at 35% 30%, #ffb347, #c94a00 70%); font-size:10px;">SPECIAL 3</div>
+        <div class="abtn special hidden" id="btnSpecial2" style="background:radial-gradient(circle at 35% 30%, #ffe3b0, #c97a1c 70%); font-size:10px;">SPECIAL 2</div>
+        <div class="abtn special" id="btnSpecial">SPECIAL</div>
+        <div class="abtn punch" id="btnPunch">ATTACK</div>
+      </div>
+    </div>
+
+    <div class="resultcard hidden" id="resultCard">
+      <h1 id="resultTitle">VICTORY!</h1>
+      <div id="resultSub" class="smallnote"></div>
+      <div class="coinsgain" id="coinsGain">+100 gold</div>
+      <div class="btnbar" style="max-width:320px;">
+        <button class="btn" id="rematchBtn">Rematch</button>
+        <button class="btn alt" id="menuBtn">Menu</button>
+      </div>
+    </div>
+
+    <div class="resultcard hidden" id="pauseCard">
+      <h1 style="color:var(--frost2);">⏸ PAUSED</h1>
+      <div class="smallnote" style="margin-bottom:10px;">Game's on hold — pick an option below.</div>
+      <div class="btnbar" style="max-width:320px; flex-direction:column;">
+        <button class="btn" id="resumeBtn" style="margin-bottom:8px;">▶ Resume</button>
+        <button class="btn alt" id="restartBtn" style="margin-bottom:8px;">🔁 Restart Fight</button>
+        <button class="btn alt" id="pauseMenuBtn" style="margin-bottom:8px;">🏠 Exit to Menu</button>
+        <button class="btn danger" id="quitBtn">✖ Quit Game</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="coinbar" id="coinbar"><div class="ic"></div><span id="coinAmt">0</span></div>
+</div>
+
+<script>
+/* ============================================================
+   STICK BRAWL ARENA — single file game
+   ============================================================ */
+(function(){
+"use strict";
+
+// ---------- persistent storage ----------
+const DEFAULT_STATE = {
+  coins: 150,
+  ownedWeapons: ["fists"],
+  ownedSlots: 1,
+  equipped: "fists",
+  ownedSkins: ["default"],
+  equippedSkin: "default",
+  stats: { wins:0, losses:0, bossKills:0, streak:0, bestStreak:0 },
+  lastClaim: 0
+};
+let save = JSON.parse(JSON.stringify(DEFAULT_STATE));
+
+async function loadSave(){
+  try{
+    const raw = localStorage.getItem('stickbrawl_save');
+    if(raw){ save = Object.assign({}, DEFAULT_STATE, JSON.parse(raw)); }
+    // migrate: ensure nested stats object is complete
+    save.stats = Object.assign({wins:0,losses:0,bossKills:0,streak:0,bestStreak:0}, save.stats||{});
+    save.ownedSkins = save.ownedSkins || ["default"];
+    save.equippedSkin = save.equippedSkin || "default";
+  }catch(e){ console.warn('Save load failed, using defaults', e); }
+  checkComboUnlock();
+  refreshCoinBar();
+  refreshStatsUI();
+}
+function writeSave(){
+  try{ localStorage.setItem('stickbrawl_save', JSON.stringify(save)); }catch(e){ console.warn('Save write failed',e); }
+}
+function refreshCoinBar(){ document.getElementById('coinAmt').textContent = save.coins; }
+function refreshStatsUI(){
+  document.getElementById('statWins').textContent = save.stats.wins;
+  document.getElementById('statLosses').textContent = save.stats.losses;
+  document.getElementById('statStreak').textContent = save.stats.streak;
+  document.getElementById('statBoss').textContent = save.stats.bossKills;
+  updateDailyBonusBtn();
+}
+function updateDailyBonusBtn(){
+  const btn = document.getElementById('dailyBonusBtn');
+  const now = Date.now();
+  const msLeft = 86400000 - (now - (save.lastClaim||0));
+  if(msLeft<=0){ btn.textContent="🎁 Claim 50"; btn.disabled=false; }
+  else{
+    const h = Math.floor(msLeft/3600000), m = Math.floor((msLeft%3600000)/60000);
+    btn.textContent = `⏳ ${h}h ${m}m`; btn.disabled=true;
+  }
+}
+document.getElementById('dailyBonusBtn').onclick = ()=>{
+  const now = Date.now();
+  if(now - (save.lastClaim||0) < 86400000) return;
+  save.coins += 50; save.lastClaim = now; writeSave(); refreshCoinBar(); updateDailyBonusBtn();
+};
+function checkComboUnlock(){
+  const hasAll = COMBO_REQUIRES.every(k=>save.ownedWeapons.includes(k));
+  if(hasAll && !save.ownedWeapons.includes(COMBO_KEY)){
+    save.ownedWeapons.push(COMBO_KEY);
+    writeSave();
+  }
+}
+
+// ---------- weapon definitions ----------
+const WEAPONS = {
+  fists:   {name:"Fists", price:0, dmg:6,  range:46, knock:5,  cd:280, icon:"👊", desc:"Free starter. Reliable jabs."},
+  bat:     {name:"Wooden Bat", price:80, dmg:12, range:58, knock:9, cd:340, icon:"🏏", desc:"Slow but solid knockback."},
+  sword:   {name:"Sword", price:150, dmg:17, range:62, knock:7, cd:260, icon:"🗡️", desc:"Fast, long reach blade."},
+  spear:   {name:"Spear", price:180, dmg:15, range:84, knock:11, cd:380, icon:"🔱", desc:"Longest range poke."},
+  hammer:  {name:"War Hammer", price:220, dmg:24, range:50, knock:16, cd:520, icon:"🔨", desc:"Brutal damage, slow swing."},
+  axe:     {name:"Battle Axe", price:190, dmg:21, range:56, knock:14, cd:400, icon:"🪓", desc:"Heavy chops, good knockback."},
+  knives:  {name:"Throwing Knives", price:140, dmg:7, range:999, knock:4, cd:240, icon:"🔪", desc:"Fast, spammable ranged jabs.", projectile:true},
+  snowball:{name:"Snowball", price:130, dmg:9, range:999, knock:6, cd:420, icon:"❄️", desc:"Throws snowballs. SPECIAL summons a Snowman ally!", projectile:true, special:true, canSnowman:true},
+  wrench:  {name:"Wrench", price:130, dmg:10, range:50, knock:7, cd:380, icon:"🔧", desc:"Whacks enemies. SPECIAL deploys a Turret ally!", special:true, canTurret:true},
+  fireball:{name:"Fireball", price:160, dmg:13, range:999, knock:8, cd:360, icon:"🔥", desc:"Hurls fireballs. SPECIAL summons a Fire Ally to fight for you!", projectile:true, special:true, canFireAlly:true, isFire:true},
+  frostwrench:{name:"⚡ Frost Cannon", price:0, dmg:18, range:65, knock:12, cd:300, icon:"🌀", desc:"COMBO (Snowball+Wrench+Fireball). SPECIAL 1 = Turret · SPECIAL 2 = Snowman · SPECIAL 3 = Fire Ally.", special:true, canTurret:true, canSnowman:true, canFireAlly:true, isCombo:true, hidden:true},
+  turretgun:{name:"Turret Gun", price:0, dmg:8, range:999, knock:4, cd:260, icon:"🔫", desc:"internal", projectile:true, hidden:true}
+};
+const COMBO_REQUIRES = ["snowball","wrench","fireball"];
+const COMBO_KEY = "frostwrench";
+const SLOT_PRICES = [0, 0, 200, 350]; // index = slot number-1 -> price to unlock that slot (slot1 free)
+
+const SKINS = {
+  default:{name:"Classic Gold",   price:0,   color:"#ffd54d"},
+  ice:    {name:"Ice Blue",       price:90,  color:"#7fd7ff"},
+  lava:   {name:"Lava Red",       price:90,  color:"#ff5d5d"},
+  toxic:  {name:"Toxic Green",    price:120, color:"#9bffb0"},
+  shadow: {name:"Shadow Purple",  price:150, color:"#b34dff"},
+  royal:  {name:"Royal Pink",     price:130, color:"#ff8fd0"},
+  snow:   {name:"Snowman White",  price:110, color:"#eafbff"}
+};
+
+// ---------- DOM refs ----------
+const screens = {
+  menu: document.getElementById('menuScreen'),
+  shop: document.getElementById('shopScreen'),
+  game: document.getElementById('gameScreen')
+};
+function showScreen(name){
+  Object.values(screens).forEach(s=>s.classList.add('hidden'));
+  screens[name].classList.remove('hidden');
+  if(name==="menu") refreshStatsUI();
+}
+
+// ---------- menu state ----------
+let cfg = { mode:"pvb", bots:2, players:1, teams:false, map:"snowy" };
+
+document.getElementById('modeRow').addEventListener('click', e=>{
+  const opt = e.target.closest('.opt'); if(!opt) return;
+  document.querySelectorAll('#modeRow .opt').forEach(o=>o.classList.remove('sel'));
+  opt.classList.add('sel');
+  cfg.mode = opt.dataset.mode;
+  syncModeUI();
+});
+document.getElementById('teamRow').addEventListener('click', e=>{
+  const opt = e.target.closest('.opt'); if(!opt) return;
+  document.querySelectorAll('#teamRow .opt').forEach(o=>o.classList.remove('sel'));
+  opt.classList.add('sel');
+  cfg.teams = opt.dataset.team === "on";
+});
+document.getElementById('mapRow').addEventListener('click', e=>{
+  const opt = e.target.closest('.opt'); if(!opt) return;
+  document.querySelectorAll('#mapRow .opt').forEach(o=>o.classList.remove('sel'));
+  opt.classList.add('sel');
+  cfg.map = opt.dataset.map;
+});
+function syncModeUI(){
+  const plCard = document.getElementById('playerCountCard');
+  const teamCard = document.getElementById('teamCard');
+  const botTitle = document.getElementById('botCardTitle');
+  const botNote = document.getElementById('botNote');
+  const teamNote = document.getElementById('teamNote');
+
+  if(cfg.mode === "bvb"){
+    plCard.style.opacity = .4; plCard.style.pointerEvents='none'; cfg.players = 0; document.getElementById('plVal').textContent = 0;
+    botTitle.textContent = "② Bots in arena";
+    botNote.textContent = "These bots will fight each other.";
+    teamCard.style.opacity = 1; teamCard.style.pointerEvents='auto'; teamNote.textContent = "";
+  } else if(cfg.mode === "boss"){
+    plCard.style.opacity = 1; plCard.style.pointerEvents='auto'; if(cfg.players<1){cfg.players=1; document.getElementById('plVal').textContent=1;}
+    botTitle.textContent = "② Ally bots (helpers)";
+    botNote.textContent = "These bots fight ALONGSIDE you against the Boss.";
+    teamCard.style.opacity = .4; teamCard.style.pointerEvents='none';
+    teamNote.textContent = "Boss Fight always pits you + allies vs the Boss.";
+  } else {
+    plCard.style.opacity = 1; plCard.style.pointerEvents='auto'; if(cfg.players<1){cfg.players=1; document.getElementById('plVal').textContent=1;}
+    botTitle.textContent = "② Bots in arena";
+    botNote.textContent = "These bots will fight against you.";
+    teamCard.style.opacity = 1; teamCard.style.pointerEvents='auto'; teamNote.textContent = "";
+  }
+}
+document.getElementById('botMinus').onclick = ()=>{ cfg.bots=Math.max(0,cfg.bots-1); document.getElementById('botVal').textContent=cfg.bots; };
+document.getElementById('botPlus').onclick  = ()=>{ cfg.bots=Math.min(10,cfg.bots+1); document.getElementById('botVal').textContent=cfg.bots; };
+document.getElementById('plMinus').onclick = ()=>{ if(cfg.mode==="bvb")return; cfg.players=Math.max(1,cfg.players-1); document.getElementById('plVal').textContent=cfg.players; };
+document.getElementById('plPlus').onclick  = ()=>{
+  if(cfg.mode==="bvb")return;
+  const maxAllowed = save.ownedSlots;
+  cfg.players=Math.min(maxAllowed,cfg.players+1);
+  document.getElementById('plVal').textContent=cfg.players;
+};
+
+document.getElementById('openShop').onclick = ()=>{ buildShop(); showScreen('shop'); };
+document.getElementById('closeShop').onclick = ()=>{ showScreen('menu'); };
+document.getElementById('startFight').onclick = ()=>{ startMatch(); };
+
+// ---------- shop building ----------
+function buildShop(){
+  const wl = document.getElementById('weaponList'); wl.innerHTML="";
+  Object.keys(WEAPONS).forEach(key=>{
+    const w = WEAPONS[key];
+    if(w.hidden) return; // combo/internal weapons aren't directly purchasable
+    const owned = save.ownedWeapons.includes(key);
+    const div = document.createElement('div'); div.className="shopitem";
+    div.innerHTML = `<div class="icon">${w.icon}</div>
+      <div class="info"><b>${w.name}</b><div class="desc">${w.desc}</div>
+      <div class="stats">DMG ${w.dmg} · RANGE ${w.range>900?'∞':w.range} · KNOCKBACK ${w.knock}</div></div>`;
+    const btnWrap = document.createElement('div'); btnWrap.className="pricebtn";
+    const btn = document.createElement('button');
+    btn.className = "btn small" + (owned ? " alt":"");
+    btn.textContent = owned ? "OWNED" : (w.price===0 ? "FREE" : ("Buy "+w.price));
+    if(owned) btn.disabled = true;
+    btn.onclick = ()=>{
+      if(owned) return;
+      if(save.coins < w.price){ flashCantAfford(btn); return; }
+      save.coins -= w.price; save.ownedWeapons.push(key); checkComboUnlock(); writeSave(); refreshCoinBar(); buildShop();
+    };
+    btnWrap.appendChild(btn); div.appendChild(btnWrap);
+    wl.appendChild(div);
+  });
+
+  // combo unlock status card
+  const comboDiv = document.createElement('div'); comboDiv.className="shopitem";
+  const hasCombo = save.ownedWeapons.includes(COMBO_KEY);
+  const haveSnow = save.ownedWeapons.includes("snowball");
+  const haveWrench = save.ownedWeapons.includes("wrench");
+  comboDiv.innerHTML = `<div class="icon">⚙️❄️</div>
+    <div class="info"><b>Frost Wrench Combo</b><div class="desc">${hasCombo ? "Unlocked! Equip it below for two specials." : "Own both Snowball AND Wrench to auto-unlock this combo weapon."}</div>
+    <div class="stats">Snowball: ${haveSnow?'✅':'❌'} · Wrench: ${haveWrench?'✅':'❌'}</div></div>`;
+  wl.appendChild(comboDiv);
+
+  const sl = document.getElementById('slotList'); sl.innerHTML="";
+  for(let i=2;i<=4;i++){
+    const price = SLOT_PRICES[i-1];
+    const owned = save.ownedSlots >= i;
+    const div = document.createElement('div'); div.className="shopitem";
+    div.innerHTML = `<div class="icon">🧍</div>
+      <div class="info"><b>Player Slot ${i}</b><div class="desc">Unlock a ${i}${i===2?'nd':i===3?'rd':'th'} local human fighter for PvP battles.</div></div>`;
+    const btnWrap = document.createElement('div'); btnWrap.className="pricebtn";
+    const btn = document.createElement('button');
+    btn.className = "btn small" + (owned ? " alt":"");
+    btn.textContent = owned ? "OWNED" : ("Buy "+price);
+    if(owned) btn.disabled = true;
+    btn.onclick = ()=>{
+      if(owned) return;
+      if(save.coins < price){ flashCantAfford(btn); return; }
+      save.coins -= price; save.ownedSlots = i; writeSave(); refreshCoinBar(); buildShop();
+    };
+    btnWrap.appendChild(btn); div.appendChild(btnWrap);
+    sl.appendChild(div);
+  }
+
+  const er = document.getElementById('equipRow'); er.innerHTML="";
+  save.ownedWeapons.forEach(key=>{
+    const w = WEAPONS[key];
+    const opt = document.createElement('div');
+    opt.className = "opt" + (save.equipped===key ? " sel":"");
+    opt.innerHTML = `${w.icon} ${w.name}<small>DMG ${w.dmg}</small>`;
+    opt.onclick = ()=>{ save.equipped = key; writeSave(); buildShop(); };
+    er.appendChild(opt);
+  });
+
+  const skl = document.getElementById('skinList'); skl.innerHTML="";
+  Object.keys(SKINS).forEach(key=>{
+    const sk = SKINS[key];
+    const owned = save.ownedSkins.includes(key);
+    const div = document.createElement('div'); div.className="shopitem";
+    div.innerHTML = `<div class="icon" style="background:${sk.color}; box-shadow:0 0 10px ${sk.color}99;"></div>
+      <div class="info"><b>${sk.name}</b><div class="desc">Recolors your stickman fighter.</div></div>`;
+    const btnWrap = document.createElement('div'); btnWrap.className="pricebtn";
+    const btn = document.createElement('button');
+    btn.className = "btn small" + (owned ? " alt":"");
+    btn.textContent = owned ? "OWNED" : (sk.price===0 ? "FREE" : ("Buy "+sk.price));
+    if(owned) btn.disabled = true;
+    btn.onclick = ()=>{
+      if(owned) return;
+      if(save.coins < sk.price){ flashCantAfford(btn); return; }
+      save.coins -= sk.price; save.ownedSkins.push(key); writeSave(); refreshCoinBar(); buildShop();
+    };
+    btnWrap.appendChild(btn); div.appendChild(btnWrap);
+    skl.appendChild(div);
+  });
+
+  const esr = document.getElementById('equipSkinRow'); esr.innerHTML="";
+  save.ownedSkins.forEach(key=>{
+    const sk = SKINS[key];
+    const opt = document.createElement('div');
+    opt.className = "opt" + (save.equippedSkin===key ? " sel":"");
+    opt.innerHTML = `<div style="width:18px;height:18px;border-radius:50%;background:${sk.color};margin:0 auto 4px;"></div>${sk.name}`;
+    opt.onclick = ()=>{ save.equippedSkin = key; writeSave(); buildShop(); };
+    esr.appendChild(opt);
+  });
+}
+function flashCantAfford(btn){
+  const old = btn.textContent; btn.textContent="Need gold!"; btn.style.background="#c92b2b";
+  setTimeout(()=>{ btn.textContent=old; btn.style.background=""; }, 900);
+}
+
+// ============================================================
+//  GAME ENGINE
+// ============================================================
+const cv = document.getElementById('cv');
+const ctx = cv.getContext('2d');
+let W=0,H=0,GROUND=0;
+function resize(){
+  W = window.innerWidth; H = window.innerHeight;
+  cv.width = W; cv.height = H;
+  GROUND = H - 90;
+}
+window.addEventListener('resize', resize);
+resize();
+
+const GRAV = 0.85;
+const MOVESPEED = 4.4;
+const JUMPV = -14.5;
+const ARENA_PAD = 40;
+
+const COLORS = { ffa:["#ffd54d","#7fd7ff","#ff8fd0","#9bffb0","#ff8a5c","#c39bff"], teamA:"#ff5d6c", teamB:"#4da3ff" };
+
+const MAPS = {
+  snowy:  {name:"Snowy Peaks",   sky:["#1c2740","#0c1018"], mountains:"#222c42", ground:"#0e1622", groundLine:"#16314a"},
+  lava:   {name:"Lava Pit",      sky:["#3a1410","#170705"], mountains:"#5a2010", ground:"#220a05", groundLine:"#a8390f"},
+  night:  {name:"Neon Night",    sky:["#0d0221","#05010f"], mountains:"#1d0f3d", ground:"#0a0420", groundLine:"#7a3dff"},
+  forest:  {name:"Forest Arena",  sky:["#16321f","#0a1810"], mountains:"#1f4a2c", ground:"#0c1c10", groundLine:"#2e6b3f"},
+  parkour: {name:"Parkour Zone",  sky:["#0a0a1f","#050510"], mountains:"#151530", ground:"#0a0a1a", groundLine:"#4488ff",
+            hasPlatforms:true}
+};
+let currentMap = MAPS.snowy;
+let mapPlatforms = []; // [{x,y,w,h}] set when match starts
+
+let fighters = [];
+let projectiles = [];
+let particles = [];
+let matchState = "idle"; // idle, fighting, over
+let matchTeams = false;
+let humanCount = 0;
+let camShake = 0;
+
+function rand(a,b){ return a + Math.random()*(b-a); }
+
+class Fighter{
+  constructor(opts){
+    Object.assign(this, {
+      x:200, y:GROUND, vx:0, vy:0, w:26, h:74, onGround:true, facing:1,
+      hp:100, maxHp:100, team:0, isPlayer:false, isBot:true, isAlly:false,
+      playerIndex:-1, weaponKey:"fists", attackTimer:0, attackActive:0, hitDone:false,
+      state:"idle", stateTimer:0, color:"#ffd54d", name:"Bot", alive:true,
+      specialCD1:0, specialCD2:0, specialCD3:0, allyTimer:0, stunTimer:0, knockX:0, aiTimer:rand(0,30),
+      blockHeld:false, label:"", dmgMult:1, isBoss:false, iframes:0, atkSpeedMult:1, moveMult:1, atkChance:0.06
+    }, opts);
+  }
+  get weapon(){ return WEAPONS[this.weaponKey]; }
+  takeHit(dmg, knockDir, knock){
+    if(!this.alive) return;
+    if(this.iframes>0) return; // brief invulnerability prevents instant multi-hit chain-kills
+    // hyper armor: a fighter actively mid-swing (esp. the Snowman) shrugs off some impact instead of dying instantly
+    if(this.attackActive>0) dmg *= (this.isAlly ? 0.55 : 0.8);
+    this.hp -= dmg;
+    this.knockX = knockDir*knock;
+    this.vy = -4;
+    this.stunTimer = 14;
+    this.iframes = this.isAlly ? 26 : 16;
+    camShake = Math.min(camShake+4, 14);
+    spawnHitParticles(this.x, this.y-this.h*0.6, knockDir);
+    if(this.hp<=0){ this.hp=0; this.alive=false; this.state="ko"; this.vy=-9; this.vx = knockDir*4; }
+  }
+}
+
+function teamColor(team, isAlly){
+  if(isAlly) return "#bdeeff";
+  if(matchTeams) return team===0 ? COLORS.teamA : COLORS.teamB;
+  return COLORS.ffa[team % COLORS.ffa.length];
+}
+
+function buildPlatforms(){
+  mapPlatforms = [];
+  if(!currentMap.hasPlatforms) return;
+  // parkour map: 5 floating platforms at different heights
+  const pw = W, ph = H, g = GROUND;
+  mapPlatforms = [
+    {x: pw*0.08, y: g - 120, w: 160, h: 14},
+    {x: pw*0.30, y: g - 200, w: 140, h: 14},
+    {x: pw*0.52, y: g - 140, w: 160, h: 14},
+    {x: pw*0.72, y: g - 230, w: 130, h: 14},
+    {x: pw*0.38, y: g - 310, w: 180, h: 14},
+  ];
+}
+
+function buildMatch(){
+  fighters = []; projectiles = []; particles = [];
+  currentMap = MAPS[cfg.map] || MAPS.snowy;
+  buildPlatforms();
+
+  if(cfg.mode === "boss"){ buildBossMatch(); return; }
+
+  matchTeams = cfg.teams;
+  humanCount = cfg.mode==="bvb" ? 0 : cfg.players;
+  const totalFighters = (cfg.mode==="bvb" ? 0 : humanCount) + cfg.bots + (cfg.mode==="bvb" ? 2+cfg.bots-cfg.bots : 0);
+  let list = [];
+  let n = 0;
+
+  // humans
+  for(let i=0;i<humanCount;i++){
+    list.push({isPlayer:true, isBot:false, playerIndex:i, name:"P"+(i+1)});
+  }
+  // bots — ensure at least 1 bot if pvb/pvp with 0 chosen but pvb mode requires opponent
+  let botCount = cfg.bots;
+  if(cfg.mode==="pvb" && botCount<1) botCount = 1;
+  if(cfg.mode==="bvb" && botCount<2) botCount = 2;
+  for(let i=0;i<botCount;i++){
+    list.push({isPlayer:false, isBot:true, playerIndex:-1, name:"Bot "+(i+1)});
+  }
+
+  n = list.length;
+  const spacing = Math.min(140, (W-ARENA_PAD*2)/Math.max(n,1));
+  list.forEach((f,i)=>{
+    const team = matchTeams ? (i%2) : i;
+    const xpos = ARENA_PAD + 60 + i*spacing + rand(-10,10);
+    const weaponKey = f.isPlayer ? save.equipped : pickBotWeapon();
+    const ftr = new Fighter({
+      x:xpos, y:GROUND, team:team,
+      isPlayer:f.isPlayer, isBot:f.isBot, playerIndex:f.playerIndex,
+      weaponKey: save.ownedWeapons.includes(weaponKey)?weaponKey:"fists",
+      name:f.name, facing: i%2===0?1:-1,
+      color: f.isPlayer ? SKINS[save.equippedSkin].color : teamColor(team,false)
+    });
+    fighters.push(ftr);
+  });
+  buildHpBars();
+  matchState = "fighting";
+  showMatchMsg("FIGHT!", 1100);
+  document.getElementById('resultCard').classList.add('hidden');
+}
+
+// ---------- Boss Fight ----------
+const BOSS_BASE_HP = 480;
+const BOSS_DMG_MULT = 2.8; // boss always hits much harder than a normal fighter — fixed, not scaled by ally count
+const BOSS_WIN_REWARD = 300; // much more than a normal win's 100 gold
+function buildBossMatch(){
+  matchTeams = true; // boss fights are always allies(team0) vs boss(team1)
+  humanCount = Math.max(1, cfg.players);
+  let botCount = cfg.bots; // ally bots here, not enemies
+  if(humanCount + botCount < 1) botCount = 1;
+
+  let allies = [];
+  for(let i=0;i<humanCount;i++){ allies.push({isPlayer:true, isBot:false, playerIndex:i, name:"P"+(i+1)}); }
+  for(let i=0;i<botCount;i++){ allies.push({isPlayer:false, isBot:true, playerIndex:-1, name:"Bot "+(i+1)}); }
+
+  const n = allies.length;
+  const spacing = Math.min(120, (W-ARENA_PAD*2-220)/Math.max(n,1));
+  allies.forEach((f,i)=>{
+    const xpos = ARENA_PAD + 50 + i*spacing + rand(-8,8);
+    const weaponKey = f.isPlayer ? save.equipped : pickBotWeapon();
+    const ftr = new Fighter({
+      x:xpos, y:GROUND, team:0,
+      isPlayer:f.isPlayer, isBot:f.isBot, playerIndex:f.playerIndex,
+      weaponKey: save.ownedWeapons.includes(weaponKey)?weaponKey:"fists",
+      name:f.name, facing:1, color: f.isPlayer ? SKINS[save.equippedSkin].color : teamColor(0,false)
+    });
+    fighters.push(ftr);
+  });
+
+  // HP scaling: baseline covers up to 2 allies; every ally beyond 2 adds +5% boss HP.
+  // This scaling is ONLY for the boss — snowman allies are unaffected and untouched by this formula.
+  const totalAllies = allies.length;
+  const extraAllies = Math.max(0, totalAllies - 2);
+  const bossHP = Math.round(BOSS_BASE_HP * (1 + 0.05*extraAllies));
+
+  const boss = new Fighter({
+    x: W - ARENA_PAD - 100, y:GROUND, team:1,
+    isPlayer:false, isBot:true, playerIndex:-1,
+    weaponKey:"fists", hp:bossHP, maxHp:bossHP, dmgMult:BOSS_DMG_MULT,
+    w:42, h:118, color:"#b34dff", name:"BOSS", facing:-1, isBoss:true,
+    atkSpeedMult:0.55, moveMult:1.25, atkChance:0.13
+  });
+  fighters.push(boss);
+
+  buildHpBars();
+  matchState = "fighting";
+  showMatchMsg("👹 BOSS FIGHT!", 1300);
+  document.getElementById('resultCard').classList.add('hidden');
+}
+function pickBotWeapon(){
+  const pool = Object.keys(WEAPONS).filter(k=>!WEAPONS[k].hidden);
+  return pool[Math.floor(rand(0,pool.length))];
+}
+
+function buildHpBars(){
+  const left = document.getElementById('hpLeft'); const right = document.getElementById('hpRight');
+  left.innerHTML=""; right.innerHTML="";
+  fighters.forEach((f,i)=>{
+    const div = document.createElement('div'); div.className="hpgroup";
+    div.style.flexDirection="column";
+    const nameDiv = document.createElement('div'); nameDiv.className="hpname";
+    nameDiv.textContent = (f.isPlayer? "P"+(f.playerIndex+1): f.name) + (matchTeams ? (f.team===0?" 🔴":" 🔵"):"");
+    nameDiv.style.color = f.color;
+    const wrap = document.createElement('div'); wrap.className="hpwrap";
+    const fill = document.createElement('div'); fill.className="fill"; fill.style.width="100%"; fill.style.background=f.color;
+    wrap.appendChild(fill);
+    div.appendChild(nameDiv); div.appendChild(wrap);
+    f.hpFillEl = fill;
+    (i%2===0?left:right).appendChild(div);
+  });
+}
+function updateHpBars(){
+  fighters.forEach(f=>{
+    if(!f.hpFillEl) return;
+    const pct = Math.max(0,f.hp/f.maxHp*100);
+    f.hpFillEl.style.width = pct+"%";
+    f.hpFillEl.style.background = pct<30 ? "#ff4747" : f.color;
+  });
+}
+
+function showMatchMsg(text, dur){
+  const el = document.getElementById('matchMsg');
+  el.textContent = text; el.classList.remove('hidden');
+  clearTimeout(el._t);
+  el._t = setTimeout(()=>el.classList.add('hidden'), dur);
+}
+
+// ---------- particles ----------
+function spawnHitParticles(x,y,dir){
+  for(let i=0;i<6;i++){
+    particles.push({x,y,vx:rand(-2,2)+dir*2, vy:rand(-3,-1), life:18, color:"#fff"});
+  }
+}
+function spawnSnow(x,y){
+  for(let i=0;i<10;i++){
+    particles.push({x,y,vx:rand(-3,3), vy:rand(-4,-1), life:30, color:"#dff6ff"});
+  }
+}
+
+// ---------- input ----------
+const keys = {};
+window.addEventListener('keydown', e=>{ keys[e.code]=true; });
+window.addEventListener('keyup', e=>{ keys[e.code]=false; });
+
+const KEYMAPS = [
+  {left:"ArrowLeft", right:"ArrowRight", jump:"ArrowUp", atk:"Space", spec:"ShiftRight", spec2:"ControlRight", spec3:"AltRight"},
+  {left:"KeyA", right:"KeyD", jump:"KeyW", atk:"KeyG", spec:"KeyH", spec2:"KeyB", spec3:"KeyN"},
+  {left:"KeyJ", right:"KeyL", jump:"KeyI", atk:"KeyK", spec:"KeyO", spec2:"KeyU", spec3:"KeyY"},
+  {left:"Numpad4", right:"Numpad6", jump:"Numpad8", atk:"Numpad5", spec:"Numpad0", spec2:"NumpadSubtract", spec3:"NumpadAdd"}
+];
+
+// joystick (touch) for player 0
+let joyActive=false, joyDX=0, joyDY=0;
+const joyEl = document.getElementById('joy'); const joyNub = document.getElementById('joyNub');
+function joyReset(){ joyDX=0; joyDY=0; joyNub.style.left="33px"; joyNub.style.top="33px"; }
+function joyHandle(clientX,clientY){
+  const r = joyEl.getBoundingClientRect();
+  const cx = r.left+r.width/2, cy = r.top+r.height/2;
+  let dx = clientX-cx, dy = clientY-cy;
+  const max = 40; const dist = Math.min(Math.hypot(dx,dy), max);
+  const ang = Math.atan2(dy,dx);
+  dx = Math.cos(ang)*dist; dy=Math.sin(ang)*dist;
+  joyNub.style.left = (33+dx)+"px"; joyNub.style.top=(33+dy)+"px";
+  joyDX = dx/max; joyDY = dy/max;
+}
+joyEl.addEventListener('touchstart', e=>{ joyActive=true; const t=e.touches[0]; joyHandle(t.clientX,t.clientY); e.preventDefault(); }, {passive:false});
+joyEl.addEventListener('touchmove', e=>{ if(!joyActive) return; const t=e.touches[0]; joyHandle(t.clientX,t.clientY); e.preventDefault(); }, {passive:false});
+joyEl.addEventListener('touchend', e=>{ joyActive=false; joyReset(); e.preventDefault(); }, {passive:false});
+joyEl.addEventListener('mousedown', e=>{ joyActive=true; joyHandle(e.clientX,e.clientY); });
+window.addEventListener('mousemove', e=>{ if(joyActive) joyHandle(e.clientX,e.clientY); });
+window.addEventListener('mouseup', ()=>{ if(joyActive){joyActive=false; joyReset();} });
+
+let touchJump=false, touchAttack=false, touchSpecial=false, touchSpecial2=false, touchSpecial3=false;
+function bindHold(id, setter){
+  const el = document.getElementById(id);
+  const on = e=>{ setter(true); e.preventDefault(); };
+  const off = e=>{ setter(false); e.preventDefault(); };
+  el.addEventListener('touchstart', on, {passive:false});
+  el.addEventListener('touchend', off, {passive:false});
+  el.addEventListener('mousedown', on);
+  el.addEventListener('mouseup', off);
+  el.addEventListener('mouseleave', off);
+}
+bindHold('btnJump', v=>touchJump=v);
+bindHold('btnPunch', v=>touchAttack=v);
+bindHold('btnSpecial', v=>touchSpecial=v);
+bindHold('btnSpecial2', v=>touchSpecial2=v);
+bindHold('btnSpecial3', v=>touchSpecial3=v);
+
+// ---------- combat helpers ----------
+function tryAttack(f){
+  if(f.attackTimer>0 || f.stunTimer>0 || !f.alive) return;
+  const w = f.weapon;
+  f.attackTimer = w.cd * (f.atkSpeedMult||1);
+  f.attackActive = 10;
+  f.hitDone = false;
+  f.state = "attack";
+  if(w.projectile){
+    projectiles.push({
+      x:f.x + f.facing*30, y:f.y-f.h*0.6, vx:f.facing*9, vy:0, owner:f, dmg:w.dmg*f.dmgMult*(f.rage?1.3:1), life:90, isSnow:true
+    });
+  }
+}
+function trySpecial1(f){
+  if(!f.weapon.canTurret) return;
+  if(f.specialCD1>0) return;
+  f.specialCD1 = 10000;
+  spawnTurret(f);
+  showMatchMsg("🔧 TURRET DEPLOYED!", 1000);
+}
+function trySpecial2(f){
+  if(!f.weapon.canSnowman) return;
+  if(f.specialCD2>0) return;
+  f.specialCD2 = 10000;
+  spawnSnowman(f);
+  showMatchMsg("⛄ SNOWMAN SUMMONED!", 1000);
+}
+function trySpecial3(f){
+  if(!f.weapon.canFireAlly) return;
+  if(f.specialCD3>0) return;
+  f.specialCD3 = 10000;
+  spawnFireAlly(f);
+  showMatchMsg("🔥 FIRE ALLY SUMMONED!", 1000);
+}
+function trySpecial(f){
+  if(f.weapon.canTurret) trySpecial1(f);
+  else if(f.weapon.canSnowman) trySpecial2(f);
+  else if(f.weapon.canFireAlly) trySpecial3(f);
+}
+function spawnSnowman(owner){
+  const ally = new Fighter({
+    x: owner.x + owner.facing*40, y:GROUND, team:owner.team, isAlly:true, isBot:true,
+    weaponKey:"fists", hp:150, maxHp:150, color:"#bdeeff", name:"Snowman", allyTimer: 15000, // ~15s lifespan (real ms, decremented by dt each frame)
+    facing: owner.facing, dmgMult:1
+  });
+  ally.snowman = true;
+  fighters.push(ally);
+  spawnSnow(ally.x, ally.y-30);
+  buildHpBars();
+}
+function spawnTurret(owner){
+  const turret = new Fighter({
+    x: owner.x + owner.facing*50, y:GROUND, team:owner.team, isAlly:true, isBot:true,
+    weaponKey:"turretgun", hp:90, maxHp:90, color:"#ffb347", name:"Turret", allyTimer: 15000, // ~15s lifespan (real ms, decremented by dt each frame)
+    facing: owner.facing, dmgMult:1, w:30, h:46
+  });
+  turret.isTurret = true;
+  fighters.push(turret);
+  buildHpBars();
+}
+
+function spawnFireAlly(owner){
+  const ally = new Fighter({
+    x: owner.x + owner.facing*50, y:GROUND, team:owner.team, isAlly:true, isBot:true,
+    weaponKey:"fireball", hp:110, maxHp:110, color:"#ff7a1a", name:"Fire Ally", allyTimer:15000,
+    facing: owner.facing, dmgMult:1.1
+  });
+  ally.isFireAlly = true;
+  fighters.push(ally);
+  for(let i=0;i<12;i++) particles.push({x:ally.x+rand(-20,20), y:ally.y-rand(10,60), vx:rand(-2,2), vy:rand(-4,-1), life:22, color:"#ff7a1a"});
+  buildHpBars();
+}
+
+function meleeHitCheck(f){
+  if(!f.attackActive || f.hitDone) return;
+  if(f.weapon.projectile) return; // projectile weapons (snowball/knives/turret) only damage via their actual projectile, never an instant melee hit
+  const reach = f.weapon.range;
+  fighters.forEach(o=>{
+    if(o===f || !o.alive) return;
+    if(o.team===f.team) return; // same side (handles teams + snowman allies)
+    if(!matchTeams && o===f) return;
+    const dx = o.x - f.x;
+    if(Math.sign(dx||1) !== f.facing) return;
+    if(Math.abs(dx) > reach) return;
+    if(Math.abs(o.y-f.y) > 90) return;
+    o.takeHit(f.weapon.dmg*f.dmgMult*(f.rage?1.3:1), f.facing, f.weapon.knock);
+    f.hitDone = true;
+  });
+}
+
+function updateProjectiles(dt){
+  for(let i=projectiles.length-1;i>=0;i--){
+    const p = projectiles[i];
+    p.x += p.vx; p.life--;
+    if(p.isSnow && Math.random()<0.6) particles.push({x:p.x,y:p.y,vx:rand(-.3,.3),vy:rand(-.2,.2),life:10,color:"#dff6ff"});
+    let hit=false;
+    fighters.forEach(o=>{
+      if(!o.alive || o===p.owner) return;
+      if(o.team===p.owner.team) return; // same side
+      if(Math.abs(o.x-p.x)<28 && Math.abs((o.y-o.h*0.6)-p.y)<60){
+        o.takeHit(p.dmg, Math.sign(p.vx), 6);
+        hit=true;
+      }
+    });
+    if(hit || p.life<=0 || p.x<0 || p.x>W) projectiles.splice(i,1);
+  }
+}
+
+// ---------- AI ----------
+function updateAI(f, dt){
+  f.aiTimer -= dt;
+  // find target (never an ally/same-team — this also guarantees turrets never shoot allies)
+  let target=null, bestD=Infinity;
+  fighters.forEach(o=>{
+    if(o===f || !o.alive) return;
+    if(o.team===f.team) return; // same side (handles teams + snowman/turret allies)
+    const d = Math.abs(o.x-f.x);
+    if(d<bestD){ bestD=d; target=o; }
+  });
+
+  if(f.isTurret){
+    // Turrets are stationary: they just aim at the nearest enemy and fire. They never move and never target allies.
+    f.vx = 0;
+    if(target){
+      f.facing = target.x>f.x ? 1 : -1;
+      const reach = f.weapon.range * 0.9;
+      if(Math.abs(target.x-f.x) <= reach && f.attackTimer<=0){ tryAttack(f); }
+    }
+    f.allyTimer -= dt;
+    if(f.allyTimer<=0){ f.alive=false; f.hp=0; }
+    return;
+  }
+
+  if(!target){ f.vx*=0.8; return; }
+  f.facing = target.x>f.x ? 1 : -1;
+  const reach = f.weapon.range * (f.weapon.projectile?0.5:0.85);
+  if(bestD > reach){
+    f.vx = f.facing*MOVESPEED*0.9*(f.moveMult||1)*(f.rage?1.2:1);
+    if(f.aiTimer<0 && bestD<160 && f.onGround && Math.random()<0.02){ f.vy=JUMPV*0.8; f.aiTimer=40; }
+    // parkour: jump up if target is significantly above
+    if(mapPlatforms.length>0 && f.onGround && target.y < f.y-80 && Math.random()<0.04){ f.vy=JUMPV; f.onGround=false; }
+  } else {
+    f.vx *= 0.7;
+    if(f.attackTimer<=0 && Math.random()<(f.atkChance||0.06)){ tryAttack(f); }
+  }
+  if(f.weapon.canTurret && f.specialCD1<=0 && Math.random()<0.003){ trySpecial1(f); }
+  if(f.weapon.canSnowman && f.specialCD2<=0 && Math.random()<0.003){ trySpecial2(f); }
+  if(f.weapon.canFireAlly && f.specialCD3<=0 && Math.random()<0.003){ trySpecial3(f); }
+  if(f.snowman){
+    f.allyTimer -= dt;
+    if(f.allyTimer<=0){ f.alive=false; f.hp=0; }
+  }
+}
+
+// ---------- main update ----------
+let lastT=0;
+function gameLoop(ts){
+  if(!lastT) lastT=ts;
+  const dt = Math.min(ts-lastT, 34);
+  lastT = ts;
+  if(matchState==="fighting") update(dt);
+  render();
+  requestAnimationFrame(gameLoop);
+}
+
+function update(dt){
+  // player inputs
+  for(let p=0;p<humanCount;p++){
+    const f = fighters.find(x=>x.isPlayer && x.playerIndex===p);
+    if(!f || !f.alive) continue;
+    const km = KEYMAPS[p];
+    let mv = 0;
+    if(p===0){
+      mv = joyDX;
+      if(keys[km.left]) mv=-1;
+      if(keys[km.right]) mv=1;
+      if((touchJump || keys[km.jump]) && f.onGround){ f.vy=JUMPV; f.onGround=false; }
+      if(touchAttack || keys[km.atk]) tryAttack(f);
+      if(touchSpecial || keys[km.spec]) trySpecial(f);
+      if(touchSpecial2 || keys[km.spec2]) trySpecial2(f);
+      if(touchSpecial3 || keys[km.spec3]) trySpecial3(f);
+    } else {
+      if(keys[km.left]) mv=-1;
+      if(keys[km.right]) mv=1;
+      if(keys[km.jump] && f.onGround){ f.vy=JUMPV; f.onGround=false; }
+      if(keys[km.atk]) tryAttack(f);
+      if(keys[km.spec]) trySpecial(f);
+      if(keys[km.spec2]) trySpecial2(f);
+      if(keys[km.spec3]) trySpecial3(f);
+    }
+    if(Math.abs(mv)>0.15){ f.vx = mv*MOVESPEED*(f.rage?1.2:1); f.facing = mv>0?1:-1; }
+    else f.vx *= 0.8;
+  }
+  // show/hide special 2 & 3 buttons for player 1 based on equipped weapon
+  if(humanCount>0){
+    const p1 = fighters.find(x=>x.isPlayer && x.playerIndex===0);
+    const btnS2 = document.getElementById('btnSpecial2');
+    const btnS3 = document.getElementById('btnSpecial3');
+    const isCombo = p1 && p1.alive && p1.weapon && p1.weapon.isCombo;
+    if(isCombo){ btnS2.classList.remove('hidden'); btnS3.classList.remove('hidden'); }
+    else { btnS2.classList.add('hidden'); btnS3.classList.add('hidden'); }
+  }
+  // bots
+  fighters.forEach(f=>{ if(f.isBot && f.alive) updateAI(f, dt); });
+
+  // physics + timers
+  fighters.forEach(f=>{
+    if(!f.alive){
+      f.vy += GRAV; f.y += f.vy; f.x += f.vx*0.5;
+      if(f.y>GROUND){ f.y=GROUND; }
+      return;
+    }
+    f.vy += GRAV;
+    f.x += f.vx + f.knockX;
+    f.knockX *= 0.8;
+    const prevY = f.y;
+    f.y += f.vy;
+    // platform collision (only when falling down onto platform)
+    let landedOnPlat = false;
+    if(f.vy >= 0){
+      for(const p of mapPlatforms){
+        const cx = f.x;
+        if(cx >= p.x && cx <= p.x+p.w && prevY <= p.y && f.y >= p.y){
+          f.y = p.y; f.vy = 0; f.onGround = true; landedOnPlat = true; break;
+        }
+      }
+    }
+    if(!landedOnPlat){
+      if(f.y >= GROUND){ f.y=GROUND; f.vy=0; f.onGround=true; } else f.onGround=false;
+    }
+    f.x = Math.max(ARENA_PAD, Math.min(W-ARENA_PAD, f.x));
+    if(f.attackTimer>0) f.attackTimer -= dt;
+    if(f.attackActive>0){ f.attackActive -= dt*0.6; meleeHitCheck(f); }
+    if(f.stunTimer>0) f.stunTimer -= dt*0.5;
+    if(f.iframes>0) f.iframes -= dt*0.5;
+    if(f.specialCD1>0) f.specialCD1 -= dt*0.5;
+    if(f.specialCD2>0) f.specialCD2 -= dt*0.5;
+    if(f.specialCD3>0) f.specialCD3 -= dt*0.5;
+    if(f.state==="attack" && f.attackTimer<=f.weapon.cd*0.4) f.state="idle";
+    f.rage = !f.isAlly && (f.hp <= f.maxHp*0.25);
+  });
+
+  updateProjectiles(dt);
+
+  // particles
+  for(let i=particles.length-1;i>=0;i--){
+    const pt=particles[i]; pt.x+=pt.vx; pt.y+=pt.vy; pt.life--;
+    if(pt.life<=0) particles.splice(i,1);
+  }
+  if(camShake>0) camShake*=0.85;
+
+  updateHpBars();
+  checkWinCondition();
+}
+
+function checkWinCondition(){
+  const alive = fighters.filter(f=>f.alive);
+  if(alive.length===0){ endMatch(null); return; }
+  const sidesAlive = new Set(alive.map(f=>f.team));
+  if(sidesAlive.size<=1){
+    const winnerFighter = alive.find(f=>!f.isAlly) || alive[0];
+    endMatch(matchTeams ? [...sidesAlive][0] : winnerFighter);
+  }
+}
+
+function endMatch(winnerOrTeam){
+  if(matchState!=="fighting") return;
+  matchState="over";
+  let humanWon = false;
+  if(matchTeams && humanCount>0){
+    const winTeam = winnerOrTeam;
+    humanWon = fighters.some(f=>f.isPlayer && f.team===winTeam && winTeam!==undefined && winTeam!==null);
+  } else if(!matchTeams && humanCount>0){
+    humanWon = !!(winnerOrTeam && winnerOrTeam.isPlayer);
+  }
+  const isBossMatch = cfg.mode === "boss";
+  let gain = 0;
+  let streakBonus = 0;
+  if(humanCount>0){
+    if(humanWon){
+      save.stats.wins++; save.stats.streak++;
+      save.stats.bestStreak = Math.max(save.stats.bestStreak, save.stats.streak);
+      if(isBossMatch) save.stats.bossKills++;
+      streakBonus = Math.min(save.stats.streak, 5) * 10; // up to +50 for a 5+ win streak
+      gain = (isBossMatch ? BOSS_WIN_REWARD : 100) + streakBonus;
+    } else {
+      save.stats.losses++; save.stats.streak = 0;
+      gain = 25;
+    }
+  }
+  save.coins += gain; writeSave(); refreshCoinBar(); refreshStatsUI();
+
+  setTimeout(()=>{
+    const card = document.getElementById('resultCard');
+    document.getElementById('resultTitle').textContent = humanCount===0 ? "MATCH OVER" : (humanWon ? (isBossMatch ? "👑 BOSS DEFEATED!" : "🏆 VICTORY!") : "💀 DEFEATED");
+    document.getElementById('resultTitle').style.color = humanCount===0? "#fff" : (humanWon? "#ffd54d":"#ff5d6c");
+    let sub = humanCount===0 ? "Spectator bot battle complete." :
+      (humanWon ? (isBossMatch ? "Huge win — boss kills pay out way more!" : "Your fighters dominated the arena.") : "The bots got the better of you this time — but every fighter earns a little gold.");
+    if(humanWon && streakBonus>0) sub += ` 🔥 Win streak x${save.stats.streak} (+${streakBonus} bonus gold)`;
+    document.getElementById('resultSub').innerHTML = sub;
+    // add link for boss victory
+    if(humanWon && isBossMatch){
+      const linkMsg = document.createElement('div');
+      linkMsg.style.cssText = 'margin-top:12px; font-size:11px; color:#8b96ab; line-height:1.4;';
+      linkMsg.innerHTML = '<a href="https://stickman-fight-three.vercel.app" target="_blank" style="color:#7fd7ff; text-decoration:underline; cursor:pointer;">👉 Go to better version!</a><br><span style="color:#5a6578; margin-top:4px; display:block;">This game will no longer update<br/>Thanks for playing! 🎮</span>';
+      document.getElementById('resultSub').appendChild(linkMsg);
+    }
+    document.getElementById('coinsGain').textContent = humanCount===0 ? "" : ("+"+gain+" gold");
+    card.classList.remove('hidden');
+  }, 600);
+}
+
+// ---------- render ----------
+function drawStick(f){
+  const x = f.x + (Math.random()<0 ?0:0) + (camShake?rand(-camShake,camShake):0);
+  const y = f.y;
+
+  if(f.isTurret){
+    ctx.save();
+    ctx.translate(x, y);
+    if(!f.alive){ ctx.globalAlpha = 0.4; }
+    // base
+    ctx.fillStyle = "#3a2a1a"; ctx.fillRect(-16,-8,32,8);
+    // body
+    ctx.fillStyle = f.color; ctx.fillRect(-12,-30,24,24);
+    ctx.strokeStyle = "#00000055"; ctx.lineWidth=2; ctx.strokeRect(-12,-30,24,24);
+    // barrel pointing at facing direction, swings slightly when firing
+    const barrelKick = f.attackActive>0 ? -4 : 0;
+    ctx.strokeStyle = "#222"; ctx.lineWidth=6; ctx.lineCap="round";
+    ctx.beginPath(); ctx.moveTo(0,-20); ctx.lineTo(f.facing*(22+barrelKick), -20); ctx.stroke();
+    // lens
+    ctx.fillStyle="#ffe9a8"; ctx.beginPath(); ctx.arc(0,-20,4,0,7); ctx.fill();
+    if(f.stunTimer>0){ ctx.globalAlpha=0.4; ctx.fillStyle="#fff"; ctx.beginPath(); ctx.arc(0,-18,20,0,Math.PI*2); ctx.fill(); ctx.globalAlpha=1; }
+    if(f.iframes>0){ ctx.globalAlpha=0.5+Math.sin(performance.now()/40)*0.2; ctx.strokeStyle="#bdeeff"; ctx.lineWidth=2; ctx.beginPath(); ctx.arc(0,-18,24,0,Math.PI*2); ctx.stroke(); ctx.globalAlpha=1; }
+    ctx.restore();
+    ctx.font="11px Segoe UI"; ctx.textAlign="center"; ctx.fillStyle=f.color;
+    ctx.fillText("🔧", x, y-f.h-14);
+    return;
+  }
+
+  const bob = f.alive ? Math.sin(performance.now()/120 + f.x)*(f.onGround && Math.abs(f.vx)>0.5?3:0) : 0;
+  ctx.save();
+  ctx.translate(x, y+bob);
+  if(!f.alive){ ctx.rotate(f.facing*1.0); ctx.translate(0,-10); }
+  const col = f.color;
+  ctx.strokeStyle = col;
+  ctx.lineWidth = 4;
+  ctx.lineCap = "round";
+  const h = f.h;
+  // legs
+  const legSwing = (f.alive && f.onGround && Math.abs(f.vx)>0.4) ? Math.sin(performance.now()/90)*10 : (f.onGround?0:6*f.facing);
+  ctx.beginPath();
+  ctx.moveTo(0,-h*0.42); ctx.lineTo(-6+legSwing*0.3, -2); ctx.lineTo(-10+legSwing, 0);
+  ctx.moveTo(0,-h*0.42); ctx.lineTo(6-legSwing*0.3, -2); ctx.lineTo(10-legSwing, 0);
+  ctx.stroke();
+  // body
+  ctx.beginPath(); ctx.moveTo(0,-h*0.42); ctx.lineTo(0,-h*0.78); ctx.stroke();
+  // arms
+  const atkSwing = f.attackActive>0 ? f.facing*14 : 0;
+  ctx.beginPath();
+  ctx.moveTo(0,-h*0.7); ctx.lineTo(f.facing*-8, -h*0.55);
+  ctx.moveTo(0,-h*0.7); ctx.lineTo(f.facing*16+atkSwing, -h*0.6);
+  ctx.stroke();
+  // weapon
+  if(f.weapon && f.weaponKey!=="fists"){
+    ctx.strokeStyle = "#9fa8b5"; ctx.lineWidth=5;
+    const wx = f.facing*16+atkSwing, wy=-h*0.6;
+    ctx.beginPath(); ctx.moveTo(wx,wy); ctx.lineTo(wx+f.facing*22, wy-6); ctx.stroke();
+  }
+  // head (reset stroke style so leftover weapon color never bleeds onto the head)
+  ctx.strokeStyle = col; ctx.lineWidth = 4;
+  ctx.beginPath(); ctx.arc(0,-h*0.92, h*0.14, 0, Math.PI*2);
+  ctx.fillStyle = f.snowman ? "#eafbff" : "#0b0e14";
+  ctx.fill(); ctx.stroke();
+  if(f.snowman){
+    ctx.fillStyle="#222"; ctx.beginPath(); ctx.arc(-3,-h*0.93,1.6,0,7); ctx.arc(3,-h*0.93,1.6,0,7); ctx.fill();
+  }
+  // hit flash
+  if(f.stunTimer>0){
+    ctx.globalAlpha = 0.4; ctx.fillStyle="#fff";
+    ctx.beginPath(); ctx.arc(0,-h*0.6,h*0.5,0,Math.PI*2); ctx.fill(); ctx.globalAlpha=1;
+  }
+  // brief invulnerability shimmer (prevents instant multi-hit kills)
+  if(f.iframes>0){
+    ctx.globalAlpha = 0.5 + Math.sin(performance.now()/40)*0.2; ctx.strokeStyle="#bdeeff"; ctx.lineWidth=2;
+    ctx.beginPath(); ctx.arc(0,-h*0.6,h*0.55,0,Math.PI*2); ctx.stroke(); ctx.globalAlpha=1;
+  }
+  // rage mode aura — comeback boost below 25% HP (faster + harder hitting)
+  if(f.rage){
+    ctx.globalAlpha = 0.35 + Math.sin(performance.now()/90)*0.25;
+    ctx.strokeStyle = "#ff3030"; ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.arc(0,-h*0.55,h*0.62,0,Math.PI*2); ctx.stroke();
+    ctx.globalAlpha = 1;
+  }
+  ctx.restore();
+
+  if(f.rage){
+    ctx.font="10px Segoe UI"; ctx.textAlign="center"; ctx.fillStyle="#ff5050";
+    ctx.fillText("🔥 RAGE", x, y-f.h-26);
+  }
+
+  // name label
+  ctx.font="11px Segoe UI"; ctx.textAlign="center";
+  ctx.fillStyle = col;
+  ctx.fillText(f.isPlayer ? "P"+(f.playerIndex+1) : (f.snowman?"⛄":""), x, y-h-14);
+}
+
+function render(){
+  ctx.clearRect(0,0,W,H);
+  // background
+  const grad = ctx.createLinearGradient(0,0,0,H);
+  grad.addColorStop(0,currentMap.sky[0]); grad.addColorStop(1,currentMap.sky[1]);
+  ctx.fillStyle=grad; ctx.fillRect(0,0,W,H);
+  // mountains silhouette
+  ctx.fillStyle=currentMap.mountains;
+  ctx.beginPath(); ctx.moveTo(0,GROUND);
+  for(let x=0;x<=W;x+=60){ ctx.lineTo(x, GROUND-60-Math.sin(x*0.01)*40 - (x%180<90?30:0)); }
+  ctx.lineTo(W,GROUND); ctx.closePath(); ctx.fill();
+  // ground
+  ctx.fillStyle=currentMap.ground; ctx.fillRect(0,GROUND, W, H-GROUND);
+  ctx.fillStyle=currentMap.groundLine; ctx.fillRect(0,GROUND, W, 6);
+  // parkour platforms
+  if(mapPlatforms.length>0){
+    for(const p of mapPlatforms){
+      // platform body
+      ctx.fillStyle = currentMap.groundLine||"#4488ff";
+      ctx.fillRect(p.x, p.y, p.w, p.h);
+      // highlight edge
+      ctx.fillStyle = "rgba(255,255,255,0.18)";
+      ctx.fillRect(p.x, p.y, p.w, 3);
+      // glow
+      ctx.save();
+      ctx.shadowColor = currentMap.groundLine||"#4488ff";
+      ctx.shadowBlur = 10;
+      ctx.fillStyle = currentMap.groundLine||"#4488ff";
+      ctx.fillRect(p.x, p.y, p.w, p.h);
+      ctx.restore();
+    }
+  }
+
+  fighters.forEach(f=> drawStick(f) );
+
+  // particles (absolute screen coords)
+  particles.forEach(p=>{
+    ctx.globalAlpha = Math.max(0,p.life/30);
+    ctx.fillStyle=p.color;
+    ctx.beginPath(); ctx.arc(p.x, p.y, 3,0,7); ctx.fill();
+  });
+  ctx.globalAlpha=1;
+
+  // projectiles
+  projectiles.forEach(p=>{
+    ctx.fillStyle="#eafbff"; ctx.strokeStyle="#9fdcff"; ctx.lineWidth=2;
+    ctx.beginPath(); ctx.arc(p.x, p.y, 7,0,7); ctx.fill(); ctx.stroke();
+  });
+}
+
+requestAnimationFrame(gameLoop);
+
+// ---------- screen flow ----------
+function startMatch(){
+  syncModeUI();
+  showScreen('game');
+  buildMatch();
+}
+document.getElementById('rematchBtn').onclick = ()=>{ buildMatch(); };
+document.getElementById('menuBtn').onclick = ()=>{ showScreen('menu'); document.getElementById('resultCard').classList.add('hidden'); matchState="idle"; };
+document.getElementById('pauseBtn').onclick = ()=>{
+  if(matchState==="fighting"){
+    matchState="paused";
+    document.getElementById('pauseCard').classList.remove('hidden');
+  }
+};
+document.getElementById('resumeBtn').onclick = ()=>{
+  if(matchState==="paused"){
+    matchState="fighting";
+    document.getElementById('pauseCard').classList.add('hidden');
+  }
+};
+document.getElementById('restartBtn').onclick = ()=>{
+  document.getElementById('pauseCard').classList.add('hidden');
+  buildMatch();
+};
+document.getElementById('pauseMenuBtn').onclick = ()=>{
+  document.getElementById('pauseCard').classList.add('hidden');
+  matchState="idle";
+  showScreen('menu');
+};
+function quitGame(){
+  writeSave();
+  // Back to the Stickman Fight menu (Stick Brawl runs inside it).
+  if(window.parent && window.parent !== window){ window.parent.postMessage({type:'stickbrawl-exit'}, location.origin); }
+  else { location.href = '/'; }
+}
+document.getElementById('quitBtn').onclick = quitGame;
+document.getElementById('exitMenuBtn').onclick = quitGame;
+
+// init
+loadSave(); syncModeUI(); showScreen('menu');
+
+// extra safety net: flush save on tab hide/close so coins & weapons are never lost
+window.addEventListener('visibilitychange', ()=>{ if(document.visibilityState==='hidden') writeSave(); });
+window.addEventListener('beforeunload', ()=>{ writeSave(); });
+// extra safety: autosave every 30 seconds in the background
+setInterval(writeSave, 30000);
+
+})();
+</script>
+</body>
+</html>
+

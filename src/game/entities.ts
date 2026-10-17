@@ -110,6 +110,8 @@ export interface FighterOpts {
   pigeon?: boolean;
   /** Hat id (or 'none'). */
   hat?: string;
+  /** Summoner's Clone: the fighter this bot is a copy of. */
+  cloneOf?: Fighter;
 }
 
 export class Fighter extends Body {
@@ -131,6 +133,8 @@ export class Fighter extends Body {
   pigeonT = 2.5;
   /** Hat id ('none' = no hat). */
   hat: string;
+  /** Summoner's Clone: the fighter this bot copies (null = not a clone). */
+  cloneOf: Fighter | null;
   /** Pistol: shots left before it reloads. */
   ammo: number[];
   /** The Tide King's Water Jet: seconds left and where it points. */
@@ -218,6 +222,7 @@ export class Fighter extends Body {
     this.secret = o.secret ?? null;
     this.pigeon = !!o.pigeon;
     this.hat = o.boss ? 'none' : o.hat ?? 'none';
+    this.cloneOf = o.cloneOf ?? null;
     this.scale = scale;
     this.dmgMult = o.boss ? 1.5 : 1;
     this.speed = o.boss ? 300 : 380;
@@ -324,8 +329,8 @@ export class Snowman extends Body {
 /** What a helper looks like: a cat, a fish from the Fishy boss, the purple boss ally from Recall Memory, or a spear soldier. */
 export type CatVariant = 'cat' | 'fish' | 'memory' | 'soldier';
 export const CAT_VARIANTS: CatVariant[] = ['cat', 'fish', 'memory', 'soldier'];
-/** A spear soldier (Spear of Bravery, Summoner, Sandbox): 300 HP. */
-export const SOLDIER_HP = 300;
+/** A spear soldier (Spear of Bravery, Summoner, Sandbox): 500 HP, like a stickman. */
+export const SOLDIER_HP = 500;
 /** Recall Memory's boss ally: 1,000 HP, 30 damage, fades away after 20 seconds. */
 export const MEMORY_ALLY = { hp: 1000, dmg: 30, life: 20 };
 
@@ -345,6 +350,9 @@ export class Cat extends Body {
   moveX = 0;
   target: Body | null = null;
   walkPhase = 0;
+  /** Spear soldiers: seconds until the spear thrust skill is ready, and seconds left in a thrust. */
+  skillCd = 1;
+  thrustT = 0;
 
   constructor(owner: Fighter, x: number, y: number, hp: number, touchDmg: number, variant: CatVariant = 'cat') {
     // The boss ally is bigger than a stickman (80) but smaller than the bosses (208).

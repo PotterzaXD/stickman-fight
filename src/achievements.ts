@@ -19,7 +19,6 @@ export const ACHIEVEMENTS = [
   'speedRunner',
   'teamPlayer',
   'perfectAim',
-  'comebackKid',
   'patience',
   'collector2',
   'trueChallenger',

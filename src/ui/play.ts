@@ -97,7 +97,7 @@ export function matchFacts(game: Game, r: Pick<MatchResult, 'winners' | 'winnerT
   const myWinners = r.winners.filter((f) => mine.includes(f) && f.alive);
   return {
     mapId: game.map.id,
-    noBots: !game.fighters.some((f) => !f.boss && !f.human),
+    noBots: !game.fighters.some((f) => !f.boss && !f.human && !f.cloneOf),
     untouched: myWinners.some((f) => f.dmgTaken === 0),
     lastBreath: myWinners.some((f) => f.hp > 0 && f.hp < 50),
     teamSize: r.winners.filter((f) => !f.boss).length,
@@ -151,7 +151,6 @@ function matchAchievements(r: RewardInfo): AchievementId[] {
   if (won && f.beaten.length && f.time < 120) ach.push('speedRunner');
   if (won && f.teamSize >= 4) ach.push('teamPlayer');
   if (f.bestStreak >= 20) ach.push('perfectAim');
-  if (won && f.startCoins === 0) ach.push('comebackKid');
   if (f.patience) ach.push('patience');
   // True Challenger: everything unlocked, then beat the Mascot.
   if (beat('mascot') && ALL_OWNABLE.every((w) => save.data.owned.includes(w.id)) && hasAch('buffalo')) ach.push('trueChallenger');
@@ -310,7 +309,7 @@ register('play', (root, { match, fromEditor }) => {
   const showResult = (r: MatchResult) => {
     // Win: 3-5 coins (bosses: 500 each, Grandfather Cat: 1,000 + the Treasure). Bots (or the boss) win: 1 coin.
     const bosses = game.bosses.length;
-    const humans = game.fighters.filter((f) => !f.boss);
+    const humans = game.fighters.filter((f) => !f.boss && !f.cloneOf);
     const reward = giveReward({
       mode: r.mode,
       won: r.humanWon,
@@ -322,7 +321,7 @@ register('play', (root, { match, fromEditor }) => {
     });
     // Watching bots counts as a win for the music.
     jingle(r.humanWon || !r.hadHumans ? 'victory' : 'defeat');
-    const ranked = [...game.fighters].sort((a, b) => Number(b.alive) - Number(a.alive) || b.kos - a.kos);
+    const ranked = game.fighters.filter((f) => !f.cloneOf).sort((a, b) => Number(b.alive) - Number(a.alive) || b.kos - a.kos);
     overlay.replaceChildren(
       h(
         'div',

@@ -64,7 +64,7 @@ export const WEAPONS: WeaponDef[] = [
   // Pistol: 1 second between shots, then a 3 second reload after 5 shots.
   { id: 'pistol', price: 150, length: 34, damage: 8, turn: 15, cooldown: 1, ranged: true },
   { id: 'gun67', price: 500, length: 50, damage: 12, turn: 13, cooldown: 10, ranged: true },
-  { id: 'summoner', price: 1100, length: 62, damage: 15, turn: 12, cooldown: 25, ranged: true },
+  { id: 'summoner', price: 1500, length: 62, damage: 15, turn: 12, cooldown: 25, ranged: true },
   { id: 'bravery', price: 800, length: 110, damage: 24, turn: 12, cooldown: 20, ranged: false },
   { id: 'pan', price: 300, length: 52, damage: 28, turn: 14, cooldown: 4, ranged: false },
   { id: 'watergun', price: 200, length: 42, damage: 6, turn: 14, cooldown: 3, ranged: true },

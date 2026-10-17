@@ -20,12 +20,12 @@ import {
   type Ring,
   returns,
 } from './entities';
-import { MELEE_FINISH, PROJ_FINISH, makeCorpse, updateCorpses, type Corpse, type Finish } from './finish';
+import { MELEE_FINISH, PROJ_FINISH, helperCorpse, makeCorpse, updateCorpses, type Corpse, type Finish } from './finish';
 import { THEMES, pickSpawns } from './maps';
 import { HELPER_KINDS, PIGEON_WEAPON, type SandboxHelper } from './types';
 import { feedCount, type FeedKind } from './killfeed';
 import { BEACH_MAP, BEACH_MODES, isBossMode, isSecret, type BossKind, type Difficulty, type FallMode, type MapDef, type Mode, type SandboxBoss } from './types';
-import { SHOP_WEAPONS, weapon } from './weapons';
+import { SHOP_WEAPONS, weapon, type WeaponId } from './weapons';
 import type { Key } from '../i18n';
 import { sfx } from '../sfx';
 
@@ -173,9 +173,13 @@ export const SHOTGUN = { close: 180, far: 90, closeR: 140, range: 760, pellets: 
 export const PISTOL = { dmg: 10, reload: 3 };
 /** 67 Gun: one 100 damage bullet every 10 s. */
 export const GUN67 = { dmg: 100 };
-/** Summoner: 3 cats and 3 fish (weaker than the bosses'), 3 snowmen, the Recall Memory boss and a spear soldier. */
-export const SUMMONER = { cats: { count: 3, hp: 60, dmg: 6, max: 6 }, fish: { count: 3, hp: 40, dmg: 12, max: 6 }, snowmen: 3, soldier: { count: 1, hp: SOLDIER_HP, dmg: 20, max: 2 } };
-/** Spear of Bravery: 3 spear soldiers (300 HP, the spear at half strength). */
+/** Summoner: 3 cats and 3 fish (weaker than the bosses'), 3 snowmen, the Recall Memory boss, 3 spear soldiers and a Clone. */
+export const SUMMONER = { cats: { count: 3, hp: 60, dmg: 6, max: 6 }, fish: { count: 3, hp: 40, dmg: 12, max: 6 }, snowmen: 3, soldier: { count: 3, hp: SOLDIER_HP, dmg: 20, max: 6 } };
+/** Summoner's Clone: a bot copy of you with a random weapon that can't summon. It blows up for 20 when it goes down. */
+export const CLONE = { boom: 20, boomR: 170 };
+/** Weapons a Clone never gets (they summon helpers). */
+const SUMMON_WEAPONS = ['summoner', 'bravery', 'recall', 'snowball', 'catcall'];
+/** Spear of Bravery: 3 spear soldiers (500 HP, the spear at half strength). */
 export const BRAVERY = { count: 3, hp: SOLDIER_HP, dmg: 12, max: 6 };
 /** Frying Pan: BONK for 40 and seeing stars for 1.5 s. */
 export const PAN = { dmg: 40, stun: 1.5 };
@@ -183,8 +187,8 @@ export const PAN = { dmg: 40, stun: 1.5 };
 export const WATER = { drops: 6, dmg: 6, push: 780 };
 /** Bubble Wand: float in a bubble for 2 s, then it pops for 30. */
 export const BUBBLE = { dmg: 30, float: 2 };
-/** The Pigeon: dives at one fighter at a time; one peck is a KO. KO'd fighters come back after 3 s. */
-export const PIGEON = { diveEvery: 2.2, diveSpeed: 1150, giveUp: 2.6, respawn: 3 };
+/** The Pigeon: dives at one fighter every 10 s; one peck is a KO, and KO'd fighters stay out. */
+export const PIGEON = { diveEvery: 10, diveSpeed: 1150, giveUp: 2.6 };
 
 /** Damage the normal boss does to the Fishy boss in the Beach cutscene. */
 export const CUTSCENE_DMG = 1000;
@@ -263,7 +267,6 @@ export class Game {
   tracers: Tracer[] = [];
   potionsOn: boolean;
   /** The Pigeon: KO'd fighters come back. */
-  private respawns: { f: Fighter; at: number }[] = [];
   private potionClock = POTION_EVERY;
   private potionId = 1;
   /** Gravity on this map (the Space theme has low gravity). */
@@ -712,7 +715,6 @@ export class Game {
     }
     for (const b of this.bodies()) if (b.slowT > 0) b.slowT -= dt;
     this.updateBubbles(dt);
-    this.updateRespawns();
     this.markSurvivors();
     if (this.cut) this.updateCutscene(dt);
     this.updateBlizzard(dt);
@@ -732,8 +734,7 @@ export class Game {
       c.life -= dt;
       if (c.life <= 0) {
         c.alive = false;
-        this.burst(c.x, c.cy, '#b388ff', 18, 300);
-        this.text(c.x, c.y - c.h - 10, '💭', '#b388ff', 26);
+        this.helperRemains(c);
         continue;
       }
       if (this.cut) c.vx *= 0.8;
@@ -1023,9 +1024,16 @@ export class Game {
     const fighter = b instanceof Fighter;
     // Buffalo isn't a stickman: it always goes down with the original pop.
     if (b instanceof Fighter && b.buffalo && how !== 'void') how = 'pop';
+    // The Pigeon always comes down fried (any finisher but the void).
+    if (b instanceof Fighter && b.pigeon && how !== 'void') how = 'trip';
     if (fighter) b.finish = how;
-    // The original pop for snowmen, cats and 'pop' kills. Fell into the void: nothing at all.
-    if (!fighter || how === 'pop') {
+    // Fell into the void: nothing at all. Helpers leave their own remains (a grave, a cooked fish...).
+    // The original pop for snowmen and 'pop' kills.
+    if (b instanceof Cat) {
+      if (how !== 'void') this.helperRemains(b);
+    } else if (!fighter && how === 'void') {
+      // Nothing.
+    } else if (!fighter || how === 'pop') {
       this.burst(b.x, b.cy, b.color, 26, 520);
       this.burst(b.x, b.cy, '#ffffff', 10, 380);
     } else if (how !== 'void') {
@@ -1038,14 +1046,13 @@ export class Game {
         this.play('boom');
       }
     }
-    // The Pigeon: KO'd fighters come back in a moment.
-    if (b instanceof Fighter && !b.boss && this.mode === 'pigeon' && !this.demo) this.respawns.push({ f: b, at: this.time + PIGEON.respawn });
     if (b.kind === 'fighter') {
       this.text(b.x, b.y - b.h - 30, 'KO!', '#ffeb3b', 34);
       if (how !== 'void') this.shake = Math.min(18, this.shake + 8);
       this.play('ko');
       if (how !== 'void' && this.potionsOn && Math.random() < POTION_CHANCE) this.dropPotion(b.x, b.cy);
     }
+    if (b instanceof Fighter && b.cloneOf && how !== 'void') this.cloneBoom(b);
     const killer = src instanceof Snowman || src instanceof Cat ? src.owner : src;
     if (killer instanceof Fighter && killer !== b && b.kind === 'fighter') killer.kos++;
     if (b instanceof Fighter && !this.demo) this.feedKill(b, killer instanceof Fighter && killer !== b ? killer : null, how, env);
@@ -1455,6 +1462,7 @@ export class Game {
 
   /** Summoner: 3 cats, 3 fish, 3 snowmen, the Recall Memory boss and a spear soldier, all at once. */
   private summonAll(f: Fighter) {
+    this.summonClone(f);
     this.callCats(f, SUMMONER.cats, 'cat');
     this.callCats(f, SUMMONER.fish, 'fish');
     this.callCats(f, SUMMONER.soldier, 'soldier');
@@ -1594,41 +1602,6 @@ export class Game {
     f.y = clamp(f.y + f.vy * dt, -600, this.map.h + 100);
     if (Math.abs(f.vx) > 20) f.facing = sign(f.vx);
     f.walkPhase += dt * (f.pigeonState === 'dive' ? 22 : 12);
-  }
-
-  /** The Pigeon: KO'd fighters come back with full HP. */
-  private updateRespawns() {
-    if (!this.respawns.length) return;
-    const due = this.respawns.filter((r) => this.time >= r.at);
-    if (!due.length) return;
-    this.respawns = this.respawns.filter((r) => this.time < r.at);
-    const spots = pickSpawns(this.map, 8);
-    for (const { f } of due) {
-      if (f.alive) continue;
-      const sp = spots[Math.floor(Math.random() * spots.length)];
-      f.alive = true;
-      f.hp = f.maxHp;
-      f.x = sp.x;
-      f.y = sp.y - 2;
-      f.vx = 0;
-      f.vy = 0;
-      f.stun = 0;
-      f.burnT = 0;
-      f.poisonT = 0;
-      f.frozenT = 0;
-      f.slowT = 0;
-      f.bubbleT = 0;
-      f.shieldHp = SHIELD_MAX;
-      f.shieldBroken = false;
-      f.slamming = false;
-      f.finish = 'pop';
-      f.cds = f.cds.map(() => 0);
-      f.boomerangOut = f.boomerangOut.map(() => false);
-      f.trail = [];
-      this.ring(f.x, f.y, 90, 0.5, f.color);
-      this.burst(f.x, f.y - 40, f.color, 14, 260);
-      this.text(f.x, f.y - f.h - 24, '↩', '#ffffff', 26);
-    }
   }
 
   // ---------- the secret bosses ----------
@@ -1963,6 +1936,59 @@ export class Game {
     this.projectiles[this.projectiles.length - 1].burnDmg = burn;
   }
 
+  /** Summoner's Clone: one at a time. It looks just like you (name, hat and color). */
+  private summonClone(f: Fighter) {
+    if (f.cloneOf || this.fighters.some((c) => c.alive && c.cloneOf === f)) return;
+    const pool = SHOP_WEAPONS.filter((w) => !SUMMON_WEAPONS.includes(w.id));
+    const c = this.addClone(f, pool[Math.floor(Math.random() * pool.length)].id);
+    c.brain = new BotBrain('hard');
+    c.vy = -500;
+    this.ring(c.x, c.y, 90, 0.5, f.color);
+    this.burst(c.x, c.cy, f.color, 18, 320);
+    this.text(c.x, c.y - c.h - 30, '👥!', '#ffffff', 28);
+  }
+
+  /** Add a Clone of `owner` holding `wid` (also used on joining devices to match the host). */
+  addClone(owner: Fighter, wid: WeaponId): Fighter {
+    const c = new Fighter({
+      name: owner.name,
+      color: owner.color,
+      team: owner.team,
+      human: false,
+      weapons: [weapon(wid)],
+      x: clamp(owner.x + owner.facing * 50, 0, this.map.w),
+      y: owner.y - 4,
+      hat: owner.hat,
+      cloneOf: owner,
+    });
+    c.facing = owner.facing;
+    this.fighters.push(c);
+    return c;
+  }
+
+  /** A Clone goes down: it blows up and hits every enemy close by for 20. */
+  private cloneBoom(c: Fighter) {
+    this.ring(c.x, c.cy, CLONE.boomR, 0.4, '#ff9800');
+    this.burst(c.x, c.cy, '#ff9800', 22, 520);
+    this.burst(c.x, c.cy, '#ffeb3b', 14, 380);
+    this.text(c.x, c.y - c.h - 50, 'BOOM!', '#ff9800', 30);
+    this.shake = Math.min(18, this.shake + 6);
+    this.play('boom');
+    for (const e of this.bodies()) {
+      if (!e.alive || e.team === c.team) continue;
+      const dx = e.x - c.x;
+      if (Math.hypot(dx, e.cy - c.cy) > CLONE.boomR + e.w / 2) continue;
+      this.damage(e, CLONE.boom, c, (sign(dx) || 1) * 500, -400, 'fling');
+    }
+  }
+
+  /** What a helper leaves behind: a cat's grave, a cooked fish, a soldier's ragdoll, or the Recall Memory boss fading away. */
+  helperRemains(c: Cat) {
+    const corpse = helperCorpse(c);
+    if (corpse) this.corpses.push(corpse);
+    this.burst(c.x, c.cy, c.variant === 'memory' ? '#b388ff' : c.color, 8, 220, false);
+  }
+
   /** Call Cat AI: little cats appear around the caller. */
   private callCats(f: Fighter, o: { count: number; hp: number; dmg: number; max: number }, variant: CatVariant = 'cat') {
     const icon = variant === 'fish' ? '🐟' : variant === 'soldier' ? '💂' : '🐱';
@@ -1986,12 +2012,12 @@ export class Game {
   }
 
   /** A cat touched an enemy. */
-  catBite(c: Cat, e: Body) {
+  catBite(c: Cat, e: Body, dmg = c.touchDmg) {
     c.attackT = 0.8;
     const dir = sign(e.x - c.x) || c.facing;
     c.facing = dir;
     const big = c.variant === 'memory' || c.variant === 'soldier';
-    this.damage(e, c.touchDmg, c, dir * (big ? 480 : 260), big ? -380 : -220, big ? 'ragdoll' : 'trip');
+    this.damage(e, dmg, c, dir * (big ? 480 : 260), big ? -380 : -220, big ? 'ragdoll' : 'trip');
   }
 
   /** Soup lands: a yellow splash that hurts and burns every enemy close by. */
@@ -2379,17 +2405,15 @@ export class Game {
     for (const b of this.bodies()) {
       if (!b.alive) continue;
       if (b.y < m.h + 300 && b.x > -700 && b.x < m.w + 700) continue;
-      if (b instanceof Snowman || b instanceof Cat) this.kill(b, null);
-      else if (b instanceof Fighter) {
-        if (b.boss) this.bounce(b, 250);
-        else if (this.fallMode === 'ko') this.kill(b, null, 'void');
-        else this.bounce(b, 25);
-      }
+      // Helpers (snowmen, cats, fish, soldiers, the Recall Memory boss) fall just like stickmen.
+      if (b instanceof Fighter && b.boss) this.bounce(b, 250);
+      else if (this.fallMode === 'ko') this.kill(b, null, 'void');
+      else this.bounce(b, 25);
     }
   }
 
   /** Fell off: lose HP and get launched back up under the nearest platform. */
-  private bounce(f: Fighter, dmg: number) {
+  private bounce(f: Body, dmg: number) {
     const np = nearestPlatform(this, clamp(f.x, 0, this.map.w), this.map.h);
     const px = np ? clamp(f.x, np.x + 30, np.x + np.w - 30) : this.map.w / 2;
     const py = np ? np.y : this.map.h / 2;
@@ -2398,10 +2422,12 @@ export class Game {
     f.vx = 0;
     f.vy = -Math.sqrt(2 * this.gravity * (f.y - py + 170));
     f.stun = 0;
-    f.slamming = false;
-    f.airJumps = 1;
     f.hp -= dmg;
-    f.dmgTaken += dmg;
+    if (f instanceof Fighter) {
+      f.slamming = false;
+      f.airJumps = 1;
+      f.dmgTaken += dmg;
+    }
     this.text(f.x, this.map.h - 40, `-${dmg}`, '#ff5252', 30);
     this.play('jump');
     if (f.hp <= 0) this.kill(f, null, 'void');
@@ -2425,8 +2451,6 @@ export class Game {
       // Only the bosses you fight count (on the Beach the normal bosses were on your side).
       const bosses = this.bosses.filter((b) => b.team === BOSS_TEAM);
       if (bosses.length && bosses.every((b) => !b.alive)) return { decided: true, team: 0 };
-      // The Pigeon: KO'd fighters come back, so only beating it ends the match.
-      if (this.mode === 'pigeon') return { decided: false, team: null };
       if (!alive.some((f) => !f.boss)) return { decided: true, team: BOSS_TEAM };
       return { decided: false, team: null };
     }
@@ -2445,7 +2469,7 @@ export class Game {
     if (this.endT < 0) this.endT = this.time + 1.6;
     if (this.time < this.endT) return;
     this.over = true;
-    const winners = w.team === null ? [] : this.fighters.filter((f) => f.team === w.team && !f.boss);
+    const winners = w.team === null ? [] : this.fighters.filter((f) => f.team === w.team && !f.boss && !f.cloneOf);
     this.result = {
       mode: this.mode,
       winnerTeam: w.team,

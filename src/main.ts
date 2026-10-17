@@ -19,6 +19,7 @@ import './ui/netplay';
 import './ui/friends';
 import './ui/achievements';
 import './ui/sandbox';
+import './ui/stickbrawl';
 import { session, setSession } from './net/room';
 
 const app = document.getElementById('app')!;

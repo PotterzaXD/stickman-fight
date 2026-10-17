@@ -409,12 +409,32 @@ export function updateCat(c: Cat, dt: number, g: Game) {
     c.vy = c.variant === 'memory' || c.variant === 'soldier' ? -1000 : -900;
     c.onGround = false;
   }
-  if (c.attackT > 0) return;
+  // Spear soldiers: the spear's thrust skill, a quick lunge with a long poke.
+  if (c.variant === 'soldier') {
+    c.skillCd -= dt;
+    if (c.thrustT > 0) {
+      c.thrustT -= dt;
+      c.vx = c.facing * SOLDIER_THRUST.speed;
+    } else if (t && c.skillCd <= 0 && c.stun <= 0 && c.attackT <= 0 && Math.abs(t.x - c.x) < SOLDIER_THRUST.range && Math.abs(t.cy - c.cy) < 90) {
+      c.facing = sign(t.x - c.x) || c.facing;
+      c.thrustT = SOLDIER_THRUST.s;
+      c.skillCd = SOLDIER_THRUST.cd;
+      c.vx = c.facing * SOLDIER_THRUST.speed;
+    }
+  }
+  const thrust = c.thrustT > 0;
+  if (c.attackT > 0 && !thrust) return;
   for (const e of g.bodies()) {
-    // Spear soldiers poke from a spear's length away.
-    const reach = c.variant === 'soldier' ? c.w / 2 + 55 : c.w / 2;
+    // Spear soldiers poke from a spear's length away (twice as far in a thrust).
+    const reach = c.variant === 'soldier' ? c.w / 2 + (thrust ? SOLDIER_THRUST.reach : 55) : c.w / 2;
     if (!e.alive || e.team === c.team || !e.contains(c.x, c.cy, reach)) continue;
-    g.catBite(c, e);
+    if (thrust) {
+      c.thrustT = 0;
+      g.catBite(c, e, c.touchDmg * SOLDIER_THRUST.mult);
+    } else g.catBite(c, e);
     break;
   }
 }
+
+/** Spear soldiers' thrust: lunge speed, seconds, cooldown, how close it starts, reach, and damage (times a normal poke). */
+export const SOLDIER_THRUST = { speed: 760, s: 0.3, cd: 3, range: 230, reach: 120, mult: 3.5 };
