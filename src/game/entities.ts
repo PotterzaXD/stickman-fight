@@ -326,13 +326,21 @@ export class Snowman extends Body {
   }
 }
 
-/** What a helper looks like: a cat, a fish from the Fishy boss, the purple boss ally from Recall Memory, or a spear soldier. */
-export type CatVariant = 'cat' | 'fish' | 'memory' | 'soldier';
-export const CAT_VARIANTS: CatVariant[] = ['cat', 'fish', 'memory', 'soldier'];
+/**
+ * What a helper looks like: a cat, a fish from the Fishy boss, the purple boss ally from Recall Memory, a spear soldier,
+ * the Snowman and Fire Ally from Stick Brawl, or the red guy from WORST Stickman Fighter.
+ */
+export type CatVariant = 'cat' | 'fish' | 'memory' | 'soldier' | 'sbsnow' | 'fireally' | 'redguy';
+/** Append only (online sends the index). */
+export const CAT_VARIANTS: CatVariant[] = ['cat', 'fish', 'memory', 'soldier', 'sbsnow', 'fireally', 'redguy'];
 /** A spear soldier (Spear of Bravery, Summoner, Sandbox): 500 HP, like a stickman. */
 export const SOLDIER_HP = 500;
 /** Recall Memory's boss ally: 1,000 HP, 30 damage, fades away after 20 seconds. */
 export const MEMORY_ALLY = { hp: 1000, dmg: 30, life: 20 };
+/** Summoner's Stick Brawl allies: the Snowman punches, the Fire Ally throws fireballs (no burning). */
+export const SB_ALLY = { hp: 500, punch: 20, fire: 15, fireEvery: 1.3 };
+/** Summoner's red guy from WORST Stickman Fighter: 100 HP, bumps for 10 (once a second per enemy). */
+export const RED_GUY = { hp: 100, bump: 10, every: 1 };
 
 /**
  * A little helper that runs at enemies and hurts them on touch: an AI cat called by Grandfather Cat
@@ -353,10 +361,20 @@ export class Cat extends Body {
   /** Spear soldiers: seconds until the spear thrust skill is ready, and seconds left in a thrust. */
   skillCd = 1;
   thrustT = 0;
+  /** Fire Ally: seconds until the next fireball. */
+  shootT = 1;
+  /** Red guy: went down and stays frozen in place (the next Summoner brings it back). */
+  frozen = false;
+  /** Red guy: next game time it may bump each body id again. */
+  bumpCd = new Map<number, number>();
 
   constructor(owner: Fighter, x: number, y: number, hp: number, touchDmg: number, variant: CatVariant = 'cat') {
     // The boss ally is bigger than a stickman (80) but smaller than the bosses (208).
-    super(x, y, variant === 'memory' ? 46 : variant === 'soldier' ? 30 : 34, variant === 'memory' ? 128 : variant === 'soldier' ? 80 : 30, hp, owner.team, owner.color);
+    // Stickman-sized: soldiers and the Stick Brawl allies. The red guy is as small as in WORST Stickman Fighter.
+    const stick = variant === 'soldier' || variant === 'sbsnow' || variant === 'fireally';
+    const w = variant === 'memory' ? 46 : stick ? 30 : variant === 'redguy' ? 16 : 34;
+    const h = variant === 'memory' ? 128 : stick ? 80 : variant === 'redguy' ? 43 : 30;
+    super(x, y, w, h, hp, owner.team, variant === 'sbsnow' ? '#bdeeff' : variant === 'fireally' ? '#ff7a1a' : variant === 'redguy' ? '#f66' : owner.color);
     this.owner = owner;
     this.touchDmg = touchDmg;
     this.facing = owner.facing;
@@ -391,10 +409,13 @@ export type ProjKind =
   | 'nerf'
   | 'bullet67'
   | 'water'
-  | 'bubble';
+  | 'bubble'
+  | 'yoyo'
+  | 'fishthrow'
+  | 'allyfire';
 
 /** Thrown weapons that fly out and come back to the hand. */
-export const returns = (k: ProjKind) => k === 'boomerang' || k === 'axe' || k === 'six7';
+export const returns = (k: ProjKind) => k === 'boomerang' || k === 'axe' || k === 'six7' || k === 'yoyo';
 
 export interface Projectile {
   kind: ProjKind;

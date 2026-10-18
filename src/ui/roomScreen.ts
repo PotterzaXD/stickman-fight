@@ -172,6 +172,7 @@ register('room', (root) => {
               ['cat', `🐱 ${t('cat')}`],
               ['mascot', `${mascotUnlocked(st.hostWeapons) ? '⚪' : '🔒'} ${t('mascot')}`],
               ['buffalo', `${st.hostBuffalo ? '🐃' : '🔒'} ${t('buffalo')}`],
+              ['pigeon', `🐦 ${t('pigeon')}`],
               // Secret bosses only show once the host has unlocked them.
               ...SECRET_KINDS.filter((k) => st.hostSecrets?.includes(k)).map((k): [Mode, string] => [k, `${SECRET_ICONS[k]} ${t(k)}`]),
             ],
@@ -187,6 +188,7 @@ register('room', (root) => {
           ...beachNotes(st.mapId, st.mode),
           st.mode === 'mascot' ? h('small', { class: 'muted' }, `🪙🏆 ${t('mascotReward')}`) : null,
           st.mode === 'cat' ? h('small', { class: 'muted' }, `🪙🏆 ${t('catReward')}`) : null,
+          st.mode === 'pigeon' ? h('small', { class: 'muted' }, `🪙🏆 ${t('pigeonReward')}`) : null,
           st.mode === 'boss' ? bossPicker(st.bosses ?? 1, host ? (n) => host.setRoom({ bosses: n }) : null, st.mapId === BEACH_MAP) : null,
           h('h3', {}, `${t('map')}: ${st.map ? mapLabel(st.map) : ''}`),
           host ? h('div', { class: 'map-row' }, ...maps.map((mp) => h('button', { class: `map-card ${st.mapId === mp.id ? 'on' : ''}`, onclick: () => host.setRoom({ map: mp }) }, mapThumb(mp), h('span', {}, mapLabel(mp))))) : st.map ? mapThumb(st.map) : null,

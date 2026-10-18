@@ -19,6 +19,7 @@ const MAX_SB_PLAYERS = 6;
 const MAX_SB_FIGHTERS = 30;
 const MAX_SB_BOSSES = 20;
 const MAX_SB_HELPERS = 20;
+const MAX_SB_CLONES = 10;
 const POWERS = [25, 50, 100, 200, 500, 1000];
 const BOSS_HP: Record<BossKind, number> = { boss: 5000, cat: 10000, mascot: 50000, buffalo: 8000, fish: 9999, pigeon: PIGEON_HP, ...SECRET_HP };
 export const BOSS_ICON: Record<BossKind, string> = { boss: '👹', cat: '🐱', mascot: '⚪', buffalo: '🐃', fish: '🐟', pigeon: '🐦', queen: '❄️', tide: '🌊', guardian: '🌲' };
@@ -44,6 +45,7 @@ register('sandbox', (root) => {
   m.extraBosses ??= [];
   m.extraBosses = m.extraBosses.filter((b) => b.kind in BOSS_HP && (!(SECRET_KINDS as string[]).includes(b.kind) || save.data.secrets.includes(b.kind)) && (b.kind !== 'pigeon' || pigeonOpen()));
   m.helpers = (m.helpers ?? []).filter((x) => HELPER_KINDS.includes(x.kind));
+  m.clones = (m.clones ?? []).filter((i) => Number.isInteger(i) && i >= 0 && i < m.slots.length);
   if (!maps.some((x) => x.id === m.mapId)) m.mapId = 'arena';
 
   const body = h('div', { class: 'page-body' });
@@ -148,7 +150,40 @@ register('sandbox', (root) => {
         powerSel(s),
         hatSelect(s, !human),
         teamPicker(s),
-        removeBtn(() => m.slots.splice(i, 1)),
+        removeBtn(() => {
+          m.slots.splice(i, 1);
+          // Clones of this fighter go too; the others keep pointing at the same fighter.
+          m.clones = m.clones!.filter((c) => c !== i).map((c) => (c > i ? c - 1 : c));
+        }),
+      );
+    });
+    // Names of the players and bots, in slot order (what a Clone can copy).
+    const slotNames = (() => {
+      let pp = 0;
+      let bb = 0;
+      return m.slots.map((s) => (s.kind === 'human' ? `🎮 ${localName(pp++)}` : `🤖 ${t('bot', { n: ++bb })}`));
+    })();
+    const cloneRows = m.clones!.map((of, i) => {
+      const sel = h(
+        'select',
+        {
+          'aria-label': t('sbCloneOf'),
+          onchange: (e: Event) => {
+            m.clones![i] = Number((e.target as HTMLSelectElement).value);
+            render();
+          },
+        },
+        ...slotNames.map((n, si) => h('option', { value: String(si) }, n)),
+      );
+      sel.value = String(of);
+      const team = m.slots[of]?.team ?? 0;
+      return h(
+        'div',
+        { class: 'slot' },
+        h('span', { class: 'slot-name', style: `--c:${TEAM_COLORS[team]}` }, `👥 ${t('sbClones')}`),
+        h('label', { class: 'field' }, h('small', {}, t('sbCloneOf')), sel),
+        h('small', { class: 'muted' }, `❤️ ${m.slots[of]?.hp ?? 500}`),
+        removeBtn(() => m.clones!.splice(i, 1)),
       );
     });
     const bossRows = m.extraBosses!.map((bs: SandboxBoss, i) =>
@@ -277,6 +312,29 @@ register('sandbox', (root) => {
         h('p', { class: 'muted small' }, t('helpersDesc')),
         h('div', { class: 'row gap wrap' }, ...HELPER_KINDS.map(addHelper)),
         h('div', { class: 'slots' }, ...helperRows),
+      ),
+      h(
+        'section',
+        {},
+        h('h3', {}, `👥 ${t('sbClones')} (${m.clones!.length}/${MAX_SB_CLONES})`),
+        h('p', { class: 'muted small' }, t('sbClonesDesc')),
+        h(
+          'div',
+          { class: 'row gap wrap' },
+          h(
+            'button',
+            {
+              class: 'btn small',
+              disabled: m.clones!.length >= MAX_SB_CLONES || !m.slots.length,
+              onclick: () => {
+                m.clones!.push(0);
+                render();
+              },
+            },
+            t('sbAddClone'),
+          ),
+        ),
+        h('div', { class: 'slots' }, ...cloneRows),
       ),
     );
   };

@@ -50,6 +50,11 @@ export const MELEE_FINISH: Partial<Record<WeaponId, Finish>> = {
   pan: 'fling',
   watergun: 'ragdoll',
   bubble: 'ragdoll',
+  chainsaw: 'half',
+  yoyo: 'ragdoll',
+  crossbow: 'ragdoll',
+  whip: 'zap',
+  fryfish: 'fling',
 };
 
 /** Finisher for a skill shot. */
@@ -74,6 +79,9 @@ export const PROJ_FINISH: Partial<Record<ProjKind, Finish>> = {
   bullet67: 'sky',
   water: 'fling',
   bubble: 'pop',
+  yoyo: 'ragdoll',
+  fishthrow: 'fling',
+  allyfire: 'ragdoll',
 };
 
 /** One flying body part (shotgun point blank: blown to pieces). */
@@ -282,8 +290,13 @@ export function helperCorpse(c: Cat): Corpse | null {
       return propCorpse('cooked', c.x, c.y, c.color, c.facing, 6);
     case 'memory':
       return propCorpse('fade', c.x, c.y, c.color, c.facing, 1.4);
-    case 'soldier': {
-      // Ragdoll like a stickman (a soldier is stickman sized).
+    case 'redguy':
+      // It stays frozen where it went down instead (see Game.kill).
+      return null;
+    case 'soldier':
+    case 'sbsnow':
+    case 'fireally': {
+      // Ragdoll like a stickman (soldiers and the Stick Brawl allies are stickman sized).
       const body = { x: c.x, y: c.y, vx: c.vx, vy: c.vy, facing: c.facing, color: c.color, scale: 1, boss: false, mascot: false, pigeon: false } as Fighter;
       return makeCorpse(body, 'ragdoll');
     }

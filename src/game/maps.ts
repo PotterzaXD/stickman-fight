@@ -4,7 +4,7 @@ export interface Theme {
   sky: [string, string];
   plat: string;
   top: string;
-  deco: 'clouds' | 'stars' | 'snow' | 'embers' | 'space' | 'beach' | 'war';
+  deco: 'clouds' | 'stars' | 'snow' | 'embers' | 'space' | 'beach' | 'war' | 'jungle' | 'haunted' | 'candy';
   /** Gravity multiplier (space: low gravity, you jump higher and fall slower). */
   gravity?: number;
 }
@@ -18,9 +18,13 @@ export const THEMES: Record<ThemeId, Theme> = {
   space: { sky: ['#05010f', '#1a1240'], plat: '#4a4458', top: '#9e97b8', deco: 'space', gravity: 0.55 },
   beach: { sky: ['#4fc3f7', '#fff3e0'], plat: '#c8955a', top: '#ffe0a3', deco: 'beach' },
   war: { sky: ['#7d7461', '#d9c9a8'], plat: '#5d4e37', top: '#7a8450', deco: 'war' },
+  jungle: { sky: ['#2e7d32', '#c5e1a5'], plat: '#6d6552', top: '#43a047', deco: 'jungle' },
+  haunted: { sky: ['#1a0b2e', '#4a2c6b'], plat: '#3b3346', top: '#7e6b8f', deco: 'haunted' },
+  candy: { sky: ['#f8bbd0', '#fff3e0'], plat: '#f48fb1', top: '#ffffff', deco: 'candy' },
 };
 
-export const THEME_IDS: ThemeId[] = ['day', 'sunset', 'night', 'snow', 'lava', 'space', 'beach', 'war'];
+/** Append only (shared map links send the index). */
+export const THEME_IDS: ThemeId[] = ['day', 'sunset', 'night', 'snow', 'lava', 'space', 'beach', 'war', 'jungle', 'haunted', 'candy'];
 
 const P = (x: number, y: number, w: number, h = 24): Platform => ({ x, y, w, h });
 /** Special block: concrete, lava or glass. */
@@ -291,7 +295,77 @@ export const BUILTIN_MAPS: MapDef[] = [
     ],
     spawns: [],
   },
+  {
+    // Jungle Ruins: old stone ruins, gaps in the ground and swinging log platforms.
+    id: 'jungle',
+    name: 'm.jungle',
+    w: 1900,
+    h: 1050,
+    theme: 'jungle',
+    builtin: true,
+    platforms: [
+      P(80, 820, 640, 70),
+      P(1180, 820, 640, 70),
+      M(800, 840, 300, 0, -120, 5),
+      B('concrete', 300, 700, 120, 120),
+      B('concrete', 1480, 700, 120, 120),
+      P(160, 560, 280),
+      P(1460, 560, 280),
+      P(780, 600, 340),
+      M(520, 430, 180, 140, 0, 4),
+      M(1200, 430, 180, -140, 0, 4),
+      P(830, 280, 240),
+    ],
+    spawns: [],
+  },
+  {
+    // Haunted Castle: two towers, a broken bridge of glass and a ghostly lift in the middle.
+    id: 'haunted',
+    name: 'm.haunted',
+    w: 1800,
+    h: 1150,
+    theme: 'haunted',
+    builtin: true,
+    platforms: [
+      P(100, 900, 1600, 70),
+      B('concrete', 160, 560, 220, 340),
+      B('concrete', 1420, 560, 220, 340),
+      P(140, 420, 260),
+      P(1400, 420, 260),
+      B('glass', 400, 560, 330, 20),
+      B('glass', 1070, 560, 330, 20),
+      M(800, 760, 200, 0, -420, 6),
+      P(760, 260, 280),
+      P(560, 720, 160),
+      P(1080, 720, 160),
+    ],
+    spawns: [],
+  },
+  {
+    // Candy Land: soft pink ground, floating candy bars and bouncing gumdrop lifts.
+    id: 'candy',
+    name: 'm.candy',
+    w: 1700,
+    h: 1000,
+    theme: 'candy',
+    builtin: true,
+    platforms: [
+      P(150, 780, 1400, 60),
+      P(260, 600, 240),
+      P(1200, 600, 240),
+      M(690, 560, 320, 0, 80, 3),
+      P(420, 420, 200),
+      P(1080, 420, 200),
+      M(760, 280, 180, 220, 0, 5),
+      P(100, 340, 160),
+      P(1440, 340, 160),
+    ],
+    spawns: [],
+  },
 ];
+
+/** The built-in maps the Ancient Guardian unlock counts (the ones from before the October 18 maps, so the new maps don't make it harder). */
+export const GUARDIAN_MAPS = ['arena', 'sky', 'tower', 'bridge', 'snow', 'pit', 'volcano', 'factory', 'glass', 'rooftops', 'frozen', 'space', 'beach', 'elevator', 'war'];
 
 export const MAP_SIZES = {
   small: { w: 1400, h: 800 },

@@ -29,7 +29,7 @@ export interface Snapshot {
   cl?: [number, number, string][];
 }
 
-const KINDS: ProjKind[] = ['arrow', 'snowball', 'minisnow', 'boomerang', 'bomb', 'axe', 'shuriken', 'laser', 'fireball', 'six7', 'poop', 'soup', 'icebolt', 'banana', 'fireslash', 'dart', 'memorybox', 'rocket', 'wave', 'shard', 'crash', 'vine', 'nerf', 'bullet67', 'water', 'bubble'];
+const KINDS: ProjKind[] = ['arrow', 'snowball', 'minisnow', 'boomerang', 'bomb', 'axe', 'shuriken', 'laser', 'fireball', 'six7', 'poop', 'soup', 'icebolt', 'banana', 'fireslash', 'dart', 'memorybox', 'rocket', 'wave', 'shard', 'crash', 'vine', 'nerf', 'bullet67', 'water', 'bubble', 'yoyo', 'fishthrow', 'allyfire'];
 const r1 = (v: number) => Math.round(v);
 const r2 = (v: number) => Math.round(v * 100) / 100;
 
@@ -51,7 +51,8 @@ const SHIELD = 1,
   BUBBLE = 16384,
   JET = 32768,
   LEAF = 65536,
-  SLOW = 131072;
+  SLOW = 131072,
+  DIVE = 262144;
 
 function ownerIndex(g: Game, o: unknown): number {
   const f = o instanceof Snowman || o instanceof Cat ? o.owner : o;
@@ -83,6 +84,7 @@ export function encodeSnapshot(g: Game): Snapshot {
       if (f.jetT > 0) fl |= JET;
       if (f.leafT > 0) fl |= LEAF;
       if (f.slowT > 0) fl |= SLOW;
+      if (f.pigeonState === 'dive') fl |= DIVE;
       return [f.alive ? 1 : 0, r1(f.x), r1(f.y), r1(f.vx), r1(f.vy), r1(f.hp), f.facing, f.onGround ? 1 : 0, fl, r1(f.shieldHp), r2(f.angles[0]), r2(f.angVel[0]), r2(f.angles[1] ?? 0), FINISHES.indexOf(f.finish)];
     }),
     m: g.snowmen.map((s) => [s.id, ownerIndex(g, s.owner), r1(s.x), r1(s.y), r1(s.hp), s.facing, s.hurtFlash > 0 ? 1 : 0]),
@@ -161,6 +163,7 @@ export class Mirror {
       f.jetT = fl & JET ? 1 : 0;
       f.leafT = fl & LEAF ? 1 : 0;
       f.slowT = fl & SLOW ? 1 : 0;
+      if (f.pigeon) f.pigeonState = fl & DIVE ? 'dive' : 'hover';
       f.shieldHp = shieldHp;
       f.angVel[0] = av0;
       const prev = this.target.get(f);
@@ -215,6 +218,11 @@ export class Mirror {
       if (biting) c.attackT = 0.7;
       c.thrustT = biting === 2 ? 0.1 : 0;
       c.hp = hp;
+      // A red guy at 0 HP is frozen in place (it stays until the next Summoner brings it back).
+      if (c.variant === 'redguy') {
+        c.alive = hp > 0;
+        c.frozen = hp <= 0;
+      }
       c.facing = facing;
       c.vx = vx;
       c.onGround = true;

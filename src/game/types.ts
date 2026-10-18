@@ -39,7 +39,7 @@ export const PIGEON_WEAPON = 'shotgun';
 export const BEACH_MODES: Mode[] = ['ffa', 'team', 'boss'];
 export const BEACH_MAP = 'beach';
 export type FallMode = 'ko' | 'bounce';
-export type ThemeId = 'day' | 'sunset' | 'night' | 'snow' | 'lava' | 'space' | 'beach' | 'war';
+export type ThemeId = 'day' | 'sunset' | 'night' | 'snow' | 'lava' | 'space' | 'beach' | 'war' | 'jungle' | 'haunted' | 'candy';
 
 /** Special blocks from the map editor. No kind = a normal platform. Sandbags stop bullets. */
 export type BlockKind = 'concrete' | 'lava' | 'glass' | 'sandbag';
@@ -110,4 +110,6 @@ export interface MatchConfig {
   extraBosses?: SandboxBoss[];
   /** Sandbox: helpers added to the match. */
   helpers?: SandboxHelper[];
+  /** Sandbox: Clones, each the slot index (player or bot) it copies. */
+  clones?: number[];
 }

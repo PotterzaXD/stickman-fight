@@ -8,6 +8,8 @@ import {
   MAX_SNOWMEN,
   MEMORY_ALLY,
   PISTOL_AMMO,
+  RED_GUY,
+  SB_ALLY,
   SOLDIER_HP,
   type CatVariant,
   SHIELD_MAX,
@@ -83,6 +85,8 @@ export interface GameOpts {
   extraBosses?: SandboxBoss[];
   /** Sandbox: helpers added to the match (cats, fish, the Recall Memory boss, spear soldiers). */
   helpers?: SandboxHelper[];
+  /** Sandbox: Clones, each the fighter index (player or bot) it copies. */
+  clones?: number[];
 }
 
 /** Potions: 25% chance on each KO and every 10 seconds from the sky. Heal 25% of max HP. */
@@ -173,7 +177,10 @@ export const SHOTGUN = { close: 180, far: 90, closeR: 140, range: 760, pellets: 
 export const PISTOL = { dmg: 10, reload: 3 };
 /** 67 Gun: one 100 damage bullet every 10 s. */
 export const GUN67 = { dmg: 100 };
-/** Summoner: 3 cats and 3 fish (weaker than the bosses'), 3 snowmen, the Recall Memory boss, 3 spear soldiers and a Clone. */
+/**
+ * Summoner: 3 cats and 3 fish (weaker than the bosses'), 3 snowmen, the Recall Memory boss, 3 spear soldiers, a Clone,
+ * and one each of the Stick Brawl Snowman, the Stick Brawl Fire Ally and the red guy from WORST Stickman Fighter.
+ */
 export const SUMMONER = { cats: { count: 3, hp: 60, dmg: 6, max: 6 }, fish: { count: 3, hp: 40, dmg: 12, max: 6 }, snowmen: 3, soldier: { count: 3, hp: SOLDIER_HP, dmg: 20, max: 6 } };
 /** Summoner's Clone: a bot copy of you with a random weapon that can't summon. It blows up for 20 when it goes down. */
 export const CLONE = { boom: 20, boomR: 170 };
@@ -216,12 +223,15 @@ export type NetEvent =
   | ['s', string]
   | ['z', number, number, number, number]
   | ['l', number, number, number, number, string, number]
-  | ['k', number, number, FeedKind, number];
+  | ['k', number, number, FeedKind, number, string?, string?];
 
 /** One line in the kill feed: fighter indexes (killer -1 = nobody), what happened, which joke. */
 export interface FeedItem {
   victim: number;
   killer: number;
+  /** The one who went down (vh) or did it (kh) is a helper of that fighter: its kind ('snowman' or a CatVariant). */
+  vh?: string;
+  kh?: string;
   kind: FeedKind;
   n: number;
   t: number;
@@ -389,6 +399,18 @@ export class Game {
       if (b.power) f.power = b.power / 100;
     });
     this.addHelpers(opts.helpers ?? []);
+    // Sandbox: Clones of the chosen players and bots.
+    for (const i of opts.clones ?? []) {
+      const of = this.fighters[i];
+      if (!of || i >= specs.length) continue;
+      this.summonClone(of, true);
+      // Same HP and power as the one it copies.
+      const c = this.fighters[this.fighters.length - 1];
+      if (c.cloneOf === of) {
+        c.hp = c.maxHp = of.maxHp;
+        c.power = of.power;
+      }
+    }
     if (this.beach) {
       this.fish = this.addBoss('fish', names.fish ?? 'Fishy', BOSS_TEAM, 0);
       if (this.mode === 'boss') {
@@ -657,7 +679,7 @@ export class Game {
       else if (e[0] === 's' && e[1] in sfx) (sfx as unknown as Record<string, () => void>)[e[1]]();
       else if (e[0] === 'z') this.bolts.push({ x1: e[1], y1: e[2], x2: e[3], y2: e[4], life: 0.3 });
       else if (e[0] === 'l') this.tracers.push({ x1: e[1], y1: e[2], x2: e[3], y2: e[4], life: 0.18, color: e[5], w: e[6] });
-      else if (e[0] === 'k') this.pushFeed({ victim: e[1], killer: e[2], kind: e[3], n: e[4], t: FEED_LIFE });
+      else if (e[0] === 'k') this.pushFeed({ victim: e[1], killer: e[2], kind: e[3], n: e[4], vh: e[5] || undefined, kh: e[6] || undefined, t: FEED_LIFE });
     }
   }
 
@@ -751,7 +773,8 @@ export class Game {
     this.updateGlass(dt);
     this.checkOffMap();
     this.snowmen = this.snowmen.filter((s) => s.alive);
-    this.cats = this.cats.filter((c) => c.alive);
+    // A red guy that went down stays frozen where it is.
+    this.cats = this.cats.filter((c) => c.alive || c.frozen);
     this.updateEffects(dt);
     this.checkWin();
     this.updateCamera(dt);
@@ -1030,7 +1053,9 @@ export class Game {
     // Fell into the void: nothing at all. Helpers leave their own remains (a grave, a cooked fish...).
     // The original pop for snowmen and 'pop' kills.
     if (b instanceof Cat) {
-      if (how !== 'void') this.helperRemains(b);
+      // The red guy freezes in place (no remains); the next Summoner brings it back.
+      if (b.variant === 'redguy') b.frozen = how !== 'void';
+      else if (how !== 'void') this.helperRemains(b);
     } else if (!fighter && how === 'void') {
       // Nothing.
     } else if (!fighter || how === 'pop') {
@@ -1055,16 +1080,28 @@ export class Game {
     if (b instanceof Fighter && b.cloneOf && how !== 'void') this.cloneBoom(b);
     const killer = src instanceof Snowman || src instanceof Cat ? src.owner : src;
     if (killer instanceof Fighter && killer !== b && b.kind === 'fighter') killer.kos++;
-    if (b instanceof Fighter && !this.demo) this.feedKill(b, killer instanceof Fighter && killer !== b ? killer : null, how, env);
+    const kh = src instanceof Cat ? src.variant : src instanceof Snowman ? 'snowman' : undefined;
+    const by = killer instanceof Fighter && killer !== b ? killer : null;
+    if (!this.demo) {
+      if (b instanceof Fighter) this.feedKill(b, by, how, env, undefined, by ? kh : undefined);
+      // Helpers are in the kill feed too, named after their owner ("Potter's Snowman").
+      else if (b instanceof Cat || b instanceof Snowman) {
+        const v = b instanceof Cat ? b.variant : 'snowman';
+        const k = by && by !== b.owner ? by : null;
+        this.feedKill(b.owner, k, how, env, v, k ? kh : undefined);
+      }
+    }
     if (b instanceof Fighter) for (const p of this.projectiles) if (p.owner === b && returns(p.kind)) p.dead = true;
   }
 
   /** Add a goofy line to the kill feed (and send it to the other devices). */
-  private feedKill(v: Fighter, killer: Fighter | null, how: Finish, env?: FeedKind) {
+  private feedKill(v: Fighter, killer: Fighter | null, how: Finish, env?: FeedKind, vh?: string, kh?: string) {
     let kind: FeedKind = env ?? (killer?.pigeon ? 'peck' : 'kill');
     if (how === 'void') kind = this.map.theme === 'beach' ? 'water' : this.map.theme === 'lava' ? 'lava' : 'void';
+    // A cat going down gets its own cute line.
+    if (vh === 'cat') kind = 'meow';
     // Knocked off the map (or into lava) by someone a moment ago: they get the credit.
-    if (!killer && v.lastHitBy && v.lastHitBy !== v && this.time - v.lastHitT < BLAME_S) killer = v.lastHitBy;
+    if (!vh && !killer && v.lastHitBy && v.lastHitBy !== v && this.time - v.lastHitT < BLAME_S) killer = v.lastHitBy;
     const by = !!killer;
     const count = feedCount(kind, by);
     // Never the same joke twice in a row.
@@ -1072,9 +1109,9 @@ export class Game {
     const key = `${kind}${by}`;
     if (count > 1 && n === this.lastFeed.get(key)) n = (n + 1) % count;
     this.lastFeed.set(key, n);
-    const item: FeedItem = { victim: this.fighters.indexOf(v), killer: killer ? this.fighters.indexOf(killer) : -1, kind, n, t: FEED_LIFE };
+    const item: FeedItem = { victim: this.fighters.indexOf(v), killer: killer ? this.fighters.indexOf(killer) : -1, kind, n, vh, kh, t: FEED_LIFE };
     this.pushFeed(item);
-    if (this.record) this.events.push(['k', item.victim, item.killer, kind, n]);
+    if (this.record) this.events.push(vh || kh ? ['k', item.victim, item.killer, kind, n, vh ?? '', kh ?? ''] : ['k', item.victim, item.killer, kind, n]);
   }
 
   private pushFeed(item: FeedItem) {
@@ -1251,6 +1288,37 @@ export class Game {
         this.burst(sh.x + cos * 50 * s, sh.y + sin * 50 * s, '#ff6d00', 12, 300);
         break;
       }
+      case 'chainsaw': {
+        // Rev Dash: rush forward with the chainsaw roaring (hits like the sword's dash).
+        const dir = Math.abs(cos) < 0.2 ? f.facing : sign(cos);
+        f.facing = dir;
+        f.dashT = 0.3;
+        f.dashVx = dir * 1300;
+        f.hitCd.clear();
+        this.burst(f.x, f.cy, '#9e9e9e', 10, 240);
+        this.text(f.x, f.y - f.h - 30, 'VRRRM!', '#ff7043', 24);
+        this.play('throw');
+        break;
+      }
+      case 'yoyo':
+        // Walk the Dog: the yo-yo flies out and spins back to your hand.
+        this.spawnProj('yoyo', f, tip.x, tip.y, angle, 1100, 0, 30 * m, i);
+        f.boomerangOut[i] = true;
+        this.play('throw');
+        break;
+      case 'crossbow':
+        // A heavy bolt that flies straight and fast.
+        this.spawnProj('arrow', f, tip.x, tip.y, angle, 2200, 0, 55 * m, i);
+        this.play('throw');
+        break;
+      case 'whip':
+        this.whipCrack(f);
+        break;
+      case 'fryfish':
+        // Throw a fried fish. Bonk!
+        this.spawnProj('fishthrow', f, tip.x, tip.y, angle, 850, 1400, 35 * m, i);
+        this.play('throw');
+        break;
       case 'recall':
         // The boss ally when it's ready, otherwise Strike.
         if (f.summonCd <= 0) {
@@ -1466,7 +1534,13 @@ export class Game {
     this.callCats(f, SUMMONER.cats, 'cat');
     this.callCats(f, SUMMONER.fish, 'fish');
     this.callCats(f, SUMMONER.soldier, 'soldier');
-    if (!this.cats.some((c) => c.alive && c.owner === f && c.variant === 'memory')) this.summonMemory(f);
+    // The Recall Memory boss stays until it's beaten when the Summoner calls it (no 20 s timer).
+    if (!this.cats.some((c) => c.alive && c.owner === f && c.variant === 'memory')) this.summonMemory(f).life = Infinity;
+    // They appear on the side toward the middle of the map, so they don't drop off the edge.
+    const inward = f.x < this.map.w / 2 ? 1 : -1;
+    this.summonOne(f, 'sbsnow', SB_ALLY.hp, SB_ALLY.punch, inward * 60);
+    this.summonOne(f, 'fireally', SB_ALLY.hp, SB_ALLY.fire, inward * 110);
+    this.summonRedGuy(f);
     for (let k = 0; k < SUMMONER.snowmen; k++) {
       if (this.snowmen.filter((m) => m.alive && m.owner === f).length >= this.maxSnowmen) break;
       const m = new Snowman(f, f.x + (k - 1) * 56, f.y - 6);
@@ -1738,8 +1812,50 @@ export class Game {
     }
   }
 
+  /** Summoner: one Stick Brawl ally of this kind per owner (the Snowman or the Fire Ally), until it's beaten. */
+  private summonOne(f: Fighter, variant: CatVariant, hp: number, dmg: number, dx: number) {
+    if (this.cats.some((c) => c.alive && c.owner === f && c.variant === variant)) return;
+    const x = clamp(f.x + dx, 0, this.map.w);
+    const c = new Cat(f, x, f.y - 6, hp, dmg, variant);
+    c.vy = -450;
+    this.cats.push(c);
+    this.burst(x, f.y - 40, variant === 'sbsnow' ? '#eafbff' : '#ff7a1a', 14, 300);
+    this.text(x, f.y - 130, variant === 'sbsnow' ? '⛄!' : '🔥!', '#ffffff', 26);
+  }
+
+  /** Summoner: the red guy from WORST Stickman Fighter. If yours is frozen, it comes back to life with full HP instead. */
+  private summonRedGuy(f: Fighter) {
+    const mine = this.cats.find((c) => c.owner === f && c.variant === 'redguy');
+    if (mine?.alive) return;
+    if (mine) {
+      mine.alive = true;
+      mine.frozen = false;
+      mine.hp = mine.maxHp;
+      mine.vy = -300;
+      mine.bumpCd.clear();
+      this.burst(mine.x, mine.cy, '#ff6666', 12, 260);
+      this.text(mine.x, mine.y - 60, '❤️', '#ff6666', 22);
+      return;
+    }
+    const x = clamp(f.x + (f.x < this.map.w / 2 ? 40 : -40), 0, this.map.w);
+    const c = new Cat(f, x, f.y - 6, RED_GUY.hp, RED_GUY.bump, 'redguy');
+    c.vy = -400;
+    this.cats.push(c);
+    this.burst(x, f.y - 20, '#ff6666', 10, 240);
+  }
+
+  /** The red guy bumps an enemy: 10 damage, and they bounce off each other. */
+  redBump(c: Cat, e: Body) {
+    c.bumpCd.set(e.id, this.time + RED_GUY.every);
+    const dir = sign(e.x - c.x) || c.facing;
+    this.damage(e, c.touchDmg, c, dir * 330, -200, 'fling');
+    c.vx = -dir * 320;
+    c.vy = Math.min(c.vy, -300);
+    c.onGround = false;
+  }
+
   /** Recall Memory: the purple boss ally appears next to you and fights for 20 seconds. */
-  private summonMemory(f: Fighter) {
+  private summonMemory(f: Fighter): Cat {
     const x = f.x + f.facing * 50;
     const c = new Cat(f, x, f.y - 4, MEMORY_ALLY.hp, MEMORY_ALLY.dmg, 'memory');
     c.vy = -300;
@@ -1748,6 +1864,7 @@ export class Game {
     this.ring(x, f.y, 90, 0.5, '#b388ff');
     this.text(x, f.y - 160, '💭!', '#b388ff', 30);
     this.play('snowman');
+    return c;
   }
 
   /** Magnet: pulls every enemy close by toward you, with a little damage. */
@@ -1863,6 +1980,22 @@ export class Game {
     }
   }
 
+  /** Lightning Whip: crack it and lightning jumps to the nearest enemy close by (45). */
+  private whipCrack(f: Fighter) {
+    const t = nearestEnemy(this, f, 480 * f.scale);
+    const sh = f.shoulder();
+    this.play('throw');
+    if (!t) {
+      this.text(f.x, f.y - f.h - 20, '⚡', '#fff176', 22);
+      return;
+    }
+    this.bolts.push({ x1: sh.x, y1: sh.y, x2: t.x, y2: t.cy, life: 0.25 });
+    if (this.record) this.events.push(['z', Math.round(sh.x), Math.round(sh.y), Math.round(t.x), Math.round(t.cy)]);
+    this.burst(t.x, t.cy, '#fff176', 12, 320);
+    this.damage(t, 45 * f.dmgMult, f, (sign(t.x - f.x) || 1) * 380, -380, 'zap');
+    if (t.alive) t.stun = Math.max(t.stun, 0.5);
+  }
+
   private dropPotion(x: number, y: number) {
     this.potions.push({ id: this.potionId++, x, y, vy: -400, life: POTION_LIFE });
   }
@@ -1937,8 +2070,9 @@ export class Game {
   }
 
   /** Summoner's Clone: one at a time. It looks just like you (name, hat and color). */
-  private summonClone(f: Fighter) {
-    if (f.cloneOf || this.fighters.some((c) => c.alive && c.cloneOf === f)) return;
+  private summonClone(f: Fighter, sandbox = false) {
+    // Sandbox may add more than one Clone of the same fighter.
+    if (!sandbox && (f.cloneOf || this.fighters.some((c) => c.alive && c.cloneOf === f))) return;
     const pool = SHOP_WEAPONS.filter((w) => !SUMMON_WEAPONS.includes(w.id));
     const c = this.addClone(f, pool[Math.floor(Math.random() * pool.length)].id);
     c.brain = new BotBrain('hard');
@@ -2016,7 +2150,7 @@ export class Game {
     c.attackT = 0.8;
     const dir = sign(e.x - c.x) || c.facing;
     c.facing = dir;
-    const big = c.variant === 'memory' || c.variant === 'soldier';
+    const big = c.variant === 'memory' || c.variant === 'soldier' || c.variant === 'sbsnow';
     this.damage(e, dmg, c, dir * (big ? 480 : 260), big ? -380 : -220, big ? 'ragdoll' : 'trip');
   }
 
@@ -2046,9 +2180,9 @@ export class Game {
     const scale = owner instanceof Fighter ? owner.scale : 1;
     const big = kind === 'boomerang' || kind === 'bomb' || kind === 'axe' || kind === 'fireball' || kind === 'six7' || kind === 'soup';
     const r =
-      { arrow: 5, snowball: 11, minisnow: 8, boomerang: 16, bomb: 11, axe: 22, shuriken: 8, laser: 6, fireball: 14, six7: 24, poop: 10, soup: 14, icebolt: 9, banana: 10, fireslash: 34, dart: 6, memorybox: 12, rocket: 10, wave: 60, shard: 10, crash: 80, vine: 14, nerf: 6, bullet67: 7, water: 7, bubble: 18 }[kind] *
+      { arrow: 5, snowball: 11, minisnow: 8, boomerang: 16, bomb: 11, axe: 22, shuriken: 8, laser: 6, fireball: 14, six7: 24, poop: 10, soup: 14, icebolt: 9, banana: 10, fireslash: 34, dart: 6, memorybox: 12, rocket: 10, wave: 60, shard: 10, crash: 80, vine: 14, nerf: 6, bullet67: 7, water: 7, bubble: 18, yoyo: 13, fishthrow: 14, allyfire: 12 }[kind] *
       (big || kind === 'fireslash' ? scale : 1);
-    const life = { arrow: 2, snowball: 3, minisnow: 3, boomerang: 3.5, bomb: 1.5, axe: 3.5, shuriken: 2, laser: 0.7, fireball: 2, six7: 3.5, poop: 3, soup: 3, icebolt: 2, banana: 3, fireslash: 0.7, dart: 2, memorybox: 0.35, rocket: 2, wave: 1.7, shard: 1.6, crash: 1.9, vine: 0.42, nerf: 2, bullet67: 1.2, water: 0.9, bubble: 2.6 }[kind];
+    const life = { arrow: 2, snowball: 3, minisnow: 3, boomerang: 3.5, bomb: 1.5, axe: 3.5, shuriken: 2, laser: 0.7, fireball: 2, six7: 3.5, poop: 3, soup: 3, icebolt: 2, banana: 3, fireslash: 0.7, dart: 2, memorybox: 0.35, rocket: 2, wave: 1.7, shard: 1.6, crash: 1.9, vine: 0.42, nerf: 2, bullet67: 1.2, water: 0.9, bubble: 2.6, yoyo: 3.5, fishthrow: 3, allyfire: 2 }[kind];
     this.projectiles.push({
       kind,
       x,
@@ -2120,7 +2254,7 @@ export class Game {
         if (!e.alive || e.team === p.team || p.hit.has(e.id) || !e.contains(p.x, p.y, p.r)) continue;
         const dir = sign(p.vx) || 1;
         p.hitAny = true;
-        if (p.kind === 'boomerang') {
+        if (p.kind === 'boomerang' || p.kind === 'yoyo') {
           p.hit.add(e.id);
           this.damage(e, p.dmg, p.owner, dir * 450, -350, PROJ_FINISH[p.kind]);
           continue;
@@ -2218,6 +2352,10 @@ export class Game {
               e.lastHitT = this.time;
             }
           }
+        } else if (p.kind === 'allyfire') {
+          // The Fire Ally's fireball: no burning.
+          this.damage(e, p.dmg, p.owner, dir * 320, -260, PROJ_FINISH[p.kind]);
+          this.burst(p.x, p.y, '#ff7a1a', 10, 240);
         } else if (p.kind === 'memorybox') {
           this.damage(e, p.dmg, p.owner, dir * 500, -350, PROJ_FINISH[p.kind]);
           this.burst(p.x, p.y, '#b388ff', 14, 300);

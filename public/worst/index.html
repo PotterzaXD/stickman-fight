@@ -1,0 +1,382 @@
+<!doctype html><html><head><meta charset=utf8>
+<meta name=viewport content="width=device-width,initial-scale=1"><style>:root{color-scheme:light}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#faf9f5;color:#141413}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}
+  /* Stickman Fight: exit button and the on-screen joystick (Play only). */
+  #sfExit { position: fixed; top: 10px; right: 10px; z-index: 10; }
+  #joy { display: none; position: relative; width: 140px; height: 140px; margin: 0 0 1rem; touch-action: none; user-select: none; -webkit-user-select: none; }
+  #joy.on { display: block; }
+  #joyRing { position: absolute; inset: 0; border-radius: 50%; border: 3px solid rgba(20,20,19,0.35); background: rgba(20,20,19,0.08); }
+  #joyKnob { position: absolute; width: 60px; height: 60px; left: 40px; top: 40px; border-radius: 50%; background: rgba(20,20,19,0.45); }
+</style></head><body>
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Worst Stickman Fighter</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: var(--surface-0); font-family: var(--font-sans); color: var(--text-primary); padding: 1rem; }
+
+  .menu { display: block; }
+  .menu.hidden { display: none; }
+  .gameplay { display: none; }
+  .gameplay.active { display: block; }
+
+  .panel {
+    background: var(--surface-1);
+    border: 0.5px solid var(--border);
+    border-radius: 8px;
+    padding: 1rem;
+    margin-bottom: 1rem;
+  }
+
+  .row { display: flex; gap: 8px; align-items: center; margin-bottom: 8px; }
+  .row label { min-width: 80px; font-size: 13px; }
+  .row select { flex: 1; padding: 6px 8px; }
+
+  button {
+    padding: 8px 12px;
+    border: 0.5px solid var(--border-strong);
+    background: var(--surface-2);
+    color: var(--text-primary);
+    border-radius: 4px;
+    cursor: pointer;
+    font-weight: 500;
+  }
+  button:hover { background: var(--surface-1); }
+
+  #canvas {
+    width: 100%;
+    max-width: 800px;
+    border: 2px solid var(--border-strong);
+    border-radius: 8px;
+    display: block;
+    margin-bottom: 1rem;
+  }
+
+  .stats { display: flex; gap: 1rem; margin-bottom: 1rem; }
+  .stat { background: var(--surface-2); padding: 1rem; border-radius: 6px; flex: 1; }
+  .stat-label { font-size: 12px; color: var(--text-secondary); }
+  .stat-value { font-size: 20px; font-weight: 500; }
+</style>
+</head>
+<body>
+
+<button id="sfExit" onclick="exitToStickmanFight()">← Stickman Fight</button>
+<div class="menu" id="menu">
+  <h1>WORST Stickman Fighter™</h1>
+  <p style="color: var(--text-secondary); margin-bottom: 1rem;">Chaos. Pure chaos.</p>
+
+  <div class="panel">
+    <div class="row">
+      <label>Bots:</label>
+      <select id="botCount">
+        <option>1</option>
+        <option>2</option>
+        <option>3</option>
+      </select>
+    </div>
+
+    <div class="row">
+      <label>Mode:</label>
+      <select id="gameMode">
+        <option value="play">Play</option>
+        <option value="watch">Watch Bots Fight</option>
+      </select>
+    </div>
+
+    <div style="display: flex; gap: 8px; margin-bottom: 1rem;">
+      <button onclick="startGame()" style="flex: 1;">PLAY</button>
+      <button onclick="watchBotsOnly()" style="flex: 1;">WATCH BOTS FIGHT</button>
+    </div>
+  </div>
+</div>
+
+<div class="gameplay" id="gameplay">
+  <canvas id="canvas" width="800" height="400"></canvas>
+
+  <div class="stats">
+    <div class="stat">
+      <div class="stat-label">Your Health</div>
+      <div class="stat-value" id="healthDisplay">100%</div>
+    </div>
+    <div class="stat">
+      <div class="stat-label">Enemies Left</div>
+      <div class="stat-value" id="enemiesDisplay">0</div>
+    </div>
+  </div>
+
+  <div id="joy"><div id="joyRing"></div><div id="joyKnob"></div></div>
+  <button onclick="backToMenu()">BACK TO MENU</button>
+  <div id="gameOverMsg" style="display:none; font-size:24px; font-weight:bold; margin-top:1rem;"></div>
+</div>
+
+<script>
+const canvas = document.getElementById('canvas');
+const ctx = canvas.getContext('2d');
+
+let gameActive = false;
+
+class Stick {
+  constructor(x, y, isPlayer) {
+    this.x = x;
+    this.y = y;
+    this.vx = 0;
+    this.vy = 0;
+    this.health = 100;
+    this.isPlayer = isPlayer;
+    this.onGround = false;
+  }
+
+  update(w, h) {
+    this.vy += 0.6;
+    this.x += this.vx;
+    this.y += this.vy;
+
+    if (this.onGround) this.vx *= 0.8;
+
+    if (this.y > h - 20) {
+      this.y = h - 20;
+      this.vy *= -0.25;
+      this.onGround = true;
+    } else {
+      this.onGround = false;
+    }
+
+    if (this.x < 10) this.x = 10;
+    if (this.x > w - 10) this.x = w - 10;
+  }
+
+  draw() {
+    ctx.save();
+    ctx.translate(this.x, this.y);
+
+    // Head
+    ctx.fillStyle = this.isPlayer ? '#0f0' : '#f66';
+    ctx.beginPath();
+    ctx.arc(0, -15, 6, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Body
+    ctx.strokeStyle = this.isPlayer ? '#0f0' : '#f66';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(0, -9);
+    ctx.lineTo(0, 10);
+    ctx.stroke();
+
+    // Arms
+    ctx.beginPath();
+    ctx.moveTo(0, -3);
+    ctx.lineTo(-8, 0);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(0, -3);
+    ctx.lineTo(8, 0);
+    ctx.stroke();
+
+    // Legs
+    ctx.beginPath();
+    ctx.moveTo(0, 10);
+    ctx.lineTo(-5, 22);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(0, 10);
+    ctx.lineTo(5, 22);
+    ctx.stroke();
+
+    ctx.restore();
+
+    // Health bar
+    ctx.fillStyle = '#f00';
+    ctx.fillRect(this.x - 8, this.y - 28, this.health / 6.25, 2);
+    ctx.strokeStyle = '#000';
+    ctx.strokeRect(this.x - 8, this.y - 28, 16, 2);
+  }
+}
+
+let player;
+let enemies = [];
+let keys = {};
+let watchMode = false;
+
+document.addEventListener('keydown', (e) => keys[e.key] = true);
+document.addEventListener('keyup', (e) => keys[e.key] = false);
+
+function startGame() {
+  const botCount = parseInt(document.getElementById('botCount').value);
+
+  document.getElementById('menu').classList.add('hidden');
+  document.getElementById('gameplay').classList.add('active');
+
+  player = new Stick(100, 300, true);
+  enemies = [];
+  for (let i = 0; i < botCount; i++) {
+    enemies.push(new Stick(300 + i * 150, 300, false));
+  }
+
+  watchMode = false;
+  gameActive = true;
+  document.getElementById('gameOverMsg').style.display = 'none';
+  gameLoop();
+}
+
+function watchBotsOnly() {
+  const botCount = parseInt(document.getElementById('botCount').value);
+
+  document.getElementById('menu').classList.add('hidden');
+  document.getElementById('gameplay').classList.add('active');
+
+  player = null;
+  enemies = [];
+  for (let i = 0; i < botCount; i++) {
+    enemies.push(new Stick(200 + i * 150, 300, false));
+  }
+
+  watchMode = true;
+  gameActive = true;
+  document.getElementById('gameOverMsg').style.display = 'none';
+  gameLoop();
+}
+
+function gameLoop() {
+  if (!gameActive) return;
+
+  // Clear and draw background
+  const grad = ctx.createLinearGradient(0, 0, 0, canvas.height);
+  grad.addColorStop(0, '#87CEEB');
+  grad.addColorStop(1, '#90EE90');
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  if (!watchMode) {
+    // Player control
+    if (keys['a'] || keys['ArrowLeft']) player.vx = -4;
+    if (keys['d'] || keys['ArrowRight']) player.vx = 4;
+    if ((keys['w'] || keys['ArrowUp']) && player.onGround) player.vy = -10;
+
+    player.update(canvas.width, canvas.height);
+  }
+
+  // Enemies
+  enemies.forEach((enemy, i) => {
+    if (Math.random() > 0.88) enemy.vx += (Math.random() - 0.5) * 6;
+    if (Math.random() > 0.93 && enemy.onGround) enemy.vy = -9;
+
+    if (!watchMode) {
+      const d = Math.hypot(player.x - enemy.x, player.y - enemy.y);
+      if (d < 50 && Math.random() > 0.6) {
+        player.vx += enemy.x > player.x ? -8 : 8;
+        player.health -= 5 + Math.random() * 5;
+      }
+    }
+
+    enemies.forEach((other, j) => {
+      if (i !== j && Math.random() > 0.85) {
+        const d2 = Math.hypot(other.x - enemy.x, other.y - enemy.y);
+        if (d2 < 50) {
+          other.vx += other.x > enemy.x ? 6 : -6;
+          other.health -= 3;
+        }
+      }
+    });
+
+    enemy.update(canvas.width, canvas.height);
+  });
+
+  if (!watchMode && Math.random() > 0.7 && enemies.length > 0) {
+    const e = enemies[0];
+    const d = Math.hypot(e.x - player.x, e.y - player.y);
+    if (d < 50) {
+      e.vx += e.x > player.x ? 6 : -6;
+      e.health -= 5;
+    }
+  }
+
+  enemies = enemies.filter(e => e.health > 0);
+
+  // Draw
+  if (!watchMode) player.draw();
+  enemies.forEach(e => e.draw());
+
+  // Text
+  ctx.fillStyle = '#000';
+  ctx.font = '14px Arial';
+  if (!watchMode) {
+    ctx.fillText(`Health: ${Math.round(player.health)}`, 10, 25);
+    ctx.fillText(`Enemies: ${enemies.length}`, 10, 45);
+    document.getElementById('healthDisplay').textContent = Math.round(player.health) + '%';
+  } else {
+    ctx.fillText(`Bots Left: ${enemies.length}`, 10, 25);
+    document.getElementById('healthDisplay').textContent = 'Watching...';
+  }
+  document.getElementById('enemiesDisplay').textContent = enemies.length;
+
+  if (!watchMode && player.health <= 0) {
+    gameActive = false;
+    document.getElementById('gameOverMsg').style.display = 'block';
+    document.getElementById('gameOverMsg').textContent = 'YOU DIED 💀';
+  } else if (watchMode && enemies.length === 1) {
+    gameActive = false;
+    document.getElementById('gameOverMsg').style.display = 'block';
+    document.getElementById('gameOverMsg').textContent = `${enemies[0].health > 0 ? 'Bot' : 'Nobody'} Wins! 🎉`;
+  } else if (!watchMode && enemies.length === 0) {
+    gameActive = false;
+    document.getElementById('gameOverMsg').style.display = 'block';
+    document.getElementById('gameOverMsg').textContent = 'YOU WIN! 🎉';
+  } else {
+    requestAnimationFrame(gameLoop);
+  }
+}
+
+function backToMenu() {
+  gameActive = false;
+  document.getElementById('gameplay').classList.remove('active');
+  document.getElementById('menu').classList.remove('hidden');
+}
+
+// ---------- Stickman Fight additions ----------
+// Back to the Stickman Fight menu.
+function exitToStickmanFight() {
+  gameActive = false;
+  if (window.parent !== window) window.parent.postMessage({ type: 'worst-exit' }, location.origin);
+  else location.href = '/';
+}
+// On-screen joystick for Play: the ring stays still and only the knob moves.
+// Left/right walks (like A/D) and pushing up jumps (like W).
+(function () {
+  const joy = document.getElementById('joy');
+  const knob = document.getElementById('joyKnob');
+  const R = 50;
+  let id = null;
+  const set = (dx, dy) => {
+    knob.style.left = 40 + dx + 'px';
+    knob.style.top = 40 + dy + 'px';
+    keys['a'] = dx < -R * 0.3;
+    keys['d'] = dx > R * 0.3;
+    keys['w'] = dy < -R * 0.5;
+  };
+  const move = (e) => {
+    const r = joy.getBoundingClientRect();
+    let dx = e.clientX - (r.left + r.width / 2);
+    let dy = e.clientY - (r.top + r.height / 2);
+    const d = Math.hypot(dx, dy);
+    if (d > R) { dx = dx / d * R; dy = dy / d * R; }
+    set(dx, dy);
+  };
+  joy.addEventListener('pointerdown', (e) => { id = e.pointerId; joy.setPointerCapture(id); e.preventDefault(); move(e); });
+  joy.addEventListener('pointermove', (e) => { if (e.pointerId === id) { e.preventDefault(); move(e); } });
+  const up = (e) => { if (e.pointerId === id) { id = null; set(0, 0); } };
+  joy.addEventListener('pointerup', up);
+  joy.addEventListener('pointercancel', up);
+  window.showJoystick = (on) => { joy.classList.toggle('on', on); id = null; set(0, 0); };
+})();
+const _startGame = startGame, _watchBotsOnly = watchBotsOnly, _backToMenu = backToMenu;
+startGame = function () { showJoystick(true); _startGame(); };
+watchBotsOnly = function () { showJoystick(false); _watchBotsOnly(); };
+backToMenu = function () { showJoystick(false); _backToMenu(); };
+</script>
+
+</body>
+</html>
+</body></html>
