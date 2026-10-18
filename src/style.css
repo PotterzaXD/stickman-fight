@@ -915,6 +915,14 @@ select {
   background: linear-gradient(90deg, #ff5d5d, #ffcf4d);
   color: #2b0707;
 }
+.menu-buttons .btn.worst {
+  grid-column: 1 / -1;
+  background: linear-gradient(90deg, #87ceeb, #90ee90);
+  color: #141413;
+}
+.stickbrawl-frame.worst-frame {
+  background: #faf9f5;
+}
 .stickbrawl-frame {
   position: fixed;
   inset: 0;

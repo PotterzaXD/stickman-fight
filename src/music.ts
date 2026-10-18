@@ -16,6 +16,9 @@ export type TrackId =
   | 'space'
   | 'beach'
   | 'war'
+  | 'jungle'
+  | 'haunted'
+  | 'candy'
   | 'boss'
   | 'pigeon'
   | 'queen'
@@ -73,6 +76,12 @@ const TRACKS: Record<TrackId, TrackDef> = {
   beach: { bpm: 118, root: 67, scale: MAJOR, chords: [0, 3, 4, 0], lead: 'triangle', bass: 'square', arp: 'triangle', drums: ['k..h..h.s..h..h.', 'k..h..h.s..h.hh.'], busy: 0.6, bassRhythm: 'x..x..x...x..x..', seed: 59, swing: 0.15 },
   // The War map: marching snare and a brave minor tune
   war: { bpm: 126, root: 55, scale: DORIAN, chords: [0, 5, 6, 4], lead: 'square', bass: 'triangle', arp: null, drums: ['k...s.ssk...s.s.', 'k.ssk.s.k.ssss.s'], busy: 0.55, bassRhythm: 'x...x...x.x.x...', seed: 83 },
+  // Jungle Ruins: tribal toms and a bouncy pentatonic tune
+  jungle: { bpm: 124, root: 62, scale: PENTA, chords: [0, 3, 2, 4], lead: 'triangle', bass: 'square', arp: 'triangle', drums: ['k..tt.s.k.t.s.tt', 'k.tt.ts.k..ts.t.'], busy: 0.6, bassRhythm: 'x..x..x.x..x.x..', seed: 101, swing: 0.1 },
+  // Haunted Castle: slow, spooky minor with a creepy arp
+  haunted: { bpm: 96, root: 57, scale: HARM, chords: [0, 5, 4, 0], lead: 'sine', bass: 'sawtooth', arp: 'square', drums: [HALF, 'k.......s...t.t.'], busy: 0.4, bassRhythm: 'x.......x...x...', seed: 107, leadOct: 1 },
+  // Candy Land: sugary, happy and quick
+  candy: { bpm: 144, root: 67, scale: MAJOR, chords: [0, 5, 3, 4], lead: 'square', bass: 'triangle', arp: 'triangle', drums: [BACK, 'k.h.s.hhk.h.s.h.'], busy: 0.7, bassRhythm: 'x.x...x.x.x...x.', seed: 113, leadOct: 1 },
   // The Pigeon: a silly, bouncy theme that loops for as long as the fight goes on
   pigeon: { bpm: 150, root: 62, scale: MAJOR, chords: [0, 4, 5, 3, 0, 4, 1, 4], lead: 'square', bass: 'triangle', arp: 'square', drums: ['k.h.s.h.k.k.s.h.', 'k.hks.h.k.h.s.hh'], busy: 0.75, bassRhythm: 'x.xx..x.x.xx..x.', seed: 97, swing: 0.08, leadOct: 1 },
   // Standard bosses: fast and intense

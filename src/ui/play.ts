@@ -4,7 +4,7 @@ import type { Fighter } from '../game/entities';
 import { PIGEON_WEAPON, SECRET_KINDS, isSecret, type BossKind, type SecretKind } from '../game/types';
 import { resolveHat } from '../game/hats';
 import { ALL_OWNABLE, WEAPONS } from '../game/weapons';
-import { BUILTIN_MAPS } from '../game/maps';
+import { BUILTIN_MAPS, GUARDIAN_MAPS } from '../game/maps';
 import { jingle, playMusic, type TrackId } from '../music';
 import { JoystickManager } from '../game/input';
 import { allMaps } from '../game/maps';
@@ -168,7 +168,7 @@ function wakeSecrets(r: RewardInfo): SecretKind[] {
   const want: SecretKind[] = [];
   if (save.data.stats.catSnowWins >= QUEEN_CAT_WINS) want.push('queen');
   if (r.fish && f.noBots) want.push('tide');
-  if (BUILTIN_MAPS.every((m) => save.data.stats.mapsWon.includes(m.id))) want.push('guardian');
+  if (GUARDIAN_MAPS.every((id) => save.data.stats.mapsWon.includes(id))) want.push('guardian');
   const fresh = want.filter((k) => !save.data.secrets.includes(k));
   if (fresh.length) save.update((d) => d.secrets.push(...fresh));
   return fresh;
@@ -351,6 +351,7 @@ register('play', (root, { match, fromEditor }) => {
       potions: save.data.settings.potions,
       extraBosses: match.mode === 'sandbox' ? match.extraBosses : undefined,
       helpers: match.mode === 'sandbox' ? match.helpers : undefined,
+      clones: match.mode === 'sandbox' ? match.clones : undefined,
     });
     game.onOver = showResult;
     startCoins = save.data.coins;

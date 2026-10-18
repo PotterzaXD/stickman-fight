@@ -1,6 +1,7 @@
 import type { Body, Cat, Fighter, Snowman, Projectile } from './entities';
 import { BOSS_TEAM, FEED_LIFE, type Game } from './game';
-import { feedParts } from './killfeed';
+import { feedParts, helperName } from './killfeed';
+import { drawExtraDeco, drawExtraProjectile, drawExtraWeapon, drawRedGuy, drawSbAlly } from './extras';
 import { t } from '../i18n';
 import { drawCorpse, type Corpse } from './finish';
 import { THEMES } from './maps';
@@ -157,7 +158,7 @@ export function drawBackground(ctx: Ctx, map: MapDef, vw: number, vh: number, ca
       ctx.arc(fx, fy, 8 + ph * 60, 0, Math.PI * 2);
       ctx.fill();
     }
-  } else {
+  } else if (!drawExtraDeco(ctx, th.deco, vw, vh, par, time)) {
     for (let i = 0; i < 40; i++) {
       const x = ((hash(i) * vw - par) % vw + vw) % vw;
       const y = vh - (((hash(i + 7) * vh + time * (40 + hash(i) * 60)) % vh) + vh) % vh;
@@ -934,6 +935,8 @@ export function drawWeaponShape(ctx: Ctx, id: WeaponId, len: number, s: number, 
       ctx.arc(27 * s, 0, 2.5 * s, 0, Math.PI * 2);
       ctx.fill();
       break;
+    default:
+      drawExtraWeapon(ctx, id, len, s, ready, performance.now() / 1000);
   }
 }
 
@@ -2048,6 +2051,7 @@ function drawSnowman(ctx: Ctx, m: Snowman) {
 }
 
 function drawProjectile(ctx: Ctx, p: Projectile, time: number) {
+  if (drawExtraProjectile(ctx, p, time)) return;
   switch (p.kind) {
     case 'nerf': {
       // Foam dart: blue body, orange tip
@@ -2431,8 +2435,16 @@ export function renderGame(g: Game, ctx: Ctx, vw: number, vh: number, dpr: numbe
   }
   for (const m of g.snowmen) if (m.alive) drawSnowman(ctx, m);
   for (const c of g.cats) {
+    // A frozen red guy stays on screen where it went down.
+    if (c.variant === 'redguy') {
+      if (c.alive || c.frozen) drawRedGuy(ctx, c);
+      continue;
+    }
     if (!c.alive) continue;
-    if (c.variant === 'fish') drawFishMinion(ctx, c, g.time);
+    if (c.variant === 'sbsnow' || c.variant === 'fireally') {
+      drawSbAlly(ctx, c, g.time);
+      hpBar(ctx, c.x, c.y - c.h - 36, 34, c.hp / c.maxHp, c.owner.color);
+    } else if (c.variant === 'fish') drawFishMinion(ctx, c, g.time);
     else if (c.variant === 'memory') drawMemoryAlly(ctx, c);
     else if (c.variant === 'soldier') drawSoldier(ctx, c);
     else drawCat(ctx, c);
@@ -2558,7 +2570,9 @@ function drawFeed(g: Game, ctx: Ctx, vw: number, top: number) {
     const victim = g.fighters[item.victim];
     if (!victim) continue;
     const killer = g.fighters[item.killer];
-    const parts = feedParts(item.kind, !!killer, item.n, killer?.name ?? '', victim.name);
+    const kName = killer ? (item.kh ? helperName(item.kh, killer.name) : killer.name) : '';
+    const parts = feedParts(item.kind, !!killer, item.n, kName, item.vh ? helperName(item.vh, victim.name) : victim.name);
+    const cute = item.kind === 'meow';
     const age = FEED_LIFE - item.t;
     // Shrink long lines to fit.
     let size = base;
@@ -2577,9 +2591,16 @@ function drawFeed(g: Game, ctx: Ctx, vw: number, top: number) {
     const slide = Math.max(0, 1 - age / 0.18);
     const x = vw - 12 - tw - 20 + slide * (tw + 40);
     ctx.globalAlpha = Math.min(1, item.t / 0.6);
-    ctx.fillStyle = 'rgba(0,0,0,0.62)';
+    // A cat's line is pink and cute.
+    ctx.fillStyle = cute ? 'rgba(255,128,171,0.9)' : 'rgba(0,0,0,0.62)';
     roundRect(ctx, x, y, tw + 20, lh, lh / 2);
     ctx.fill();
+    if (cute) {
+      ctx.strokeStyle = 'rgba(255,255,255,0.9)';
+      ctx.lineWidth = 2;
+      roundRect(ctx, x, y, tw + 20, lh, lh / 2);
+      ctx.stroke();
+    }
     // A little pop when it arrives.
     if (age < 0.3) {
       ctx.strokeStyle = `rgba(255,235,59,${1 - age / 0.3})`;

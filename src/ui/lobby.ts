@@ -1,7 +1,7 @@
 import { BOT_COLORS, PLAYER_COLORS, TEAM_COLORS } from '../game/game';
 import { allMaps } from '../game/maps';
 import { BEACH_MAP, BEACH_MODES, PIGEON_MAX, SECRET_KINDS, isBossMode, isSecret, type SecretKind, type Difficulty, type MapDef, type MatchConfig, type Mode, type SlotConfig } from '../game/types';
-import { BUILTIN_MAPS } from '../game/maps';
+import { GUARDIAN_MAPS } from '../game/maps';
 import { HATS } from '../game/hats';
 import { hasAch } from '../achievements';
 import { WEAPONS } from '../game/weapons';
@@ -43,7 +43,7 @@ export function secretHints(): HTMLElement | null {
   const progress: Record<SecretKind, string> = {
     queen: t('hintProgress', { n: Math.min(3, st.catSnowWins), total: 3 }),
     tide: '',
-    guardian: t('hintProgress', { n: BUILTIN_MAPS.filter((m) => st.mapsWon.includes(m.id)).length, total: BUILTIN_MAPS.length }),
+    guardian: t('hintProgress', { n: GUARDIAN_MAPS.filter((id) => st.mapsWon.includes(id)).length, total: GUARDIAN_MAPS.length }),
   };
   return h(
     'div',

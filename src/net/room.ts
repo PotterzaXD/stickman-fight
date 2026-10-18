@@ -7,18 +7,19 @@ import { MASCOT_WEAPONS } from '../game/weapons';
 import { HATS, hatExists, resolveHat } from '../game/hats';
 import type { Snapshot } from './snapshot';
 
-export const PROTO = 7;
+export const PROTO = 8;
 export const MIN_ROOM = 2;
-export const MAX_ROOM = 20;
+export const MAX_ROOM = 30;
 export const MAX_LOCAL = 6;
 export const ONLINE_SNOWMEN = 5;
 
 const ICE: RTCIceServer[] = [{ urls: ['stun:stun.l.google.com:19302', 'stun:stun1.l.google.com:19302'] }];
 
-/** 20 easy-to-tell-apart colours for online FFA. */
+/** 30 easy-to-tell-apart colours for online FFA. */
 export const ONLINE_COLORS = [
   '#e53935', '#1e88e5', '#43a047', '#fdd835', '#8e24aa', '#fb8c00', '#ec407a', '#00acc1', '#7cb342', '#6d4c41',
   '#3949ab', '#f4511e', '#00897b', '#c0ca33', '#5e35b1', '#d81b60', '#039be5', '#ffb300', '#546e7a', '#9e9d24',
+  '#ff8a80', '#82b1ff', '#b9f6ca', '#fff59d', '#ea80fc', '#ffd180', '#a7ffeb', '#880e4f', '#1a237e', '#33691e',
 ];
 
 export interface Member {

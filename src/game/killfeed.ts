@@ -5,7 +5,7 @@ import { save } from '../save';
  * 'kill' = knocked out by someone. The others are the map's fault (nobody hit them first).
  * 'water'/'void'/'lava' with a killer = someone knocked them in.
  */
-export type FeedKind = 'kill' | 'water' | 'void' | 'lava' | 'burn' | 'peck';
+export type FeedKind = 'kill' | 'water' | 'void' | 'lava' | 'burn' | 'peck' | 'meow';
 
 const EN: Record<FeedKind, { solo: string[]; by: string[] }> = {
   kill: {
@@ -52,6 +52,11 @@ const EN: Record<FeedKind, { solo: string[]; by: string[] }> = {
     solo: ['{v} got pecked. Just one peck'],
     by: ['{k} pecked {v} into next week', '{k} mistook {v} for a breadcrumb 🍞', '{v} got one-pecked by {k}. Embarrassing', '{k} took {v} back to the nest 🪺', '{k} said COO and {v} was gone'],
   },
+  // A cat went down: cute lines (drawn pink with paws).
+  meow: {
+    solo: ['🐾 {v} ran out of all nine lives 😿', '🐾 {v} curled up for a very long nap 💤'],
+    by: ['🐾 {k} booped {v} too hard 😿', '😺 {v} got scooped up by {k}. Bye bye kitty 🐾', '🐾 {k} sent {v} to the big cat bed in the sky ☁️', '😿 {k} petted {v} the wrong way 🐾'],
+  },
 };
 
 const TH: Record<FeedKind, { solo: string[]; by: string[] }> = {
@@ -94,6 +99,10 @@ const TH: Record<FeedKind, { solo: string[]; by: string[] }> = {
     solo: ['{v} โดนจิกทีเดียวจบ'],
     by: ['{k} จิก {v} ไปถึงอาทิตย์หน้า', '{k} นึกว่า {v} เป็นเศษขนมปัง 🍞', '{v} โดน {k} จิกทีเดียวจอด น่าอาย', '{k} คาบ {v} กลับรัง 🪺', '{k} ร้องกุ๊กกรู แล้ว {v} ก็หายไป'],
   },
+  meow: {
+    solo: ['🐾 {v} หมดเก้าชีวิตแล้ว 😿', '🐾 {v} ขดตัวนอนยาว ๆ ไปเลย 💤'],
+    by: ['🐾 {k} จิ้มจมูก {v} แรงไปหน่อย 😿', '😺 {v} โดน {k} อุ้มไปแล้ว บ๊ายบายเหมียว 🐾', '🐾 {k} ส่ง {v} ไปนอนเตียงแมวบนฟ้า ☁️', '😿 {k} ลูบขน {v} ผิดทาง 🐾'],
+  },
 };
 
 /** How many lines each kind has (the same in every language). */
@@ -111,3 +120,13 @@ export function feedParts(kind: FeedKind, byKiller: boolean, n: number, killer: 
     .filter(Boolean)
     .map((s) => (s === '{k}' ? { text: killer, who: 'k' as const } : s === '{v}' ? { text: victim, who: 'v' as const } : { text: s, who: null }));
 }
+
+/** A helper's name in the kill feed: "Potter's Snowman". `kind` is 'snowman' or a helper variant. */
+export function helperName(kind: string, owner: string): string {
+  const th = save.data.settings.lang === 'th';
+  const name = (th ? HELPER_TH : HELPER_EN)[kind] ?? kind;
+  return th ? `${name}ของ ${owner}` : `${owner}’s ${name}`;
+}
+
+const HELPER_EN: Record<string, string> = { snowman: 'Snowman', cat: 'Cat', fish: 'Fish', memory: 'Recall Memory', soldier: 'Soldier', sbsnow: 'Snowman', fireally: 'Fire Ally', redguy: 'Red Guy' };
+const HELPER_TH: Record<string, string> = { snowman: 'สโนว์แมน', cat: 'แมว', fish: 'ปลา', memory: 'Recall Memory', soldier: 'ทหาร', sbsnow: 'สโนว์แมน', fireally: 'สหายไฟ', redguy: 'เจ้าตัวแดง' };

@@ -1,5 +1,5 @@
 import type { Game } from './game';
-import { Body, Cat, Fighter, Snowman } from './entities';
+import { Body, Cat, Fighter, SB_ALLY, Snowman } from './entities';
 import type { Difficulty, Intent, Platform } from './types';
 
 const rand = Math.random;
@@ -302,6 +302,21 @@ export class BotBrain {
         case 'gun67':
           if (dist < 1400) angle = Math.atan2(dy, dx);
           break;
+        case 'chainsaw':
+          if (Math.abs(dx) < 400 * s && Math.abs(dy) < 80 * s) angle = dx > 0 ? 0 : Math.PI;
+          break;
+        case 'yoyo':
+          if (dist < 500 * s) angle = Math.atan2(dy, dx);
+          break;
+        case 'crossbow':
+          if (dist < 1500) angle = Math.atan2(dy, dx);
+          break;
+        case 'whip':
+          if (dist < 460 * s) angle = Math.atan2(dy, dx);
+          break;
+        case 'fryfish':
+          if (dist < 700) angle = ballisticAngle(dx, dy, 850, 1400);
+          break;
         case 'summoner':
         case 'bravery':
           if (dist < 1000) angle = -Math.PI / 2;
@@ -380,6 +395,7 @@ export function updateSnowman(s: Snowman, dt: number, g: Game) {
 
 /** AI cats run at the nearest enemy, jump up to reach it, and bite on touch. */
 export function updateCat(c: Cat, dt: number, g: Game) {
+  if (c.variant === 'redguy') return updateRedGuy(c, dt, g);
   c.thinkT -= dt;
   c.attackT -= dt;
   if (c.thinkT <= 0) {
@@ -387,9 +403,16 @@ export function updateCat(c: Cat, dt: number, g: Game) {
     c.target = nearestEnemy(g, c);
     const t = c.target;
     c.moveX = t ? (Math.abs(t.x - c.x) > 12 ? sign(t.x - c.x) : 0) : rand() < 0.4 ? (rand() < 0.5 ? -0.5 : 0.5) : 0;
+    // The Fire Ally keeps its distance and throws fireballs.
+    if (t && c.variant === 'fireally') {
+      const d = Math.abs(t.x - c.x);
+      c.moveX = d < 260 ? -sign(t.x - c.x) : d > 480 ? sign(t.x - c.x) : 0;
+    }
     // Don't run off an edge unless the target is across a small gap.
     if (c.onGround && c.moveX !== 0 && !platformBelow(g, c.x + sign(c.moveX) * 30, c.y, 700)) {
-      if (t && t.y < c.y + 80 && Math.abs(t.x - c.x) > 120 && rand() < 0.5) {
+      // The Fire Ally backing away just stops at the edge.
+      if (c.variant === 'fireally') c.moveX = 0;
+      else if (t && t.y < c.y + 80 && Math.abs(t.x - c.x) > 120 && rand() < 0.5) {
         c.vy = -900;
         c.onGround = false;
       } else c.moveX = 0;
@@ -400,14 +423,31 @@ export function updateCat(c: Cat, dt: number, g: Game) {
     if (np) c.moveX = sign(np.x + np.w / 2 - c.x);
   }
   // The boss ally walks a bit slower; fish flop about quickly.
-  const speed = c.variant === 'memory' ? 280 : c.variant === 'fish' ? 360 : c.variant === 'soldier' ? 300 : 330;
+  const speed = c.variant === 'memory' ? 280 : c.variant === 'fish' ? 360 : c.variant === 'soldier' || c.variant === 'sbsnow' || c.variant === 'fireally' ? 300 : 330;
   if (c.stun > 0) c.vx *= Math.max(0, 1 - 2 * dt);
   else c.vx += (c.moveX * speed - c.vx) * Math.min(1, (c.onGround ? 10 : 4) * dt);
   if (c.moveX) c.facing = sign(c.moveX);
   const t = c.target && c.target.alive ? c.target : null;
+  const tall = c.variant === 'memory' || c.variant === 'soldier' || c.variant === 'sbsnow' || c.variant === 'fireally';
   if (t && c.onGround && t.cy < c.y - 90 && rand() < dt * 2.5) {
-    c.vy = c.variant === 'memory' || c.variant === 'soldier' ? -1000 : -900;
+    c.vy = tall ? -1000 : -900;
     c.onGround = false;
+  }
+  if (c.variant === 'fireally') {
+    if (t) c.facing = sign(t.x - c.x) || c.facing;
+    c.shootT -= dt;
+    if (t && c.shootT <= 0 && c.stun <= 0) {
+      const hx = c.x + c.facing * 22;
+      const hy = c.y - 50;
+      const dx = t.x - hx;
+      const dy = t.cy - hy;
+      if (Math.hypot(dx, dy) < 900) {
+        c.shootT = SB_ALLY.fireEvery;
+        c.attackT = 0.3;
+        g.spawnProj('allyfire', c, hx, hy, ballisticAngle(dx, dy, 900, 300) + (rand() - 0.5) * 0.08, 900, 300, c.touchDmg, 0);
+      }
+    }
+    return;
   }
   // Spear soldiers: the spear's thrust skill, a quick lunge with a long poke.
   if (c.variant === 'soldier') {
@@ -426,7 +466,8 @@ export function updateCat(c: Cat, dt: number, g: Game) {
   if (c.attackT > 0 && !thrust) return;
   for (const e of g.bodies()) {
     // Spear soldiers poke from a spear's length away (twice as far in a thrust).
-    const reach = c.variant === 'soldier' ? c.w / 2 + (thrust ? SOLDIER_THRUST.reach : 55) : c.w / 2;
+    // The Stick Brawl Snowman punches from an arm's length.
+    const reach = c.variant === 'soldier' ? c.w / 2 + (thrust ? SOLDIER_THRUST.reach : 55) : c.variant === 'sbsnow' ? c.w / 2 + 24 : c.w / 2;
     if (!e.alive || e.team === c.team || !e.contains(c.x, c.cy, reach)) continue;
     if (thrust) {
       c.thrustT = 0;
@@ -438,3 +479,52 @@ export function updateCat(c: Cat, dt: number, g: Game) {
 
 /** Spear soldiers' thrust: lunge speed, seconds, cooldown, how close it starts, reach, and damage (times a normal poke). */
 export const SOLDIER_THRUST = { speed: 760, s: 0.3, cd: 3, range: 230, reach: 120, mult: 3.5 };
+
+/**
+ * The red guy from WORST Stickman Fighter: it just walks and jumps around (toward enemies, a bit randomly)
+ * and hurts whoever it bumps into. Its arms and legs never move.
+ */
+function updateRedGuy(c: Cat, dt: number, g: Game) {
+  c.thinkT -= dt;
+  if (c.thinkT <= 0) {
+    c.thinkT = 0.2 + rand() * 0.3;
+    c.target = nearestEnemy(g, c);
+    const t = c.target;
+    c.moveX = t && rand() < 0.75 ? sign(t.x - c.x) : rand() < 0.5 ? -1 : 1;
+  }
+  // At an edge: hop over a gap toward the target, otherwise turn around.
+  if (c.onGround && c.moveX !== 0 && !platformBelow(g, c.x + c.moveX * 20, c.y, 700)) {
+    const t = c.target && c.target.alive ? c.target : null;
+    if (t && sign(t.x - c.x) === c.moveX && Math.abs(t.x - c.x) > 100 && t.y < c.y + 80 && platformBelow(g, c.x + c.moveX * 200, c.y - 220, 620)) {
+      c.vy = -950;
+      c.vx = c.moveX * 300;
+      c.onGround = false;
+    } else {
+      c.moveX = -c.moveX;
+      c.vx = 0;
+    }
+  }
+  // Falling with nothing below: steer hard back toward the nearest platform.
+  let rescue = false;
+  if (!c.onGround && !platformBelow(g, c.x, c.y, 2000)) {
+    const np = nearestPlatform(g, c.x, c.y);
+    if (np) {
+      c.moveX = sign(np.x + np.w / 2 - c.x);
+      rescue = true;
+    }
+  }
+  if (c.stun > 0 && !rescue) c.vx *= Math.max(0, 1 - 2 * dt);
+  else c.vx += (c.moveX * (rescue ? 340 : 260) - c.vx) * Math.min(1, (c.onGround || rescue ? 8 : 3) * dt);
+  if (c.moveX) c.facing = sign(c.moveX);
+  // Hops around all the time, like in WORST Stickman Fighter (but not off the edge of the map).
+  if (c.onGround && rand() < dt * 2.2 && platformBelow(g, c.x + c.moveX * 150, c.y - 220, 620)) {
+    c.vy = -700 - rand() * 250;
+    c.onGround = false;
+  }
+  for (const e of g.bodies()) {
+    if (!e.alive || e.team === c.team || !e.contains(c.x, c.cy, c.w / 2 + 6)) continue;
+    if ((c.bumpCd.get(e.id) ?? 0) > g.time) continue;
+    g.redBump(c, e);
+    break;
+  }
+}

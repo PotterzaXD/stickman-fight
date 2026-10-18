@@ -155,15 +155,9 @@ export class JoystickManager {
     const d = Math.hypot(dx, dy);
     const r = this.radius;
     if (d > r) {
-      // Drag past the edge pulls the base along, so the stick never gets stuck.
-      const over = d - r;
-      s.baseX += (dx / d) * over * 0.35;
-      s.baseY += (dy / d) * over * 0.35;
-      dx = p.x - s.baseX;
-      dy = p.y - s.baseY;
-      const d2 = Math.hypot(dx, dy);
-      dx = (dx / d2) * r;
-      dy = (dy / d2) * r;
+      // The ring stays where the finger landed; only the knob moves (up to the ring's edge).
+      dx = (dx / d) * r;
+      dy = (dy / d) * r;
     }
     s.knobX = s.baseX + dx;
     s.knobY = s.baseY + dy;
