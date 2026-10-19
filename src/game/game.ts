@@ -2795,7 +2795,8 @@ export class Game {
     }
     if (this.beach && this.fish && !this.fish.alive) this.fishBeaten = true;
     // Helpers that are still up (cats, snowmen, chicks...) keep their side in the match.
-    const helpers: Body[] = [...this.snowmen, ...this.cats].filter((h) => h.alive);
+    // One Little Pigeon doesn't: with 250,000 HP a side left with only its pigeon would never lose.
+    const helpers: Body[] = [...this.snowmen, ...this.cats].filter((h) => h.alive && !(h instanceof Cat && h.variant === 'lilpigeon'));
     if (isBossMode(this.mode)) {
       // Only the bosses you fight count (on the Beach the normal bosses were on your side).
       const bosses = this.bosses.filter((b) => b.team === BOSS_TEAM);
