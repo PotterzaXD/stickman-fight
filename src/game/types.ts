@@ -39,7 +39,7 @@ export const PIGEON_WEAPON = 'shotgun';
 export const BEACH_MODES: Mode[] = ['ffa', 'team', 'boss'];
 export const BEACH_MAP = 'beach';
 export type FallMode = 'ko' | 'bounce';
-export type ThemeId = 'day' | 'sunset' | 'night' | 'snow' | 'lava' | 'space' | 'beach' | 'war' | 'jungle' | 'haunted' | 'candy';
+export type ThemeId = 'day' | 'sunset' | 'night' | 'snow' | 'lava' | 'space' | 'beach' | 'war' | 'jungle' | 'haunted' | 'candy' | 'farm' | 'graveyard';
 
 /** Special blocks from the map editor. No kind = a normal platform. Sandbags stop bullets. */
 export type BlockKind = 'concrete' | 'lava' | 'glass' | 'sandbag';
@@ -91,9 +91,11 @@ export interface SandboxBoss {
   power: number;
 }
 
-/** Helpers you can drop into Sandbox: AI cats, fish, the Recall Memory boss and spear soldiers. */
-export type HelperKind = 'cat' | 'fish' | 'memory' | 'soldier';
-export const HELPER_KINDS: HelperKind[] = ['cat', 'fish', 'memory', 'soldier'];
+/** Helpers you can drop into Sandbox: every helper any weapon or the Summoner can call. A chick slot is 10 chicks. */
+export type HelperKind = 'cat' | 'fish' | 'memory' | 'soldier' | 'snowman' | 'sbsnow' | 'fireally' | 'redguy' | 'chicken' | 'chick' | 'lilpigeon' | 'skeleton' | 'dog';
+export const HELPER_KINDS: HelperKind[] = ['cat', 'fish', 'memory', 'soldier', 'snowman', 'sbsnow', 'fireally', 'redguy', 'chicken', 'chick', 'lilpigeon', 'skeleton', 'dog'];
+/** Chicks come 10 to a slot (and don't count toward the helper limit). */
+export const SB_CHICKS = 10;
 
 export interface SandboxHelper {
   kind: HelperKind;

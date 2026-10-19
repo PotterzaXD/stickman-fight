@@ -1,4 +1,5 @@
-import { CAT_VARIANTS, Cat, Fighter, Snowman, type ProjKind, type Projectile } from '../game/entities';
+import { CAT_VARIANTS, Cat, Fighter, REVIVES, Snowman, type ProjKind, type Projectile } from '../game/entities';
+import { biting } from '../game/critters';
 import type { WeaponId } from '../game/weapons';
 import type { Game, NetEvent } from '../game/game';
 import { FINISHES, makeCorpse } from '../game/finish';
@@ -29,7 +30,7 @@ export interface Snapshot {
   cl?: [number, number, string][];
 }
 
-const KINDS: ProjKind[] = ['arrow', 'snowball', 'minisnow', 'boomerang', 'bomb', 'axe', 'shuriken', 'laser', 'fireball', 'six7', 'poop', 'soup', 'icebolt', 'banana', 'fireslash', 'dart', 'memorybox', 'rocket', 'wave', 'shard', 'crash', 'vine', 'nerf', 'bullet67', 'water', 'bubble', 'yoyo', 'fishthrow', 'allyfire'];
+const KINDS: ProjKind[] = ['arrow', 'snowball', 'minisnow', 'boomerang', 'bomb', 'axe', 'shuriken', 'laser', 'fireball', 'six7', 'poop', 'soup', 'icebolt', 'banana', 'fireslash', 'dart', 'memorybox', 'rocket', 'wave', 'shard', 'crash', 'vine', 'nerf', 'bullet67', 'water', 'bubble', 'yoyo', 'fishthrow', 'allyfire', 'egg', 'gum'];
 const r1 = (v: number) => Math.round(v);
 const r2 = (v: number) => Math.round(v * 100) / 100;
 
@@ -93,7 +94,7 @@ export function encodeSnapshot(g: Game): Snapshot {
     e: g.events,
     po: g.potions.map((p) => [p.id, r1(p.x), r1(p.y)]),
     pe: g.peels.map((p) => [r1(p.x), r1(p.y), r2(p.life)]),
-    c: g.cats.map((c) => [c.id, ownerIndex(g, c.owner), r1(c.x), r1(c.y), r1(c.hp), c.facing, c.hurtFlash > 0 ? 1 : 0, c.maxHp, r1(c.vx), CAT_VARIANTS.indexOf(c.variant), c.life === Infinity ? -1 : r2(c.life), c.thrustT > 0 ? 2 : c.attackT > 0.5 ? 1 : 0]),
+    c: g.cats.map((c) => [c.id, ownerIndex(g, c.owner), r1(c.x), r1(c.y), r1(c.hp), c.facing, c.hurtFlash > 0 ? 1 : 0, c.maxHp, r1(c.vx), CAT_VARIANTS.indexOf(c.variant), c.life === Infinity ? -1 : r2(c.life), c.thrustT > 0 ? 2 : biting(c) ? 1 : 0]),
     gl: g.glassT.flatMap((t, i) => (t > 0 ? [[i, r2(t)]] : [])),
   };
   const clones = g.fighters.flatMap((f, i): [number, number, string][] => (f.cloneOf ? [[i, g.fighters.indexOf(f.cloneOf), f.weapons[0].id]] : []));
@@ -215,11 +216,11 @@ export class Mirror {
         this.cats.set(id, c);
       }
       c.life = life === undefined || life < 0 ? Infinity : life;
-      if (biting) c.attackT = 0.7;
+      if (biting) c.attackT = c.variant === 'dog' ? 7.9 : c.variant === 'lilpigeon' ? 0.95 : 0.7;
       c.thrustT = biting === 2 ? 0.1 : 0;
       c.hp = hp;
-      // A red guy at 0 HP is frozen in place (it stays until the next Summoner brings it back).
-      if (c.variant === 'redguy') {
+      // A red guy, skeleton or dog at 0 HP stays where it went down (until the next summon brings it back).
+      if (REVIVES(c.variant)) {
         c.alive = hp > 0;
         c.frozen = hp <= 0;
       }

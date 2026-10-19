@@ -2,7 +2,8 @@ export type WeaponId = 'sword' | 'spear' | 'hammer' | 'bow' | 'boomerang' | 'bom
   | 'firesword' | 'recall' | 'dart' | 'glove' | 'magnet' | 'rocket' | 'horns' | 'headbutt' | 'trident'
   | 'scepter' | 'kingtrident' | 'vinestaff'
   | 'sniper' | 'shotgun' | 'pistol' | 'gun67' | 'summoner' | 'bravery' | 'pan' | 'watergun' | 'bubble' | 'beak'
-  | 'chainsaw' | 'yoyo' | 'crossbow' | 'whip' | 'fryfish';
+  | 'chainsaw' | 'yoyo' | 'crossbow' | 'whip' | 'fryfish'
+  | 'chicklord' | 'lilpigeon' | 'bone' | 'egg' | 'gum' | 'drumstick';
 
 export interface WeaponDef {
   id: WeaponId;
@@ -65,7 +66,7 @@ export const WEAPONS: WeaponDef[] = [
   // Pistol: 1 second between shots, then a 3 second reload after 5 shots.
   { id: 'pistol', price: 150, length: 34, damage: 8, turn: 15, cooldown: 1, ranged: true },
   { id: 'gun67', price: 500, length: 50, damage: 12, turn: 13, cooldown: 10, ranged: true },
-  { id: 'summoner', price: 3000, length: 62, damage: 15, turn: 12, cooldown: 25, ranged: true },
+  { id: 'summoner', price: 4500, length: 62, damage: 15, turn: 12, cooldown: 25, ranged: true },
   { id: 'bravery', price: 800, length: 110, damage: 24, turn: 12, cooldown: 20, ranged: false },
   { id: 'pan', price: 300, length: 52, damage: 28, turn: 14, cooldown: 4, ranged: false },
   { id: 'watergun', price: 200, length: 42, damage: 6, turn: 14, cooldown: 3, ranged: true },
@@ -78,10 +79,17 @@ export const WEAPONS: WeaponDef[] = [
   { id: 'crossbow', price: 550, length: 46, damage: 12, turn: 13, cooldown: 2.2, ranged: true },
   { id: 'whip', price: 900, length: 120, damage: 22, turn: 12, cooldown: 4, ranged: false },
   { id: 'fryfish', price: 350, length: 54, damage: 24, turn: 14, cooldown: 2.5, ranged: false },
+  // October 19 update
+  { id: 'chicklord', price: 500, length: 64, damage: 14, turn: 12, cooldown: 18, ranged: true },
+  { id: 'lilpigeon', price: 1000, length: 40, damage: 10, turn: 13, cooldown: 12, ranged: true },
+  { id: 'bone', price: 900, length: 66, damage: 20, turn: 12, cooldown: 15, ranged: false },
+  { id: 'egg', price: 500, length: 46, damage: 10, turn: 13, cooldown: 1.4, ranged: true },
+  { id: 'gum', price: 650, length: 44, damage: 8, turn: 13, cooldown: 2.2, ranged: true },
+  { id: 'drumstick', price: 800, length: 58, damage: 26, turn: 14, cooldown: 6, ranged: false },
 ];
 
 /** Weapons drawn as guns (flipped so they stay the right way up when you aim left). */
-export const GUNS: WeaponId[] = ['sniper', 'shotgun', 'pistol', 'gun67', 'watergun'];
+export const GUNS: WeaponId[] = ['sniper', 'shotgun', 'pistol', 'gun67', 'watergun', 'egg', 'gum'];
 
 /** Weapons you can buy in the shop or roll at random (no boss or reward weapons). */
 export const SHOP_WEAPONS = WEAPONS.filter((w) => !w.special);
