@@ -1,7 +1,8 @@
 import type { Body, Cat, Fighter, Snowman, Projectile } from './entities';
 import { BOSS_TEAM, FEED_LIFE, type Game } from './game';
-import { feedParts, helperName } from './killfeed';
+import { FEED_STYLE, feedParts, helperName } from './killfeed';
 import { drawExtraDeco, drawExtraProjectile, drawExtraWeapon, drawRedGuy, drawSbAlly } from './extras';
+import { drawCritter, drawCritterDeco, drawCritterProjectile, drawCritterProp, drawCritterWeapon } from './critters';
 import { t } from '../i18n';
 import { drawCorpse, type Corpse } from './finish';
 import { THEMES } from './maps';
@@ -158,7 +159,7 @@ export function drawBackground(ctx: Ctx, map: MapDef, vw: number, vh: number, ca
       ctx.arc(fx, fy, 8 + ph * 60, 0, Math.PI * 2);
       ctx.fill();
     }
-  } else if (!drawExtraDeco(ctx, th.deco, vw, vh, par, time)) {
+  } else if (!drawExtraDeco(ctx, th.deco, vw, vh, par, time) && !drawCritterDeco(ctx, th.deco, vw, vh, par, time)) {
     for (let i = 0; i < 40; i++) {
       const x = ((hash(i) * vw - par) % vw + vw) % vw;
       const y = vh - (((hash(i + 7) * vh + time * (40 + hash(i) * 60)) % vh) + vh) % vh;
@@ -936,7 +937,7 @@ export function drawWeaponShape(ctx: Ctx, id: WeaponId, len: number, s: number, 
       ctx.fill();
       break;
     default:
-      drawExtraWeapon(ctx, id, len, s, ready, performance.now() / 1000);
+      if (!drawExtraWeapon(ctx, id, len, s, ready, performance.now() / 1000)) drawCritterWeapon(ctx, id, len, s, ready, performance.now() / 1000);
   }
 }
 
@@ -1274,9 +1275,10 @@ function drawProp(ctx: Ctx, c: Corpse, time: number) {
     ctx.restore();
     steam(x, y - 26, 2, 30);
   } else if (c.prop === 'fried') {
-    // The Pigeon, fried crispy: a big golden-brown roast with black burnt spots, legs up.
+    // The Pigeon, fried crispy: a big golden-brown roast with black burnt spots, legs up (the little pigeon is smaller).
     ctx.save();
     ctx.translate(x, y);
+    ctx.scale(c.s, c.s);
     ctx.strokeStyle = '#1b0f08';
     ctx.lineWidth = 5;
     // Drumsticks up in the air: crispy meat with a bone sticking out.
@@ -1333,8 +1335,8 @@ function drawProp(ctx: Ctx, c: Corpse, time: number) {
     ctx.arc(-24, -56, 40, Math.PI * 1.1, Math.PI * 1.45);
     ctx.stroke();
     ctx.restore();
-    steam(x, y - 92, 4, 50);
-  }
+    steam(x, y - 92 * c.s, c.s < 1 ? 2 : 4, 50 * c.s);
+  } else if (c.prop) drawCritterProp(ctx, c.prop, x, y, d, time);
   ctx.globalAlpha = 1;
 }
 
@@ -2051,7 +2053,7 @@ function drawSnowman(ctx: Ctx, m: Snowman) {
 }
 
 function drawProjectile(ctx: Ctx, p: Projectile, time: number) {
-  if (drawExtraProjectile(ctx, p, time)) return;
+  if (drawExtraProjectile(ctx, p, time) || drawCritterProjectile(ctx, p, time)) return;
   switch (p.kind) {
     case 'nerf': {
       // Foam dart: blue body, orange tip
@@ -2440,6 +2442,8 @@ export function renderGame(g: Game, ctx: Ctx, vw: number, vh: number, dpr: numbe
       if (c.alive || c.frozen) drawRedGuy(ctx, c);
       continue;
     }
+    // Chicks, the Chicken, the little pigeon, skeletons (a pile of bones when beaten) and the dog (asleep).
+    if (drawCritter(ctx, c, g.time)) continue;
     if (!c.alive) continue;
     if (c.variant === 'sbsnow' || c.variant === 'fireally') {
       drawSbAlly(ctx, c, g.time);
@@ -2572,7 +2576,7 @@ function drawFeed(g: Game, ctx: Ctx, vw: number, top: number) {
     const killer = g.fighters[item.killer];
     const kName = killer ? (item.kh ? helperName(item.kh, killer.name) : killer.name) : '';
     const parts = feedParts(item.kind, !!killer, item.n, kName, item.vh ? helperName(item.vh, victim.name) : victim.name);
-    const cute = item.kind === 'meow';
+    const style = FEED_STYLE[item.kind];
     const age = FEED_LIFE - item.t;
     // Shrink long lines to fit.
     let size = base;
@@ -2591,12 +2595,12 @@ function drawFeed(g: Game, ctx: Ctx, vw: number, top: number) {
     const slide = Math.max(0, 1 - age / 0.18);
     const x = vw - 12 - tw - 20 + slide * (tw + 40);
     ctx.globalAlpha = Math.min(1, item.t / 0.6);
-    // A cat's line is pink and cute.
-    ctx.fillStyle = cute ? 'rgba(255,128,171,0.9)' : 'rgba(0,0,0,0.62)';
+    // A cat's line is pink and cute; chicks, the Chicken, fish, the dog... have their own colours.
+    ctx.fillStyle = style ? style.bg : 'rgba(0,0,0,0.62)';
     roundRect(ctx, x, y, tw + 20, lh, lh / 2);
     ctx.fill();
-    if (cute) {
-      ctx.strokeStyle = 'rgba(255,255,255,0.9)';
+    if (style?.border) {
+      ctx.strokeStyle = style.border;
       ctx.lineWidth = 2;
       roundRect(ctx, x, y, tw + 20, lh, lh / 2);
       ctx.stroke();
@@ -2618,7 +2622,7 @@ function drawFeed(g: Game, ctx: Ctx, vw: number, top: number) {
         ctx.strokeStyle = isDark(who.color) ? 'rgba(255,255,255,0.9)' : 'rgba(0,0,0,0.9)';
         ctx.strokeText(p.text, px, y + lh / 2 + 1);
       }
-      ctx.fillStyle = who ? who.color : '#ffffff';
+      ctx.fillStyle = who ? who.color : style ? style.text : '#ffffff';
       ctx.fillText(p.text, px, y + lh / 2 + 1);
       px += ctx.measureText(p.text).width;
     }

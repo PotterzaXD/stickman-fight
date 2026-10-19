@@ -55,6 +55,12 @@ export const MELEE_FINISH: Partial<Record<WeaponId, Finish>> = {
   crossbow: 'ragdoll',
   whip: 'zap',
   fryfish: 'fling',
+  chicklord: 'ragdoll',
+  lilpigeon: 'ragdoll',
+  bone: 'fling',
+  egg: 'ragdoll',
+  gum: 'ragdoll',
+  drumstick: 'fling',
 };
 
 /** Finisher for a skill shot. */
@@ -82,6 +88,8 @@ export const PROJ_FINISH: Partial<Record<ProjKind, Finish>> = {
   yoyo: 'ragdoll',
   fishthrow: 'fling',
   allyfire: 'ragdoll',
+  egg: 'trip',
+  gum: 'ragdoll',
 };
 
 /** One flying body part (shotgun point blank: blown to pieces). */
@@ -153,7 +161,7 @@ export interface Corpse {
   facing?: number;
 }
 
-export type Prop = 'grave' | 'cooked' | 'fried' | 'fade';
+export type Prop = 'grave' | 'cooked' | 'fried' | 'fade' | 'nugget' | 'drumstick';
 
 function ragdoll(f: Fighter, vx: number, vy: number, spin: number, cut: boolean) {
   const s = f.scale;
@@ -291,8 +299,20 @@ export function helperCorpse(c: Cat): Corpse | null {
     case 'memory':
       return propCorpse('fade', c.x, c.y, c.color, c.facing, 1.4);
     case 'redguy':
-      // It stays frozen where it went down instead (see Game.kill).
+    case 'skeleton':
+    case 'dog':
+      // They stay where they went down instead: frozen, a pile of bones, asleep (see Game.kill).
       return null;
+    case 'chick':
+      return propCorpse('nugget', c.x, c.y, c.color, c.facing, 5);
+    case 'chicken':
+      return propCorpse('drumstick', c.x, c.y, c.color, c.facing, 6);
+    case 'lilpigeon': {
+      // Fried like the Pigeon, but little.
+      const p = propCorpse('fried', c.x, c.y, c.color, c.facing, 6);
+      p.s = 0.3;
+      return p;
+    }
     case 'soldier':
     case 'sbsnow':
     case 'fireally': {

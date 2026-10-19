@@ -1,5 +1,5 @@
 import type { Game } from './game';
-import { Body, Cat, Fighter, SB_ALLY, Snowman } from './entities';
+import { Body, CHICKEN, Cat, Fighter, SB_ALLY, Snowman } from './entities';
 import type { Difficulty, Intent, Platform } from './types';
 
 const rand = Math.random;
@@ -317,8 +317,20 @@ export class BotBrain {
         case 'fryfish':
           if (dist < 700) angle = ballisticAngle(dx, dy, 850, 1400);
           break;
+        case 'egg':
+          if (dist < 800) angle = ballisticAngle(dx, dy, 1000, 900);
+          break;
+        case 'gum':
+          if (dist < 800) angle = ballisticAngle(dx, dy, 1100, 300);
+          break;
+        case 'drumstick':
+          if (f.hp < f.maxHp * 0.7) angle = -Math.PI / 2;
+          break;
         case 'summoner':
         case 'bravery':
+        case 'chicklord':
+        case 'lilpigeon':
+        case 'bone':
           if (dist < 1000) angle = -Math.PI / 2;
           break;
         case 'pan':
@@ -396,13 +408,27 @@ export function updateSnowman(s: Snowman, dt: number, g: Game) {
 /** AI cats run at the nearest enemy, jump up to reach it, and bite on touch. */
 export function updateCat(c: Cat, dt: number, g: Game) {
   if (c.variant === 'redguy') return updateRedGuy(c, dt, g);
+  // The Chicken calls 3 more chicks every 3 seconds.
+  if (c.variant === 'chicken') {
+    c.callT -= dt;
+    if (c.callT <= 0) {
+      c.callT = CHICKEN.every;
+      g.chickenCall(c);
+    }
+  }
+  if (c.chargeDir) return updateCharge(c, dt, g);
   c.thinkT -= dt;
   c.attackT -= dt;
   if (c.thinkT <= 0) {
     c.thinkT = 0.25 + rand() * 0.2;
-    c.target = nearestEnemy(g, c);
+    c.target = c.variant === 'chicken' ? chickenTarget(g, c) : nearestEnemy(g, c);
     const t = c.target;
     c.moveX = t ? (Math.abs(t.x - c.x) > 12 ? sign(t.x - c.x) : 0) : rand() < 0.4 ? (rand() < 0.5 ? -0.5 : 0.5) : 0;
+    // The Chicken with nobody close to its chicks goes back to them.
+    if (!t && c.variant === 'chicken') {
+      const home = chicksCenter(g, c);
+      if (home && Math.abs(home.x - c.x) > 70) c.moveX = sign(home.x - c.x);
+    }
     // The Fire Ally keeps its distance and throws fireballs.
     if (t && c.variant === 'fireally') {
       const d = Math.abs(t.x - c.x);
@@ -420,15 +446,20 @@ export function updateCat(c: Cat, dt: number, g: Game) {
   }
   if (!c.onGround && !platformBelow(g, c.x, c.y, 2000)) {
     const np = nearestPlatform(g, c.x, c.y);
-    if (np) c.moveX = sign(np.x + np.w / 2 - c.x);
+    if (np) {
+      c.moveX = sign(np.x + np.w / 2 - c.x);
+      // The little pigeon flies back up instead of falling.
+      if (c.variant === 'lilpigeon' && c.vy > -100 && c.y > np.y - 60) c.vy = -520;
+    }
   }
   // The boss ally walks a bit slower; fish flop about quickly.
-  const speed = c.variant === 'memory' ? 280 : c.variant === 'fish' ? 360 : c.variant === 'soldier' || c.variant === 'sbsnow' || c.variant === 'fireally' ? 300 : 330;
+  const speed =
+    c.variant === 'memory' ? 280 : c.variant === 'fish' ? 360 : c.variant === 'soldier' || c.variant === 'sbsnow' || c.variant === 'fireally' || c.variant === 'skeleton' ? 300 : c.variant === 'dog' ? 380 : c.variant === 'chick' ? 300 : 330;
   if (c.stun > 0) c.vx *= Math.max(0, 1 - 2 * dt);
   else c.vx += (c.moveX * speed - c.vx) * Math.min(1, (c.onGround ? 10 : 4) * dt);
   if (c.moveX) c.facing = sign(c.moveX);
   const t = c.target && c.target.alive ? c.target : null;
-  const tall = c.variant === 'memory' || c.variant === 'soldier' || c.variant === 'sbsnow' || c.variant === 'fireally';
+  const tall = c.variant === 'memory' || c.variant === 'soldier' || c.variant === 'sbsnow' || c.variant === 'fireally' || c.variant === 'skeleton';
   if (t && c.onGround && t.cy < c.y - 90 && rand() < dt * 2.5) {
     c.vy = tall ? -1000 : -900;
     c.onGround = false;
@@ -467,13 +498,75 @@ export function updateCat(c: Cat, dt: number, g: Game) {
   for (const e of g.bodies()) {
     // Spear soldiers poke from a spear's length away (twice as far in a thrust).
     // The Stick Brawl Snowman punches from an arm's length.
-    const reach = c.variant === 'soldier' ? c.w / 2 + (thrust ? SOLDIER_THRUST.reach : 55) : c.variant === 'sbsnow' ? c.w / 2 + 24 : c.w / 2;
+    // Skeletons swing a bone, the Chicken and the little pigeon peck, the dog bites.
+    const reach =
+      c.variant === 'soldier' ? c.w / 2 + (thrust ? SOLDIER_THRUST.reach : 55) : c.variant === 'sbsnow' || c.variant === 'skeleton' ? c.w / 2 + 24 : c.variant === 'chicken' || c.variant === 'lilpigeon' || c.variant === 'dog' ? c.w / 2 + 8 : c.w / 2;
     if (!e.alive || e.team === c.team || !e.contains(c.x, c.cy, reach)) continue;
     if (thrust) {
       c.thrustT = 0;
       g.catBite(c, e, c.touchDmg * SOLDIER_THRUST.mult);
     } else g.catBite(c, e);
     break;
+  }
+}
+
+/** Where a Chicken's chicks are (the middle of them), or null if it has none. */
+function chicksCenter(g: Game, c: Cat): { x: number; y: number } | null {
+  let n = 0;
+  let x = 0;
+  let y = 0;
+  for (const k of g.cats) {
+    if (!k.alive || k.variant !== 'chick' || k.owner !== c.owner || k.team !== c.team) continue;
+    n++;
+    x += k.x;
+    y += k.y;
+  }
+  return n ? { x: x / n, y: y / n } : null;
+}
+
+/** The Chicken protects its chicks: it goes for the enemy closest to them (or to itself when it has no chicks). */
+function chickenTarget(g: Game, c: Cat): Body | null {
+  const home = chicksCenter(g, c);
+  if (!home) return nearestEnemy(g, c);
+  let best: Body | null = null;
+  let bestD = CHICKEN.guard;
+  for (const b of g.bodies()) {
+    if (!b.alive || b.team === c.team) continue;
+    const d = Math.hypot(b.x - home.x, b.cy - home.y);
+    if (d < bestD) {
+      bestD = d;
+      best = b;
+    }
+  }
+  // Nobody near the chicks: still fight anyone who comes close to the Chicken.
+  return best ?? nearestEnemy(g, c, 260);
+}
+
+/** Lord of the Chicks: run one way as fast as you can, flattening everyone in the way, until the edge of the platform. */
+function updateCharge(c: Cat, dt: number, g: Game) {
+  c.attackT -= dt;
+  c.chargeT -= dt;
+  const dir = c.chargeDir;
+  c.facing = dir;
+  if (c.chargeT <= 0) {
+    c.chargeDir = 0;
+    return;
+  }
+  if (c.onGround) {
+    c.vx = dir * (c.variant === 'chicken' ? 640 : 600);
+    // At the edge of the platform (or a wall of the map): the charge is over, now stay and fight.
+    if (!platformBelow(g, c.x + dir * (c.w / 2 + 6), c.y, 30) || c.x < 20 || c.x > g.map.w - 20) {
+      c.chargeDir = 0;
+      c.vx = 0;
+    }
+  } else if (!platformBelow(g, c.x, c.y, 2000)) {
+    c.chargeDir = 0;
+    return;
+  }
+  for (const e of g.bodies()) {
+    if (!e.alive || e.team === c.team || !e.contains(c.x, c.cy, c.w / 2 + 6)) continue;
+    if ((c.bumpCd.get(e.id) ?? 0) > g.time) continue;
+    g.chargeHit(c, e);
   }
 }
 

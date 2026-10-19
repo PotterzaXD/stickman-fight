@@ -1,8 +1,15 @@
 import { BotBrain, nearestEnemy, nearestPlatform, updateCat, updateSnowman } from './ai';
 import {
   Body,
+  CHICK,
+  CHICKEN,
   Cat,
+  DOG,
   FISH_HP,
+  LIL_PIGEON,
+  MAX_CHICKS,
+  REVIVES,
+  SKELETON,
   Fighter,
   GRAVITY,
   MAX_SNOWMEN,
@@ -24,7 +31,7 @@ import {
 } from './entities';
 import { MELEE_FINISH, PROJ_FINISH, helperCorpse, makeCorpse, updateCorpses, type Corpse, type Finish } from './finish';
 import { THEMES, pickSpawns } from './maps';
-import { HELPER_KINDS, PIGEON_WEAPON, type SandboxHelper } from './types';
+import { HELPER_KINDS, PIGEON_WEAPON, SB_CHICKS, type SandboxHelper } from './types';
 import { feedCount, type FeedKind } from './killfeed';
 import { BEACH_MAP, BEACH_MODES, isBossMode, isSecret, type BossKind, type Difficulty, type FallMode, type MapDef, type Mode, type SandboxBoss } from './types';
 import { SHOP_WEAPONS, weapon, type WeaponId } from './weapons';
@@ -185,7 +192,14 @@ export const SUMMONER = { cats: { count: 3, hp: 60, dmg: 6, max: 6 }, fish: { co
 /** Summoner's Clone: a bot copy of you with a random weapon that can't summon. It blows up for 20 when it goes down. */
 export const CLONE = { boom: 20, boomR: 170 };
 /** Weapons a Clone never gets (they summon helpers). */
-const SUMMON_WEAPONS = ['summoner', 'bravery', 'recall', 'snowball', 'catcall'];
+const SUMMON_WEAPONS = ['summoner', 'bravery', 'recall', 'snowball', 'catcall', 'chicklord', 'lilpigeon', 'bone'];
+/** Lord of the Chicks: chicks that charge with the Chicken. Summoner: chicks it calls. */
+export const LORD_CHICKS = 20;
+export const SUMMONER_CHICKS = 20;
+/** Egg Launcher (a splat), Bubble Gum Blaster (sticky: slows for a while), Golden Drumstick (a bite that heals). */
+export const EGG = { dmg: 18 };
+export const GUM = { dmg: 12, slowS: 3 };
+export const DRUMSTICK = { heal: 30 };
 /** Spear of Bravery: 3 spear soldiers (500 HP, the spear at half strength). */
 export const BRAVERY = { count: 3, hp: SOLDIER_HP, dmg: 12, max: 6 };
 /** Frying Pan: BONK for 40 and seeing stars for 1.5 s. */
@@ -236,6 +250,8 @@ export interface FeedItem {
   n: number;
   t: number;
 }
+/** Helpers with their own kill feed lines. */
+const HELPER_FEED: Record<string, FeedKind> = { cat: 'meow', chick: 'chick', chicken: 'chicken', fish: 'fish', memory: 'memory', dog: 'dog', skeleton: 'skeleton', lilpigeon: 'lilpigeon' };
 /** Seconds a kill feed line stays, and how many show at once. */
 export const FEED_LIFE = 5;
 export const FEED_MAX = 6;
@@ -479,13 +495,40 @@ export class Game {
       if (!HELPER_KINDS.includes(hp.kind)) return;
       const owner = this.fighters.find((f) => f.team === hp.team && !f.boss) ?? this.fighters.find((f) => f.team === hp.team) ?? this.fighters[0];
       const sp = spots[k % spots.length];
-      const o = hp.kind === 'cat' ? BOSS_CATS : hp.kind === 'fish' ? FISHY.fish : hp.kind === 'memory' ? MEMORY_ALLY : { hp: SOLDIER_HP, dmg: SUMMONER.soldier.dmg };
-      const c = new Cat(owner, sp.x + (k >= spots.length ? 30 : 0), sp.y - 4, o.hp, o.dmg, hp.kind);
-      // Sandbox helpers stay until they are beaten.
-      c.life = Infinity;
-      c.team = hp.team;
-      c.color = TEAM_COLORS[hp.team] ?? owner.color;
-      this.cats.push(c);
+      const x = sp.x + (k >= spots.length ? 30 : 0);
+      const color = TEAM_COLORS[hp.team] ?? owner.color;
+      if (hp.kind === 'snowman') {
+        const m = new Snowman(owner, x, sp.y - 4);
+        m.team = hp.team;
+        m.color = color;
+        this.snowmen.push(m);
+        return;
+      }
+      const o =
+        hp.kind === 'cat' ? BOSS_CATS
+        : hp.kind === 'fish' ? FISHY.fish
+        : hp.kind === 'memory' ? MEMORY_ALLY
+        : hp.kind === 'sbsnow' ? { hp: SB_ALLY.hp, dmg: SB_ALLY.punch }
+        : hp.kind === 'fireally' ? { hp: SB_ALLY.hp, dmg: SB_ALLY.fire }
+        : hp.kind === 'redguy' ? { hp: RED_GUY.hp, dmg: RED_GUY.bump }
+        : hp.kind === 'chicken' ? CHICKEN
+        : hp.kind === 'chick' ? CHICK
+        : hp.kind === 'lilpigeon' ? LIL_PIGEON
+        : hp.kind === 'skeleton' ? SKELETON
+        : hp.kind === 'dog' ? DOG
+        : { hp: SOLDIER_HP, dmg: SUMMONER.soldier.dmg };
+      // A chick slot is 10 chicks (still at most MAX_CHICKS for each fighter).
+      let n = 1;
+      if (hp.kind === 'chick') n = Math.min(SB_CHICKS, MAX_CHICKS - this.cats.filter((c) => c.variant === 'chick' && c.owner === owner).length);
+      for (let j = 0; j < n; j++) {
+        const c = new Cat(owner, x + (n > 1 ? (j - (n - 1) / 2) * 12 : 0), sp.y - 4, o.hp, o.dmg, hp.kind);
+        // Sandbox helpers stay until they are beaten.
+        c.life = Infinity;
+        c.team = hp.team;
+        // The red guy and the Stick Brawl allies keep their own colours.
+        c.color = hp.kind === 'redguy' || hp.kind === 'sbsnow' || hp.kind === 'fireally' ? c.color : color;
+        this.cats.push(c);
+      }
     });
   }
 
@@ -749,7 +792,15 @@ export class Game {
       this.stepBody(s, dt);
     }
     for (const c of this.cats) {
-      if (!c.alive) continue;
+      if (!c.alive) {
+        // A pile of bones or the sleeping dog drops to the ground (the red guy stays frozen in the air).
+        if (c.frozen && c.variant !== 'redguy') {
+          c.vx *= Math.max(0, 1 - 6 * dt);
+          this.stepBody(c, dt);
+          if (c.y > this.map.h + 400) c.frozen = false;
+        }
+        continue;
+      }
       c.stun -= dt;
       c.hurtFlash -= dt;
       // The Recall Memory ally fades away after 20 seconds.
@@ -773,7 +824,7 @@ export class Game {
     this.updateGlass(dt);
     this.checkOffMap();
     this.snowmen = this.snowmen.filter((s) => s.alive);
-    // A red guy that went down stays frozen where it is.
+    // A red guy, skeleton or dog that went down stays where it is.
     this.cats = this.cats.filter((c) => c.alive || c.frozen);
     this.updateEffects(dt);
     this.checkWin();
@@ -1053,8 +1104,9 @@ export class Game {
     // Fell into the void: nothing at all. Helpers leave their own remains (a grave, a cooked fish...).
     // The original pop for snowmen and 'pop' kills.
     if (b instanceof Cat) {
-      // The red guy freezes in place (no remains); the next Summoner brings it back.
-      if (b.variant === 'redguy') b.frozen = how !== 'void';
+      // The red guy freezes in place, skeletons fall into a pile of bones and the dog lies down to rest:
+      // no remains, the next summon brings them back.
+      if (REVIVES(b.variant)) b.frozen = how !== 'void';
       else if (how !== 'void') this.helperRemains(b);
     } else if (!fighter && how === 'void') {
       // Nothing.
@@ -1098,8 +1150,10 @@ export class Game {
   private feedKill(v: Fighter, killer: Fighter | null, how: Finish, env?: FeedKind, vh?: string, kh?: string) {
     let kind: FeedKind = env ?? (killer?.pigeon ? 'peck' : 'kill');
     if (how === 'void') kind = this.map.theme === 'beach' ? 'water' : this.map.theme === 'lava' ? 'lava' : 'void';
-    // A cat going down gets its own cute line.
-    if (vh === 'cat') kind = 'meow';
+    // A cat going down gets its own cute line, and so do the chicks, the Chicken, fish, the Recall Memory boss,
+    // the dog, skeletons and the little pigeon (each in its own colour).
+    const own = vh ? HELPER_FEED[vh] : undefined;
+    if (own) kind = own;
     // Knocked off the map (or into lava) by someone a moment ago: they get the credit.
     if (!vh && !killer && v.lastHitBy && v.lastHitBy !== v && this.time - v.lastHitT < BLAME_S) killer = v.lastHitBy;
     const by = !!killer;
@@ -1420,6 +1474,31 @@ export class Game {
       case 'summoner':
         this.summonAll(f);
         break;
+      case 'chicklord':
+        this.lordOfTheChicks(f);
+        break;
+      case 'lilpigeon':
+        this.summonLilPigeon(f, true);
+        break;
+      case 'bone':
+        this.summonBones(f, true);
+        break;
+      case 'egg':
+        this.spawnProj('egg', f, tip.x, tip.y, angle, 1000, 900, EGG.dmg * m, i);
+        this.play('throw');
+        break;
+      case 'gum':
+        this.spawnProj('gum', f, tip.x, tip.y, angle, 1100, 300, GUM.dmg * m, i);
+        this.play('throw');
+        break;
+      case 'drumstick': {
+        // Take a bite: heal a little.
+        const heal = Math.min(f.maxHp - f.hp, DRUMSTICK.heal);
+        f.hp += heal;
+        this.burst(f.x, f.y - f.h * 0.8, '#ffd54f', 12, 240);
+        this.text(f.x, f.y - f.h - 30, `🍗 +${heal}`, '#69f0ae', 26);
+        break;
+      }
       case 'bravery':
         this.callCats(f, BRAVERY, 'soldier');
         this.text(f.x, f.y - f.h - 56, '⚔️ CHARGE!', '#ffd54f', 24);
@@ -1541,6 +1620,11 @@ export class Game {
     this.summonOne(f, 'sbsnow', SB_ALLY.hp, SB_ALLY.punch, inward * 60);
     this.summonOne(f, 'fireally', SB_ALLY.hp, SB_ALLY.fire, inward * 110);
     this.summonRedGuy(f);
+    // October 19: the Chicken with 20 chicks, the little pigeon, and the skeletons with the dog.
+    this.summonChicken(f, 0);
+    this.callChicks(f, SUMMONER_CHICKS, 0);
+    this.summonLilPigeon(f, false);
+    this.summonBones(f, false);
     for (let k = 0; k < SUMMONER.snowmen; k++) {
       if (this.snowmen.filter((m) => m.alive && m.owner === f).length >= this.maxSnowmen) break;
       const m = new Snowman(f, f.x + (k - 1) * 56, f.y - 6);
@@ -1842,6 +1926,120 @@ export class Game {
     c.vy = -400;
     this.cats.push(c);
     this.burst(x, f.y - 20, '#ff6666', 10, 240);
+  }
+
+  /** Lord of the Chicks: the Chicken and 20 chicks charge to the edge of the platform, then stay and fight. */
+  private lordOfTheChicks(f: Fighter) {
+    const dir = f.facing || 1;
+    this.summonChicken(f, dir);
+    this.callChicks(f, LORD_CHICKS, dir);
+    this.ring(f.x, f.y, 140, 0.5, '#ffd600');
+    this.text(f.x, f.y - f.h - 56, '🐔 CHARGE! 🐥', '#ffd600', 26);
+  }
+
+  /** The Chicken: one per fighter. If yours is still around it just joins the charge. */
+  private summonChicken(f: Fighter, charge: number) {
+    const mine = this.cats.find((c) => c.alive && c.owner === f && c.variant === 'chicken');
+    if (mine) {
+      if (charge) {
+        mine.chargeDir = charge;
+        mine.chargeT = 4;
+      }
+      return;
+    }
+    const x = clamp(f.x + (charge || (f.x < this.map.w / 2 ? 1 : -1)) * 50, 0, this.map.w);
+    const c = new Cat(f, x, f.y - 6, CHICKEN.hp, CHICKEN.dmg, 'chicken');
+    c.vy = -420;
+    c.chargeDir = charge;
+    c.chargeT = 4;
+    this.cats.push(c);
+    this.burst(x, f.y - 30, '#ffffff', 12, 260);
+    this.text(x, f.y - 90, '🐔!', '#ff5252', 26);
+  }
+
+  /** Chicks hatch around (x, y), up to MAX_CHICKS per fighter. `charge` = they run that way to the platform's edge. */
+  callChicks(f: Fighter, n: number, charge: number, mom?: Cat) {
+    const x = mom ? mom.x : f.x;
+    const y = mom ? mom.y : f.y;
+    const have = this.cats.filter((c) => c.alive && c.owner === f && c.variant === 'chick').length;
+    n = Math.min(n, MAX_CHICKS - have);
+    for (let k = 0; k < n; k++) {
+      const cx = clamp(x + (k - (n - 1) / 2) * 12, 0, this.map.w);
+      const c = new Cat(f, cx, y - 6, CHICK.hp, CHICK.dmg, 'chick');
+      c.vy = -380 - Math.random() * 260;
+      c.vx = (Math.random() - 0.5) * 200;
+      c.chargeDir = charge;
+      c.chargeT = 4;
+      c.thinkT = Math.random() * 0.3;
+      // A Sandbox Chicken's chicks are on its team.
+      if (mom) {
+        c.team = mom.team;
+        c.color = mom.color;
+      }
+      this.cats.push(c);
+    }
+    if (n > 0) {
+      this.burst(x, y - 14, '#fff176', Math.min(20, 4 + n), 220);
+      this.text(x, y - 60, `🐥 ×${n}`, '#ffee58', 24);
+    }
+  }
+
+  /** The Chicken calls 3 more chicks every 3 seconds. */
+  chickenCall(c: Cat) {
+    this.callChicks(c.owner, CHICKEN.call, 0, c);
+  }
+
+  /** One Little Pigeon: one per fighter. */
+  private summonLilPigeon(f: Fighter, loud: boolean) {
+    if (this.cats.some((c) => c.alive && c.owner === f && c.variant === 'lilpigeon')) {
+      if (loud) this.text(f.x, f.y - f.h - 20, '🐦 1/1', '#ffffff', 22);
+      return;
+    }
+    const x = clamp(f.x + (f.x < this.map.w / 2 ? 1 : -1) * 70, 0, this.map.w);
+    const c = new Cat(f, x, f.y - 30, LIL_PIGEON.hp, LIL_PIGEON.dmg, 'lilpigeon');
+    c.vy = -500;
+    this.cats.push(c);
+    this.burst(x, f.y - 40, '#b0bec5', 12, 260);
+    this.text(x, f.y - 100, '🐦 coo!', '#cfd8dc', 24);
+  }
+
+  /** Bone: 2 skeletons and the dog. A pile of bones (or a sleeping dog) comes back to life with full HP. */
+  private summonBones(f: Fighter, loud: boolean) {
+    const inward = f.x < this.map.w / 2 ? 1 : -1;
+    let any = false;
+    for (let k = 0; k < SKELETON.count; k++) any = this.reviveOrSummon(f, 'skeleton', SKELETON.count, SKELETON.hp, SKELETON.dmg, inward * (40 + k * 45)) || any;
+    any = this.reviveOrSummon(f, 'dog', 1, DOG.hp, DOG.dmg, inward * 140) || any;
+    if (!any && loud) this.text(f.x, f.y - f.h - 20, '💀 2/2 🐕 1/1', '#ffffff', 22);
+  }
+
+  /** Bring back one of yours that went down (bones or asleep), or add a new one, while fewer than `max` are up. */
+  private reviveOrSummon(f: Fighter, variant: CatVariant, max: number, hp: number, dmg: number, dx: number): boolean {
+    const mine = this.cats.filter((c) => c.owner === f && c.variant === variant);
+    if (mine.filter((c) => c.alive).length >= max) return false;
+    const down = mine.find((c) => !c.alive && c.frozen);
+    if (down) {
+      down.alive = true;
+      down.frozen = false;
+      down.hp = down.maxHp;
+      down.vy = -300;
+      down.attackT = 0;
+      this.burst(down.x, down.cy, variant === 'dog' ? '#80deea' : '#eeeeee', 12, 260);
+      this.text(down.x, down.y - down.h - 20, variant === 'dog' ? '🐕 WOOF!' : '💀 rattle!', '#ffffff', 22);
+      return true;
+    }
+    const x = clamp(f.x + dx, 0, this.map.w);
+    const c = new Cat(f, x, f.y - 6, hp, dmg, variant);
+    c.vy = -420;
+    this.cats.push(c);
+    this.burst(x, f.y - 30, variant === 'dog' ? '#80deea' : '#eeeeee', 12, 260);
+    this.text(x, f.y - (variant === 'dog' ? 70 : 120), variant === 'dog' ? '🐕!' : '💀!', '#ffffff', 24);
+    return true;
+  }
+
+  /** A charging chick or Chicken runs into an enemy: it gets bowled over (the charge keeps going). */
+  chargeHit(c: Cat, e: Body) {
+    c.bumpCd.set(e.id, this.time + 0.5);
+    this.damage(e, c.touchDmg, c, c.chargeDir * (c.variant === 'chicken' ? 700 : 420), -360, 'fling');
   }
 
   /** The red guy bumps an enemy: 10 damage, and they bounce off each other. */
@@ -2147,10 +2345,11 @@ export class Game {
 
   /** A cat touched an enemy. */
   catBite(c: Cat, e: Body, dmg = c.touchDmg) {
-    c.attackT = 0.8;
+    // The dog waits 8 seconds between bites; the little pigeon pecks about once a second.
+    c.attackT = c.variant === 'dog' ? DOG.every : c.variant === 'lilpigeon' ? LIL_PIGEON.every : 0.8;
     const dir = sign(e.x - c.x) || c.facing;
     c.facing = dir;
-    const big = c.variant === 'memory' || c.variant === 'soldier' || c.variant === 'sbsnow';
+    const big = c.variant === 'memory' || c.variant === 'soldier' || c.variant === 'sbsnow' || c.variant === 'skeleton' || c.variant === 'dog' || c.variant === 'chicken';
     this.damage(e, dmg, c, dir * (big ? 480 : 260), big ? -380 : -220, big ? 'ragdoll' : 'trip');
   }
 
@@ -2180,9 +2379,9 @@ export class Game {
     const scale = owner instanceof Fighter ? owner.scale : 1;
     const big = kind === 'boomerang' || kind === 'bomb' || kind === 'axe' || kind === 'fireball' || kind === 'six7' || kind === 'soup';
     const r =
-      { arrow: 5, snowball: 11, minisnow: 8, boomerang: 16, bomb: 11, axe: 22, shuriken: 8, laser: 6, fireball: 14, six7: 24, poop: 10, soup: 14, icebolt: 9, banana: 10, fireslash: 34, dart: 6, memorybox: 12, rocket: 10, wave: 60, shard: 10, crash: 80, vine: 14, nerf: 6, bullet67: 7, water: 7, bubble: 18, yoyo: 13, fishthrow: 14, allyfire: 12 }[kind] *
+      { arrow: 5, snowball: 11, minisnow: 8, boomerang: 16, bomb: 11, axe: 22, shuriken: 8, laser: 6, fireball: 14, six7: 24, poop: 10, soup: 14, icebolt: 9, banana: 10, fireslash: 34, dart: 6, memorybox: 12, rocket: 10, wave: 60, shard: 10, crash: 80, vine: 14, nerf: 6, bullet67: 7, water: 7, bubble: 18, yoyo: 13, fishthrow: 14, allyfire: 12, egg: 10, gum: 11 }[kind] *
       (big || kind === 'fireslash' ? scale : 1);
-    const life = { arrow: 2, snowball: 3, minisnow: 3, boomerang: 3.5, bomb: 1.5, axe: 3.5, shuriken: 2, laser: 0.7, fireball: 2, six7: 3.5, poop: 3, soup: 3, icebolt: 2, banana: 3, fireslash: 0.7, dart: 2, memorybox: 0.35, rocket: 2, wave: 1.7, shard: 1.6, crash: 1.9, vine: 0.42, nerf: 2, bullet67: 1.2, water: 0.9, bubble: 2.6, yoyo: 3.5, fishthrow: 3, allyfire: 2 }[kind];
+    const life = { arrow: 2, snowball: 3, minisnow: 3, boomerang: 3.5, bomb: 1.5, axe: 3.5, shuriken: 2, laser: 0.7, fireball: 2, six7: 3.5, poop: 3, soup: 3, icebolt: 2, banana: 3, fireslash: 0.7, dart: 2, memorybox: 0.35, rocket: 2, wave: 1.7, shard: 1.6, crash: 1.9, vine: 0.42, nerf: 2, bullet67: 1.2, water: 0.9, bubble: 2.6, yoyo: 3.5, fishthrow: 3, allyfire: 2, egg: 2.5, gum: 2.5 }[kind];
     this.projectiles.push({
       kind,
       x,
@@ -2352,6 +2551,16 @@ export class Game {
               e.lastHitT = this.time;
             }
           }
+        } else if (p.kind === 'egg') {
+          // SPLAT!
+          this.damage(e, p.dmg, p.owner, dir * 260, -220, PROJ_FINISH[p.kind]);
+          this.burst(p.x, p.y, '#fff59d', 10, 240);
+          this.burst(p.x, p.y, '#ffffff', 6, 200);
+          this.text(e.x, e.y - e.h - 30, 'SPLAT!', '#fff59d', 22);
+        } else if (p.kind === 'gum') {
+          // Sticky gum: slows them down for a while.
+          if (this.damage(e, p.dmg, p.owner, dir * 120, -120, PROJ_FINISH[p.kind]) && e.alive) e.slowT = Math.max(e.slowT, GUM.slowS);
+          this.burst(p.x, p.y, '#ff80ab', 10, 220);
         } else if (p.kind === 'allyfire') {
           // The Fire Ally's fireball: no burning.
           this.damage(e, p.dmg, p.owner, dir * 320, -260, PROJ_FINISH[p.kind]);
@@ -2585,14 +2794,16 @@ export class Game {
       else return { decided: false, team: null };
     }
     if (this.beach && this.fish && !this.fish.alive) this.fishBeaten = true;
+    // Helpers that are still up (cats, snowmen, chicks...) keep their side in the match.
+    const helpers: Body[] = [...this.snowmen, ...this.cats].filter((h) => h.alive);
     if (isBossMode(this.mode)) {
       // Only the bosses you fight count (on the Beach the normal bosses were on your side).
       const bosses = this.bosses.filter((b) => b.team === BOSS_TEAM);
-      if (bosses.length && bosses.every((b) => !b.alive)) return { decided: true, team: 0 };
-      if (!alive.some((f) => !f.boss)) return { decided: true, team: BOSS_TEAM };
+      if (bosses.length && bosses.every((b) => !b.alive) && !helpers.some((h) => h.team === BOSS_TEAM)) return { decided: true, team: 0 };
+      if (!alive.some((f) => !f.boss) && !helpers.some((h) => h.team !== BOSS_TEAM)) return { decided: true, team: BOSS_TEAM };
       return { decided: false, team: null };
     }
-    const teams = new Set(alive.map((f) => f.team));
+    const teams = new Set([...alive, ...helpers].map((f) => f.team));
     if (teams.size <= 1) return { decided: true, team: teams.size ? [...teams][0] : null };
     return { decided: false, team: null };
   }

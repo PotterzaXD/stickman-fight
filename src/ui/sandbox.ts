@@ -1,6 +1,6 @@
 import { TEAM_COLORS } from '../game/game';
-import { MEMORY_ALLY, PIGEON_HP, SECRET_HP, SOLDIER_HP } from '../game/entities';
-import { HELPER_KINDS, SECRET_KINDS, type HelperKind, type SandboxHelper } from '../game/types';
+import { CHICK, CHICKEN, DOG, LIL_PIGEON, MEMORY_ALLY, PIGEON_HP, RED_GUY, SB_ALLY, SECRET_HP, SKELETON, SNOWMAN_HP, SOLDIER_HP } from '../game/entities';
+import { HELPER_KINDS, SB_CHICKS, SECRET_KINDS, type HelperKind, type SandboxHelper } from '../game/types';
 import { hasAch } from '../achievements';
 import { allMaps } from '../game/maps';
 import type { BossKind, Difficulty, MatchConfig, SandboxBoss, SlotConfig } from '../game/types';
@@ -18,13 +18,21 @@ const MAX_SB_PLAYERS = 6;
 /** Players and bots together. */
 const MAX_SB_FIGHTERS = 30;
 const MAX_SB_BOSSES = 20;
-const MAX_SB_HELPERS = 20;
+/** Helpers (chick slots don't count). */
+const MAX_SB_HELPERS = 30;
 const MAX_SB_CLONES = 10;
 const POWERS = [25, 50, 100, 200, 500, 1000];
 const BOSS_HP: Record<BossKind, number> = { boss: 5000, cat: 10000, mascot: 50000, buffalo: 8000, fish: 9999, pigeon: PIGEON_HP, ...SECRET_HP };
 export const BOSS_ICON: Record<BossKind, string> = { boss: '👹', cat: '🐱', mascot: '⚪', buffalo: '🐃', fish: '🐟', pigeon: '🐦', queen: '❄️', tide: '🌊', guardian: '🌲' };
-const HELPER_ICON: Record<HelperKind, string> = { cat: '🐱', fish: '🐟', memory: '💭', soldier: '💂' };
-const HELPER_HP: Record<HelperKind, number> = { cat: 100, fish: 50, memory: MEMORY_ALLY.hp, soldier: SOLDIER_HP };
+const HELPER_ICON: Record<HelperKind, string> = {
+  cat: '🐱', fish: '🐟', memory: '💭', soldier: '💂', snowman: '☃️', sbsnow: '⛄', fireally: '🔥', redguy: '🟥', chicken: '🐔', chick: '🐥', lilpigeon: '🐦', skeleton: '💀', dog: '🐕',
+};
+const HELPER_HP: Record<HelperKind, number> = {
+  cat: 100, fish: 50, memory: MEMORY_ALLY.hp, soldier: SOLDIER_HP, snowman: SNOWMAN_HP, sbsnow: SB_ALLY.hp, fireally: SB_ALLY.hp, redguy: RED_GUY.hp,
+  chicken: CHICKEN.hp, chick: CHICK.hp, lilpigeon: LIL_PIGEON.hp, skeleton: SKELETON.hp, dog: DOG.hp,
+};
+/** Helpers that count toward the limit (chicks don't). */
+const counted = (list: SandboxHelper[]) => list.filter((x) => x.kind !== 'chick').length;
 /** The Pigeon shows up in Sandbox after you beat it once. */
 const pigeonOpen = () => hasAch('pigeonBeat');
 
@@ -202,7 +210,7 @@ register('sandbox', (root) => {
         'div',
         { class: 'slot' },
         h('span', { class: 'slot-name', style: `--c:${TEAM_COLORS[hp.team]}` }, `${HELPER_ICON[hp.kind]} ${t(`helper.${hp.kind}` as Key)}`),
-        h('small', { class: 'muted' }, `❤️ ${HELPER_HP[hp.kind]}`),
+        h('small', { class: 'muted' }, hp.kind === 'chick' ? `×${SB_CHICKS} ❤️ ${HELPER_HP.chick}` : `❤️ ${HELPER_HP[hp.kind].toLocaleString()}`),
         teamPicker(hp),
         removeBtn(() => m.helpers!.splice(i, 1)),
       ),
@@ -212,7 +220,7 @@ register('sandbox', (root) => {
         'button',
         {
           class: 'btn small',
-          disabled: m.helpers!.length >= MAX_SB_HELPERS,
+          disabled: kind !== 'chick' && counted(m.helpers!) >= MAX_SB_HELPERS,
           onclick: () => {
             m.helpers!.push({ kind, team: 1 });
             render();
@@ -308,7 +316,7 @@ register('sandbox', (root) => {
       h(
         'section',
         {},
-        h('h3', {}, `${t('helpers')} (${m.helpers!.length}/${MAX_SB_HELPERS})`),
+        h('h3', {}, `${t('helpers')} (${counted(m.helpers!)}/${MAX_SB_HELPERS})`),
         h('p', { class: 'muted small' }, t('helpersDesc')),
         h('div', { class: 'row gap wrap' }, ...HELPER_KINDS.map(addHelper)),
         h('div', { class: 'slots' }, ...helperRows),

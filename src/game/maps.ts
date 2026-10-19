@@ -4,7 +4,7 @@ export interface Theme {
   sky: [string, string];
   plat: string;
   top: string;
-  deco: 'clouds' | 'stars' | 'snow' | 'embers' | 'space' | 'beach' | 'war' | 'jungle' | 'haunted' | 'candy';
+  deco: 'clouds' | 'stars' | 'snow' | 'embers' | 'space' | 'beach' | 'war' | 'jungle' | 'haunted' | 'candy' | 'farm' | 'graveyard';
   /** Gravity multiplier (space: low gravity, you jump higher and fall slower). */
   gravity?: number;
 }
@@ -21,10 +21,12 @@ export const THEMES: Record<ThemeId, Theme> = {
   jungle: { sky: ['#2e7d32', '#c5e1a5'], plat: '#6d6552', top: '#43a047', deco: 'jungle' },
   haunted: { sky: ['#1a0b2e', '#4a2c6b'], plat: '#3b3346', top: '#7e6b8f', deco: 'haunted' },
   candy: { sky: ['#f8bbd0', '#fff3e0'], plat: '#f48fb1', top: '#ffffff', deco: 'candy' },
+  farm: { sky: ['#81d4fa', '#fffde7'], plat: '#8d6e63', top: '#9ccc65', deco: 'farm' },
+  graveyard: { sky: ['#0d1b12', '#33473a'], plat: '#424a45', top: '#5b7f5f', deco: 'graveyard' },
 };
 
 /** Append only (shared map links send the index). */
-export const THEME_IDS: ThemeId[] = ['day', 'sunset', 'night', 'snow', 'lava', 'space', 'beach', 'war', 'jungle', 'haunted', 'candy'];
+export const THEME_IDS: ThemeId[] = ['day', 'sunset', 'night', 'snow', 'lava', 'space', 'beach', 'war', 'jungle', 'haunted', 'candy', 'farm', 'graveyard'];
 
 const P = (x: number, y: number, w: number, h = 24): Platform => ({ x, y, w, h });
 /** Special block: concrete, lava or glass. */
@@ -359,6 +361,53 @@ export const BUILTIN_MAPS: MapDef[] = [
       M(760, 280, 180, 220, 0, 5),
       P(100, 340, 160),
       P(1440, 340, 160),
+    ],
+    spawns: [],
+  },
+  {
+    // Farm: a long field, hay bales to hide behind, the barn roof up high and a tractor trailer that rolls back and forth.
+    id: 'farm',
+    name: 'm.farm',
+    w: 1900,
+    h: 1000,
+    theme: 'farm',
+    builtin: true,
+    platforms: [
+      P(100, 800, 1700, 70),
+      B('concrete', 360, 730, 90, 70),
+      B('concrete', 1450, 730, 90, 70),
+      B('concrete', 900, 740, 100, 60),
+      M(560, 600, 220, 560, 0, 7),
+      P(160, 540, 220),
+      P(1520, 540, 220),
+      P(700, 400, 500),
+      B('concrete', 900, 340, 100, 60),
+      P(300, 300, 180),
+      P(1420, 300, 180),
+    ],
+    spawns: [],
+  },
+  {
+    // Graveyard: rows of tombstones, a crypt in the middle with a lift over it, and floating ghost platforms made of glass.
+    id: 'graveyard',
+    name: 'm.graveyard',
+    w: 1800,
+    h: 1100,
+    theme: 'graveyard',
+    builtin: true,
+    platforms: [
+      P(80, 860, 1640, 70),
+      M(820, 740, 160, 0, -110, 4),
+      B('concrete', 220, 800, 40, 60),
+      B('concrete', 520, 800, 40, 60),
+      B('concrete', 1240, 800, 40, 60),
+      B('concrete', 1540, 800, 40, 60),
+      B('concrete', 720, 520, 360, 40),
+      P(200, 620, 240),
+      P(1360, 620, 240),
+      B('glass', 420, 420, 200, 20),
+      B('glass', 1180, 420, 200, 20),
+      P(780, 260, 240),
     ],
     spawns: [],
   },

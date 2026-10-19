@@ -328,11 +328,14 @@ export class Snowman extends Body {
 
 /**
  * What a helper looks like: a cat, a fish from the Fishy boss, the purple boss ally from Recall Memory, a spear soldier,
- * the Snowman and Fire Ally from Stick Brawl, or the red guy from WORST Stickman Fighter.
+ * the Snowman and Fire Ally from Stick Brawl, the red guy from WORST Stickman Fighter,
+ * chicks and their Chicken, the little pigeon, skeletons and the dog.
  */
-export type CatVariant = 'cat' | 'fish' | 'memory' | 'soldier' | 'sbsnow' | 'fireally' | 'redguy';
+export type CatVariant = 'cat' | 'fish' | 'memory' | 'soldier' | 'sbsnow' | 'fireally' | 'redguy' | 'chick' | 'chicken' | 'lilpigeon' | 'skeleton' | 'dog';
 /** Append only (online sends the index). */
-export const CAT_VARIANTS: CatVariant[] = ['cat', 'fish', 'memory', 'soldier', 'sbsnow', 'fireally', 'redguy'];
+export const CAT_VARIANTS: CatVariant[] = ['cat', 'fish', 'memory', 'soldier', 'sbsnow', 'fireally', 'redguy', 'chick', 'chicken', 'lilpigeon', 'skeleton', 'dog'];
+/** Helpers that don't vanish when beaten: they stay where they went down (the red guy frozen, skeletons as bones, the dog asleep) until their weapon or the Summoner brings them back. */
+export const REVIVES = (v: CatVariant) => v === 'redguy' || v === 'skeleton' || v === 'dog';
 /** A spear soldier (Spear of Bravery, Summoner, Sandbox): 500 HP, like a stickman. */
 export const SOLDIER_HP = 500;
 /** Recall Memory's boss ally: 1,000 HP, 30 damage, fades away after 20 seconds. */
@@ -341,6 +344,17 @@ export const MEMORY_ALLY = { hp: 1000, dmg: 30, life: 20 };
 export const SB_ALLY = { hp: 500, punch: 20, fire: 15, fireEvery: 1.3 };
 /** Summoner's red guy from WORST Stickman Fighter: 100 HP, bumps for 10 (once a second per enemy). */
 export const RED_GUY = { hp: 100, bump: 10, every: 1 };
+/** Chicks: 20 HP, 1 damage. */
+export const CHICK = { hp: 20, dmg: 1 };
+/** The Chicken (half a stickman tall): 200 HP, 15 a peck, guards its chicks and calls 3 more every 3 seconds. */
+export const CHICKEN = { hp: 200, dmg: 15, call: 3, every: 3, guard: 380 };
+/** Most chicks one fighter can have at once (so the game doesn't freeze). */
+export const MAX_CHICKS = 100;
+/** One Little Pigeon: 250,000 HP, 10 a peck, about one peck a second. */
+export const LIL_PIGEON = { hp: 250000, dmg: 10, every: 1 };
+/** Bone: 2 skeletons (99 HP, 20 a hit) and a dog (250 HP, 50 a bite, 8 seconds between bites). */
+export const SKELETON = { hp: 99, dmg: 20, count: 2 };
+export const DOG = { hp: 250, dmg: 50, every: 8 };
 
 /**
  * A little helper that runs at enemies and hurts them on touch: an AI cat called by Grandfather Cat
@@ -367,14 +381,21 @@ export class Cat extends Body {
   frozen = false;
   /** Red guy: next game time it may bump each body id again. */
   bumpCd = new Map<number, number>();
+  /** Lord of the Chicks: charging this way (1 or -1) until the edge of the platform. 0 = not charging. */
+  chargeDir = 0;
+  /** Seconds left in the charge (it also ends if something blocks the way). */
+  chargeT = 0;
+  /** The Chicken: seconds until it calls more chicks. */
+  callT = CHICKEN.every;
 
   constructor(owner: Fighter, x: number, y: number, hp: number, touchDmg: number, variant: CatVariant = 'cat') {
     // The boss ally is bigger than a stickman (80) but smaller than the bosses (208).
     // Stickman-sized: soldiers and the Stick Brawl allies. The red guy is as small as in WORST Stickman Fighter.
-    const stick = variant === 'soldier' || variant === 'sbsnow' || variant === 'fireally';
-    const w = variant === 'memory' ? 46 : stick ? 30 : variant === 'redguy' ? 16 : 34;
-    const h = variant === 'memory' ? 128 : stick ? 80 : variant === 'redguy' ? 43 : 30;
-    super(x, y, w, h, hp, owner.team, variant === 'sbsnow' ? '#bdeeff' : variant === 'fireally' ? '#ff7a1a' : variant === 'redguy' ? '#f66' : owner.color);
+    // Chicks are tiny, the Chicken is half a stickman, the little pigeon is smaller than a stickman.
+    const stick = variant === 'soldier' || variant === 'sbsnow' || variant === 'fireally' || variant === 'skeleton';
+    const [w, h] =
+      variant === 'memory' ? [46, 128] : stick ? [30, 80] : variant === 'redguy' ? [16, 43] : variant === 'chick' ? [16, 16] : variant === 'chicken' ? [38, 42] : variant === 'lilpigeon' ? [28, 32] : variant === 'dog' ? [46, 34] : [34, 30];
+    super(x, y, w, h, hp, owner.team, variant === 'sbsnow' ? '#bdeeff' : variant === 'fireally' ? '#ff7a1a' : variant === 'redguy' ? '#f66' : variant === 'skeleton' ? '#eeeeee' : owner.color);
     this.owner = owner;
     this.touchDmg = touchDmg;
     this.facing = owner.facing;
@@ -412,7 +433,9 @@ export type ProjKind =
   | 'bubble'
   | 'yoyo'
   | 'fishthrow'
-  | 'allyfire';
+  | 'allyfire'
+  | 'egg'
+  | 'gum';
 
 /** Thrown weapons that fly out and come back to the hand. */
 export const returns = (k: ProjKind) => k === 'boomerang' || k === 'axe' || k === 'six7' || k === 'yoyo';
