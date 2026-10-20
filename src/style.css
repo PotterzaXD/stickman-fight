@@ -623,6 +623,44 @@ select {
   max-width: calc(100% - 32px);
   text-align: center;
 }
+.song-card {
+  position: fixed;
+  top: 56px;
+  right: 12px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  max-width: calc(100% - 24px);
+  padding: 8px 14px 8px 8px;
+  border-radius: 14px;
+  background: rgba(20, 10, 30, 0.88);
+  border: 2px solid #ff4081;
+  color: #fff;
+  z-index: 60;
+  pointer-events: none;
+  opacity: 0;
+  transform: translateX(30px);
+  transition: 0.35s;
+}
+.song-card img {
+  width: 56px;
+  height: 56px;
+  border-radius: 8px;
+  object-fit: cover;
+  background: #fff;
+}
+.song-card div {
+  display: flex;
+  flex-direction: column;
+}
+.song-card small {
+  opacity: 0.75;
+  font-size: 12px;
+}
+.song-card.show {
+  opacity: 1;
+  transform: none;
+}
 .toast.show {
   opacity: 1;
   transform: translate(-50%, 0);
@@ -982,4 +1020,62 @@ select {
 .switch-row input {
   width: 20px;
   height: 20px;
+}
+
+/* ---------- October 21 update: Other Versions ---------- */
+.menu-buttons .btn.versions {
+  grid-column: 1 / -1;
+  background: linear-gradient(90deg, #ff5d5d, #ffcf4d 35%, #87ceeb 70%, #c9463c);
+  color: #141413;
+}
+.versions {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+}
+.version-card {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  text-align: left;
+  padding: 14px 16px;
+  border: 0;
+  border-radius: 16px;
+  cursor: pointer;
+  font: inherit;
+  box-shadow: 0 3px 0 rgba(0, 0, 0, 0.2);
+}
+.version-card:active {
+  transform: translateY(2px);
+  box-shadow: none;
+}
+.version-card span:last-child {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.version-card b {
+  font-size: 18px;
+}
+.version-card small {
+  opacity: 0.8;
+}
+.version-icon {
+  font-size: 34px;
+}
+.version-card.stickbrawl {
+  background: linear-gradient(90deg, #ff5d5d, #ffcf4d);
+  color: #2b0707;
+}
+.version-card.worst {
+  background: linear-gradient(90deg, #87ceeb, #90ee90);
+  color: #141413;
+}
+.version-card.worst2 {
+  background: linear-gradient(90deg, #212121, #9e9e9e);
+  color: #ffffff;
+}
+.version-card.arena {
+  background: linear-gradient(90deg, #d9a521, #c9463c);
+  color: #1a0e00;
 }

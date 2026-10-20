@@ -168,6 +168,7 @@ register('room', (root) => {
             [
               ['ffa', `🥊 ${t('ffa')}`],
               ['team', `🤝 ${t('team')}`],
+              ['hill', `👑 ${t('hill')}`],
               ['boss', `👹 ${t('boss')}`],
               ['cat', `🐱 ${t('cat')}`],
               ['mascot', `${mascotUnlocked(st.hostWeapons) ? '⚪' : '🔒'} ${t('mascot')}`],
@@ -187,6 +188,7 @@ register('room', (root) => {
               host?.setRoom({ mode: v });
             },
           ),
+          st.mode === 'hill' ? h('small', { class: 'muted' }, t('hillDesc')) : null,
           st.mode === 'buffalo' ? h('small', { class: 'muted' }, `🪙🏆 ${t('buffaloReward')}`) : null,
           isSecret(st.mode) || isXBoss(st.mode) ? h('small', { class: 'muted' }, `🪙🏆 ${t(`${st.mode}Reward` as Key)}`) : null,
           // The Outbreak uses the host's save: pick which one.

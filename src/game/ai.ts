@@ -1,6 +1,7 @@
 import type { Game } from './game';
-import { Body, CHICKEN, Cat, Fighter, SB_ALLY, Snowman, ZOMBIES, isZombie } from './entities';
+import { BABY_ELE, Body, CHICKEN, Cat, DRONE, Fighter, PENGUIN, SB_ALLY, Snowman, ZOMBIES, isZombie } from './entities';
 import { zombieBoom } from './outbreak';
+import { inZone } from './hill';
 import type { Difficulty, Intent, Platform } from './types';
 
 const rand = Math.random;
@@ -134,6 +135,19 @@ export class BotBrain {
       it.aim = !w0.ranged && dist < reach * 1.6 ? base + Math.sin(this.time * p.swing) * 1.25 : base;
 
       if (fresh) this.pickSkill(f, g, dx, dy, dist, it);
+    }
+
+    // King of the Hill: head for the zone, and stay in it.
+    if (g.hill && !f.boss && !f.cloneOf) {
+      const h = g.hill;
+      const hx = h.x - f.x;
+      if (inZone(h, f)) {
+        if (Math.abs(hx + it.moveX * 40) > h.w / 2 - 20) it.moveX = 0;
+      } else if (!t || Math.abs(t.x - f.x) > 160 || rand() < 0.02) {
+        it.moveX = Math.abs(hx) > 20 ? sign(hx) : 0;
+        if (h.y < f.y - 60 && f.onGround && Math.abs(hx) < 360 && rand() < dt * 4) it.jump = true;
+        if (h.y < f.y - 40 && !f.onGround && f.airJumps > 0 && f.vy > -150) it.jump = true;
+      }
     }
 
     // Don't walk off edges (easy bots sometimes do).
@@ -335,7 +349,17 @@ export class BotBrain {
           if (dist < 1000) angle = -Math.PI / 2;
           break;
         case 'pan':
+        case 'bat':
           if (dist < f.reach(i) + 60) angle = Math.atan2(dy, dx);
+          break;
+        case 'guitar':
+          if (dist < 240 * s) angle = Math.atan2(dy, dx);
+          break;
+        case 'slingshot':
+          if (dist < 900) angle = ballisticAngle(dx, dy, 1300, 600);
+          break;
+        case 'flamethrower':
+          if (dist < 420) angle = Math.atan2(dy, dx);
           break;
         case 'watergun':
           if (dist < 520) angle = ballisticAngle(dx, dy, 1250, 700);
@@ -410,6 +434,7 @@ export function updateSnowman(s: Snowman, dt: number, g: Game) {
 export function updateCat(c: Cat, dt: number, g: Game) {
   if (c.variant === 'redguy') return updateRedGuy(c, dt, g);
   if (c.variant === 'bee') return updateBee(c, dt, g);
+  if (c.variant === 'drone') return updateDrone(c, dt, g);
   // Ninjas blink next to whoever they are after.
   if (c.variant === 'ninja') ninjaBlink(c, dt, g);
   // The Chicken calls 3 more chicks every 3 seconds.
@@ -457,7 +482,7 @@ export function updateCat(c: Cat, dt: number, g: Game) {
     }
   }
   // The boss ally walks a bit slower; fish flop about quickly.
-  const speed = isZombie(c.variant) ? ZOMBIES[c.variant].speed : c.variant === 'zombie' ? 300 : c.variant === 'ninja' ? 380 : c.variant === 'retro' ? 290 :
+  const speed = isZombie(c.variant) ? ZOMBIES[c.variant].speed : c.variant === 'zombie' ? 300 : c.variant === 'babyele' ? 240 : c.variant === 'penguin' ? 190 : c.variant === 'ninja' ? 380 : c.variant === 'retro' ? 290 :
     c.variant === 'memory' ? 280 : c.variant === 'fish' ? 360 : c.variant === 'soldier' || c.variant === 'sbsnow' || c.variant === 'fireally' || c.variant === 'skeleton' ? 300 : c.variant === 'dog' ? 380 : c.variant === 'chick' ? 300 : 330;
   if (c.stun > 0) c.vx *= Math.max(0, 1 - 2 * dt);
   else c.vx += (c.moveX * speed - c.vx) * Math.min(1, (c.onGround ? 10 : 4) * dt);
@@ -483,6 +508,36 @@ export function updateCat(c: Cat, dt: number, g: Game) {
       }
     }
     return;
+  }
+  // The Baby Elephant sprays water at enemies a little way off (and still slaps with its trunk up close).
+  if (c.variant === 'babyele') {
+    c.shootT -= dt;
+    if (t && c.shootT <= 0 && c.stun <= 0) {
+      const hx = c.x + c.facing * 30;
+      const hy = c.y - 34;
+      const dx = t.x - hx;
+      const dy = t.cy - hy;
+      if (Math.abs(dx) > 90 && Math.hypot(dx, dy) < 520) {
+        c.shootT = BABY_ELE.every;
+        c.attackT = 0.5;
+        c.facing = sign(dx) || c.facing;
+        const a = Math.atan2(dy, dx);
+        for (let k = 0; k < BABY_ELE.drops; k++) g.spawnProj('water', c, hx, hy, a + (k / (BABY_ELE.drops - 1) - 0.5) * 0.3, 1000 + rand() * 200, 600, BABY_ELE.spray, 0);
+        g.play('splash');
+      }
+    }
+  }
+  // The Penguin: when an enemy is on the same level, it flops on its belly and slides into them.
+  if (c.variant === 'penguin') {
+    c.skillCd -= dt;
+    if (t && c.onGround && c.skillCd <= 0 && c.stun <= 0 && Math.abs(t.x - c.x) < 460 && Math.abs(t.y - c.y) < 40) {
+      c.skillCd = PENGUIN.slideEvery;
+      c.chargeDir = sign(t.x - c.x) || c.facing;
+      c.chargeT = PENGUIN.slideS;
+      c.bumpCd.clear();
+      g.text(c.x, c.y - c.h - 14, '🐧💨', '#ffffff', 20);
+      return;
+    }
   }
   // Shooter zombies keep away and throw goo that slows you down.
   if (c.variant === 'zshooter') {
@@ -571,6 +626,37 @@ function updateBee(c: Cat, dt: number, g: Game) {
     c.vx = -c.facing * 200;
     break;
   }
+}
+
+/** The Robo Drone flies above its target and zaps it with a little laser. */
+function updateDrone(c: Cat, dt: number, g: Game) {
+  c.thinkT -= dt;
+  c.shootT -= dt;
+  if (c.thinkT <= 0 || !c.target?.alive) {
+    c.thinkT = 0.3 + rand() * 0.2;
+    c.target = nearestEnemy(g, c);
+  }
+  const t = c.target && c.target.alive ? c.target : null;
+  // It hovers (no gravity).
+  c.vy -= g.gravity * dt;
+  const side = c.id % 2 ? 1 : -1;
+  const tx = t ? t.x + side * 140 : c.owner.x + side * 70;
+  const ty = (t ? t.y - t.h : c.owner.y - c.owner.h) - 120 + Math.sin(g.time * 3 + c.id) * 20;
+  const dx = tx - c.x;
+  const dy = ty - c.cy;
+  const d = Math.hypot(dx, dy) || 1;
+  const sp = Math.min(320, d * 3);
+  c.vx += ((dx / d) * sp - c.vx) * Math.min(1, 4 * dt);
+  c.vy += ((dy / d) * sp - c.vy) * Math.min(1, 4 * dt);
+  if (t) c.facing = sign(t.x - c.x) || c.facing;
+  else if (Math.abs(c.vx) > 20) c.facing = sign(c.vx);
+  if (!t || c.shootT > 0 || c.stun > 0) return;
+  const ex = t.x - c.x;
+  const ey = t.cy - c.cy;
+  if (Math.hypot(ex, ey) > 700) return;
+  c.shootT = DRONE.every;
+  c.attackT = 0.3;
+  g.spawnProj('laser', c, c.x + c.facing * 12, c.cy + 6, Math.atan2(ey, ex), 1600, 0, c.touchDmg, 0);
 }
 
 /** A ninja far from its target disappears in smoke and shows up right next to it. */

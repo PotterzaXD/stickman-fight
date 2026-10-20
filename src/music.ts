@@ -8,6 +8,7 @@ import { audio, midiHz, musicLevel, musicOut, noise } from './audio';
 export type TrackId =
   | 'menu'
   | 'sandbox'
+  | 'rock'
   | 'day'
   | 'sunset'
   | 'night'
@@ -24,6 +25,7 @@ export type TrackId =
   | 'inferno'
   | 'pirate'
   | 'desert'
+  | 'stage'
   | 'outbreak'
   | 'elephant'
   | 'boss'
@@ -54,6 +56,8 @@ interface TrackDef {
   leadOct?: number;
   swing?: number;
   vol?: number;
+  /** Hard rock: a distorted lead and power chords chugging on the bass rhythm. */
+  rock?: boolean;
 }
 
 const MINOR = [0, 2, 3, 5, 7, 8, 10];
@@ -74,6 +78,10 @@ const TRACKS: Record<TrackId, TrackDef> = {
   menu: { bpm: 138, root: 57, scale: MINOR, chords: [0, 5, 2, 6], lead: 'square', bass: 'sawtooth', arp: 'square', drums: ['k...s...k...s...', 'k.h.s.h.k.h.s.h.'], busy: 0.65, bassRhythm: 'x.x.x.x.x.x.x.x.', seed: 11 },
   // Chill 8-bit for building and testing
   sandbox: { bpm: 92, root: 60, scale: MAJOR, chords: [0, 5, 3, 4], lead: 'triangle', bass: 'sine', arp: 'triangle', drums: ['k.....h.....h...', 'k.....h...k.h...'], busy: 0.4, bassRhythm: 'x.....x...x.....', seed: 23, swing: 0.12 },
+  // Sandbox when it gets crowded: funky, hard, loud rock 🔥 (distorted guitar, power chords, pounding drums)
+  rock: { bpm: 150, root: 52, scale: [0, 3, 5, 6, 7, 10], chords: [0, 0, 4, 3, 0, 0, 5, 4], lead: 'sawtooth', bass: 'sawtooth', arp: null, drums: ['k.h.s.hkk.hks.h.', 'k.kks.kks.kks.ss'], busy: 0.7, bassRhythm: 'x.xx.x.xx.xx.x.x', seed: 167, swing: 0.1, rock: true },
+  // The Rock Stage map: the same band, a different riff
+  stage: { bpm: 140, root: 50, scale: [0, 3, 5, 7, 10], chords: [0, 3, 4, 2], lead: 'sawtooth', bass: 'sawtooth', arp: null, drums: ['k...s.k.k.k.s...', 'k.k.s.k.k.ksss.s'], busy: 0.6, bassRhythm: 'x.x.x.xxx.x.x.xx', seed: 173, rock: true },
   day: { bpm: 128, root: 60, scale: MAJOR, chords: [0, 4, 5, 3], lead: 'square', bass: 'triangle', arp: null, drums: [BACK, 'k.h.s.h.k.h.s.h.'], busy: 0.6, bassRhythm: 'x...x.x.x...x.x.', seed: 31 },
   sunset: { bpm: 112, root: 65, scale: MAJOR, chords: [0, 3, 5, 4], lead: 'triangle', bass: 'sawtooth', arp: 'square', drums: [BACK], busy: 0.45, bassRhythm: 'x..x..x.x..x..x.', seed: 37, swing: 0.1 },
   night: { bpm: 120, root: 62, scale: DORIAN, chords: [0, 6, 5, 6], lead: 'square', bass: 'triangle', arp: 'sine', drums: ['k...h.h.s...h...', 'k...h.h.s..kh.h.'], busy: 0.5, bassRhythm: 'x.......x.x.....', seed: 41 },
@@ -173,6 +181,48 @@ function voice(a: AudioContext, out: AudioNode, type: OscillatorType, hz: number
   o.stop(at + dur + 0.02);
 }
 
+/** A fuzz pedal: clips the sound hard so a sawtooth sounds like an electric guitar. */
+let fuzzCurve: Float32Array<ArrayBuffer> | null = null;
+function fuzz(a: AudioContext, out: AudioNode): AudioNode {
+  if (!fuzzCurve) {
+    fuzzCurve = new Float32Array(1024);
+    for (let i = 0; i < 1024; i++) {
+      const x = (i / 1023) * 2 - 1;
+      fuzzCurve[i] = Math.tanh(x * 9);
+    }
+  }
+  const ws = a.createWaveShaper();
+  ws.curve = fuzzCurve;
+  ws.oversample = '2x';
+  const tone = a.createBiquadFilter();
+  tone.type = 'lowpass';
+  tone.frequency.value = 3200;
+  ws.connect(tone).connect(out);
+  return ws;
+}
+
+/** One guitar note (or power chord: root, fifth and octave) through the fuzz. */
+function guitar(a: AudioContext, out: AudioNode, hzs: number[], at: number, dur: number, vol: number) {
+  const g = a.createGain();
+  g.gain.setValueAtTime(0.0001, at);
+  g.gain.linearRampToValueAtTime(vol, at + 0.005);
+  g.gain.exponentialRampToValueAtTime(vol * 0.4, at + dur * 0.6);
+  g.gain.exponentialRampToValueAtTime(0.0001, at + dur);
+  const pedal = fuzz(a, g);
+  g.connect(out);
+  for (const hz of hzs) {
+    const o = a.createOscillator();
+    o.type = 'sawtooth';
+    o.frequency.setValueAtTime(hz, at);
+    // A little bend up for the funk
+    o.detune.setValueAtTime(-30, at);
+    o.detune.linearRampToValueAtTime(0, at + 0.04);
+    o.connect(pedal);
+    o.start(at);
+    o.stop(at + dur + 0.02);
+  }
+}
+
 function drum(a: AudioContext, out: AudioNode, kind: string, at: number) {
   if (kind === 'k' || kind === 't') {
     const o = a.createOscillator();
@@ -190,11 +240,12 @@ function drum(a: AudioContext, out: AudioNode, kind: string, at: number) {
   const src = a.createBufferSource();
   src.buffer = noise(a);
   const f = a.createBiquadFilter();
-  f.type = kind === 'h' ? 'highpass' : 'bandpass';
-  f.frequency.value = kind === 'h' ? 7000 : 1800;
+  // c = crash cymbal (the rock song)
+  f.type = kind === 'h' || kind === 'c' ? 'highpass' : 'bandpass';
+  f.frequency.value = kind === 'h' ? 7000 : kind === 'c' ? 5000 : 1800;
   const g = a.createGain();
-  const len = kind === 'h' ? 0.05 : 0.15;
-  g.gain.setValueAtTime(kind === 'h' ? 0.12 : 0.28, at);
+  const len = kind === 'h' ? 0.05 : kind === 'c' ? 0.9 : 0.15;
+  g.gain.setValueAtTime(kind === 'h' ? 0.12 : kind === 'c' ? 0.16 : 0.28, at);
   g.gain.exponentialRampToValueAtTime(0.0001, at + len);
   src.connect(f).connect(g).connect(out);
   src.start(at, Math.random() * 0.5);
@@ -225,8 +276,23 @@ function schedule() {
     const at = nextTime + (i % 2 ? (t.swing ?? 0) * s16 : 0);
     const out = gain;
     const vol = t.vol ?? 1;
-    // Lead
     const deg = melody[barI][i];
+    if (t.rock) {
+      // Lead guitar screaming on top, power chords chugging underneath, and a crash on every bar.
+      if (deg !== null) guitar(a, out, [degHz(t, deg, 1)], at, s16 * 1.9, 0.05 * vol);
+      if (t.bassRhythm[i] === 'x') {
+        const root = degHz(t, chord, -1);
+        guitar(a, out, [root, root * 1.5, root * 2], at, s16 * 1.4, 0.055 * vol);
+        voice(a, out, 'triangle', root / 2, at, s16 * 1.4, 0.22 * vol);
+      }
+      if (i === 0) drum(a, out, 'c', at);
+      const pat = t.drums[barI % 4 === 3 && t.drums.length > 1 ? 1 : 0];
+      if (pat[i] !== '.') drum(a, out, pat[i], at);
+      step++;
+      nextTime += s16;
+      continue;
+    }
+    // Lead
     if (deg !== null) voice(a, out, t.lead, degHz(t, deg, 1 + (t.leadOct ?? 0)), at, s16 * 1.8, (t.lead === 'sine' || t.lead === 'triangle' ? 0.16 : 0.07) * vol);
     // Bass
     if (t.bassRhythm[i] === 'x') voice(a, out, t.bass, degHz(t, chord + (i >= 8 && i % 4 === 2 ? 4 : 0), -1), at, s16 * 1.6, (t.bass === 'sawtooth' ? 0.09 : 0.2) * vol);
@@ -241,9 +307,17 @@ function schedule() {
   }
 }
 
+/** Songs with a name and cover art: a "Now playing" card pops up when one starts. */
+export const SONGS: Partial<Record<TrackId, { name: string; cover: string }>> = {
+  rock: { name: 'Sandbox Riot', cover: '/covers/rock.jpg' },
+};
+let onSong: ((id: TrackId) => void) | null = null;
+export const setSongListener = (fn: (id: TrackId) => void) => (onSong = fn);
+
 /** Start a track (keeps playing if it already is). Fades between tracks. */
 export function playMusic(id: TrackId) {
   if (current === id && gain) return;
+  if (current !== id && SONGS[id] && musicLevel() > 0) onSong?.(id);
   stopMusic();
   const a = audio();
   const bus = musicOut();

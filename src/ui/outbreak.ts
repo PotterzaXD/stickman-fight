@@ -65,7 +65,8 @@ export function afterWave(game: Game, r: Pick<MatchResult, 'winnerTeam'>, slotId
   // Great Job Bud: reach wave 10 all by yourself (no bots, nobody else).
   const team = game.fighters.filter((f) => !f.horde && !f.boss && !f.cloneOf);
   const solo = team.length === 1 && mine.includes(team[0]) && team[0].human;
-  const ach = grant(cleared && solo && wave + 1 >= ZOMBIE_WAVE ? ['greatJobBud'] : []);
+  // Halfway There: clear wave 25 (the zombies hit 1.5× as hard by then).
+  const ach = grant([...(cleared && solo && wave + 1 >= ZOMBIE_WAVE ? (['greatJobBud'] as const) : []), ...(cleared && wave >= 25 ? (['halfway'] as const) : [])]);
   if (ach.length) setTimeout(() => sfx.achievement(), 900);
   for (const id of ach) out.push(h('p', { class: 'treasure-got' }, t('achNew', { name: t(`ach.${id}` as Key) })));
   if (slotIdx === null) return out;

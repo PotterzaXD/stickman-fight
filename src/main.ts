@@ -5,7 +5,8 @@ import { decodeMap } from './game/maps';
 import { t } from './i18n';
 import { save } from './save';
 import { sfx } from './sfx';
-import { h, toast } from './ui/dom';
+import { h, songCard, toast } from './ui/dom';
+import { SONGS, setSongListener } from './music';
 import { go, initRouter } from './ui/router';
 import './ui/menu';
 import './ui/lobby';
@@ -23,9 +24,16 @@ import './ui/stickbrawl';
 import './ui/worst';
 import './ui/worst2';
 import './ui/outbreak';
+import './ui/versions';
 import { session, setSession } from './net/room';
 
 const app = document.getElementById('app')!;
+
+// A song with cover art just started: show the "Now playing" card.
+setSongListener((id) => {
+  const song = SONGS[id];
+  if (song) songCard(song.name, song.cover, t('nowPlaying'));
+});
 initRouter(app);
 
 // Keep the page language and coin chips in sync with the save.

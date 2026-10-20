@@ -20,6 +20,7 @@ export interface Routes {
   worst: undefined;
   worst2: undefined;
   arena: undefined;
+  versions: undefined;
   outbreak: undefined;
   outbreakLobby: { slot: number };
 }

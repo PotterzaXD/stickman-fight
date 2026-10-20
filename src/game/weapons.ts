@@ -4,7 +4,8 @@ export type WeaponId = 'sword' | 'spear' | 'hammer' | 'bow' | 'boomerang' | 'bom
   | 'sniper' | 'shotgun' | 'pistol' | 'gun67' | 'summoner' | 'bravery' | 'pan' | 'watergun' | 'bubble' | 'beak'
   | 'chainsaw' | 'yoyo' | 'crossbow' | 'whip' | 'fryfish'
   | 'chicklord' | 'lilpigeon' | 'bone' | 'egg' | 'gum' | 'drumstick'
-  | 'trunk' | 'pitchfork' | 'robocannon' | 'beehive' | 'ninjascroll' | 'trumpet' | 'plasma';
+  | 'trunk' | 'pitchfork' | 'robocannon' | 'beehive' | 'ninjascroll' | 'trumpet' | 'plasma'
+  | 'guitar' | 'bat' | 'slingshot' | 'flamethrower';
 
 export interface WeaponDef {
   id: WeaponId;
@@ -96,10 +97,15 @@ export const WEAPONS: WeaponDef[] = [
   { id: 'ninjascroll', price: 850, length: 40, damage: 18, turn: 14, cooldown: 16, ranged: false },
   { id: 'trumpet', price: 450, length: 46, damage: 12, turn: 14, cooldown: 3, ranged: false },
   { id: 'plasma', price: 750, length: 80, damage: 32, turn: 16, cooldown: 4, ranged: false },
+  // October 21 update
+  { id: 'guitar', price: 650, length: 70, damage: 26, turn: 13, cooldown: 5, ranged: false },
+  { id: 'bat', price: 400, length: 80, damage: 30, turn: 15, cooldown: 4, ranged: false },
+  { id: 'slingshot', price: 200, length: 30, damage: 8, turn: 15, cooldown: 0.8, ranged: true },
+  { id: 'flamethrower', price: 950, length: 52, damage: 10, turn: 12, cooldown: 6, ranged: true },
 ];
 
 /** Weapons drawn as guns (flipped so they stay the right way up when you aim left). */
-export const GUNS: WeaponId[] = ['sniper', 'shotgun', 'pistol', 'gun67', 'watergun', 'egg', 'gum'];
+export const GUNS: WeaponId[] = ['sniper', 'shotgun', 'pistol', 'gun67', 'watergun', 'egg', 'gum', 'flamethrower'];
 
 /** Weapons you can buy in the shop or roll at random (no boss or reward weapons). */
 export const SHOP_WEAPONS = WEAPONS.filter((w) => !w.special);

@@ -5,7 +5,7 @@ import { go, register, type Routes } from './router';
 
 /**
  * Games that run in their own frame (public/worst2, public/arena), like WORST Stickman Fighter.
- * Their money stays inside them, separate from Stickman Fight's coins. "← Stickman Fight" comes back to the menu.
+ * Their money stays inside them, separate from Stickman Fight's coins. "← Stickman Fight" comes back to Other Versions.
  */
 function framePage(route: keyof Routes & ('worst2' | 'arena'), src: string, title: string, exit: string) {
   register(route, (root) => {
@@ -14,7 +14,7 @@ function framePage(route: keyof Routes & ('worst2' | 'arena'), src: string, titl
     root.append(frame);
     frame.focus();
     const onMessage = (e: MessageEvent) => {
-      if (e.origin === location.origin && e.source === frame.contentWindow && e.data?.type === exit) go('menu');
+      if (e.origin === location.origin && e.source === frame.contentWindow && e.data?.type === exit) go('versions');
     };
     window.addEventListener('message', onMessage);
     return () => window.removeEventListener('message', onMessage);

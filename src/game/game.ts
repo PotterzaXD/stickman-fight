@@ -20,6 +20,11 @@ import {
   BEES,
   NINJAS,
   ZOMBIE_ALLY,
+  ZOMBIES,
+  BABY_ELE,
+  DRONE,
+  PENGUIN,
+  isZombie,
   SB_ALLY,
   SOLDIER_HP,
   type CatVariant,
@@ -35,10 +40,11 @@ import {
 } from './entities';
 import { MELEE_FINISH, PROJ_FINISH, helperCorpse, makeCorpse, updateCorpses, type Corpse, type Finish } from './finish';
 import { THEMES, pickSpawns } from './maps';
-import { HELPER_KINDS, PIGEON_WEAPON, SB_CHICKS, isXBoss, type OutbreakInfo, type SandboxHelper } from './types';
+import { HELPER_KINDS, PIGEON_WEAPON, SB_CHICKS, isSbZombie, isXBoss, type OutbreakInfo, type SandboxHelper } from './types';
 import { updateElephant, scarecrowSkill, roboSkill, steerCrow } from './bosses';
-import { OutbreakState, startOutbreak, outbreakWinner, updateOutbreak, zombieBoom } from './outbreak';
+import { OutbreakState, startOutbreak, outbreakWinner, updateOutbreak, updateZombieBosses, zombieBoom } from './outbreak';
 import { feedCount, type FeedKind } from './killfeed';
+import { HillState, hillWinner, raceKo, raceWinner, startHill, startRace, updateHill, updateRespawns } from './hill';
 import { BEACH_MAP, BEACH_MODES, isBossMode, isSecret, type BossKind, type Difficulty, type FallMode, type MapDef, type Mode, type SandboxBoss } from './types';
 import { SHOP_WEAPONS, weapon, type WeaponId } from './weapons';
 import type { Key } from '../i18n';
@@ -205,6 +211,7 @@ export const GUN67 = { dmg: 100 };
  * and one each of the Stick Brawl Snowman, the Stick Brawl Fire Ally and the red guy from WORST Stickman Fighter.
  */
 /** October 20: the Summoner also calls the Retro Stickguy, bees, ninjas, and (after wave 10 of The Outbreak) a zombie ally. */
+/** October 21: and the Baby Elephant, 2 Robo Drones and the Penguin. */
 export const SUMMONER = { cats: { count: 3, hp: 60, dmg: 6, max: 6 }, fish: { count: 3, hp: 40, dmg: 12, max: 6 }, snowmen: 3, soldier: { count: 3, hp: SOLDIER_HP, dmg: 20, max: 6 } };
 /** Summoner's Clone: a bot copy of you with a random weapon that can't summon. It blows up for 20 when it goes down. */
 export const CLONE = { boom: 20, boomR: 170 };
@@ -230,9 +237,19 @@ export const PIGEON = { diveEvery: 10, diveSpeed: 1150, giveUp: 2.6 };
 /** Trumpet: a blast of sound in front of you (pushes hard). Plasma Blade: a spin that hits everyone around you. */
 export const TRUMPET = { dmg: 25, range: 380, push: 1000 };
 export const PLASMA = { spin: 55 };
+/** Guitar: Power Chord, a ring of sound all around you. Baseball Bat: Home Run, a huge hit. Slingshot: pebbles. Flamethrower: a cone of fire that burns. */
+export const GUITAR = { chord: 35, R: 260, push: 950, stun: 0.6 };
+export const BAT = { homeRun: 45, push: 1500, lift: 1150 };
+export const SLING = { dmg: 16 };
+export const FLAME = { dmg: 6, flames: 9, burnS: 3, burn: 4 };
 /** Bounce pads launch you this fast. Spikes hurt and bounce you up a little. */
 export const BOUNCE_V = 1500;
 export const SPIKE_DMG = 25;
+
+/** Sandbox: more than this many bots, bosses, helpers and Clones up at once and the music turns into hard rock. */
+export const SB_ROCK_AT = 10;
+/** Seconds the crowd has to stay small before the old Sandbox music comes back. */
+const ROCK_CALM = 4;
 
 /** Damage the normal boss does to the Fishy boss in the Beach cutscene. */
 export const CUTSCENE_DMG = 1000;
@@ -347,6 +364,15 @@ export class Game {
   ob: OutbreakState | null = null;
   /** Fighters whose Clone somebody knocked out (Get Tricked). */
   tricked = new Set<Fighter>();
+  /** King of the Hill: the zone and everyone's time in it (null in other modes). */
+  hill: HillState | null = null;
+  /** Weapon Race: how far up the weapon ladder each fighter is (null in other modes). */
+  race: Map<Fighter, number> | null = null;
+  /** King of the Hill and Weapon Race: seconds until each KO'd fighter comes back. */
+  respawn = new Map<Fighter, number>();
+  /** Sandbox: it's crowded, so the music is hard rock. */
+  rock = false;
+  private calmT = 0;
 
   constructor(map: MapDef, specs: FighterSpec[], opts: GameOpts) {
     // Each match gets its own copy of the platforms: moving platforms change their copy.
@@ -478,6 +504,13 @@ export class Game {
       }
       else this.startFishPhase();
     }
+    if (this.mode === 'hill') startHill(this);
+    if (this.mode === 'race') startRace(this);
+    // Sandbox: crowded from the start, so the rock music starts right away.
+    if (this.mode === 'sandbox' && !this.demo && this.crowd() > SB_ROCK_AT) {
+      this.rock = true;
+      this.calmT = ROCK_CALM;
+    }
   }
 
   /** Put a boss on the k-th widest platform (Buffalo, the Fishy boss, and Sandbox bosses). */
@@ -542,7 +575,7 @@ export class Game {
     if (!list.length || !this.fighters.length) return;
     const spots = pickSpawns(this.map, Math.min(24, list.length));
     list.forEach((hp, k) => {
-      if (!HELPER_KINDS.includes(hp.kind)) return;
+      if (!HELPER_KINDS.includes(hp.kind as never) && !isSbZombie(hp.kind)) return;
       // Free For All: each helper is on its own (it still counts as the first fighter's for the kill feed).
       const team = ffa ? 200 + k : hp.team;
       const owner = ffa ? this.fighters[0] : this.fighters.find((f) => f.team === hp.team && !f.boss) ?? this.fighters.find((f) => f.team === hp.team) ?? this.fighters[0];
@@ -557,7 +590,11 @@ export class Game {
         return;
       }
       const o =
-        hp.kind === 'cat' ? BOSS_CATS
+        isSbZombie(hp.kind) ? ZOMBIES[hp.kind]
+        : hp.kind === 'babyele' ? BABY_ELE
+        : hp.kind === 'drone' ? DRONE
+        : hp.kind === 'penguin' ? PENGUIN
+        : hp.kind === 'cat' ? BOSS_CATS
         : hp.kind === 'fish' ? FISHY.fish
         : hp.kind === 'memory' ? MEMORY_ALLY
         : hp.kind === 'sbsnow' ? { hp: SB_ALLY.hp, dmg: SB_ALLY.punch }
@@ -577,12 +614,12 @@ export class Game {
       let n = 1;
       if (hp.kind === 'chick') n = Math.min(SB_CHICKS, MAX_CHICKS - this.cats.filter((c) => c.variant === 'chick' && c.owner === owner).length);
       for (let j = 0; j < n; j++) {
-        const c = new Cat(owner, x + (n > 1 ? (j - (n - 1) / 2) * 12 : 0), sp.y - 4, o.hp, o.dmg, hp.kind);
+        const c = new Cat(owner, x + (n > 1 ? (j - (n - 1) / 2) * 12 : 0), sp.y - (hp.kind === 'drone' ? 120 : 4), o.hp, o.dmg, hp.kind);
         // Sandbox helpers stay until they are beaten.
         c.life = Infinity;
         c.team = team;
         // The red guy, the Retro Stickguy, zombies and the Stick Brawl allies keep their own colours.
-        c.color = hp.kind === 'redguy' || hp.kind === 'sbsnow' || hp.kind === 'fireally' || hp.kind === 'retro' || hp.kind === 'zombie' ? c.color : color;
+        c.color = hp.kind === 'redguy' || hp.kind === 'sbsnow' || hp.kind === 'fireally' || hp.kind === 'retro' || hp.kind === 'zombie' || hp.kind === 'babyele' || hp.kind === 'penguin' || isZombie(hp.kind) ? c.color : color;
         this.cats.push(c);
       }
     });
@@ -846,6 +883,9 @@ export class Game {
     if (this.cut) this.updateCutscene(dt);
     this.updateBlizzard(dt);
     if (this.ob) updateOutbreak(this, dt);
+    if (!this.cut) updateZombieBosses(this, dt);
+    if (this.hill) updateHill(this, dt);
+    if ((this.hill || this.race) && !this.over) updateRespawns(this, dt);
     for (const f of this.fighters) if (f.alive) this.updateFighter(f, dt);
     for (const s of this.snowmen) {
       if (!s.alive) continue;
@@ -890,8 +930,26 @@ export class Game {
     // A red guy, skeleton or dog that went down stays where it is.
     this.cats = this.cats.filter((c) => c.alive || c.frozen);
     this.updateEffects(dt);
+    this.updateRock(dt);
     this.checkWin();
     this.updateCamera(dt);
+  }
+
+  /** How many bots, bosses, Clones, helpers and zombies are up (10 chicks count as one). */
+  crowd(): number {
+    let n = this.fighters.filter((f) => f.alive && !f.human && !f.horde).length + this.snowmen.filter((s) => s.alive).length;
+    let chicks = 0;
+    for (const c of this.cats) if (c.alive) c.variant === 'chick' ? chicks++ : n++;
+    return n + Math.ceil(chicks / SB_CHICKS);
+  }
+
+  /** Sandbox: rock music as soon as it gets crowded, the old music again once it has been calm for a few seconds. */
+  private updateRock(dt: number) {
+    if (this.mode !== 'sandbox' || this.demo) return;
+    if (this.crowd() > SB_ROCK_AT) {
+      this.rock = true;
+      this.calmT = ROCK_CALM;
+    } else if (this.rock && (this.calmT -= dt) <= 0) this.rock = false;
   }
 
   // ---------- fighters ----------
@@ -1244,6 +1302,8 @@ export class Game {
     // Get Tricked: somebody knocked out your Clone.
     if (b instanceof Fighter && b.cloneOf && killer instanceof Fighter && killer !== b.cloneOf && killer !== b) this.tricked.add(b.cloneOf);
     if (killer instanceof Fighter && killer !== b && b.kind === 'fighter') killer.kos++;
+    // Weapon Race: knocking out a fighter gives you the next weapon.
+    if (this.race && killer instanceof Fighter && killer !== b && b instanceof Fighter && !b.cloneOf) raceKo(this, killer);
     const kh = src instanceof Cat ? src.variant : src instanceof Snowman ? 'snowman' : undefined;
     const by = killer instanceof Fighter && killer !== b ? killer : null;
     if (!this.demo) {
@@ -1646,6 +1706,24 @@ export class Game {
       case 'plasma':
         this.plasmaSpin(f, i);
         break;
+      case 'guitar':
+        this.powerChord(f);
+        break;
+      case 'bat':
+        this.homeRun(f, i, angle);
+        break;
+      case 'slingshot':
+        this.spawnProj('pebble', f, tip.x, tip.y, angle, 1300, 600, SLING.dmg * m, i);
+        this.play('throw');
+        break;
+      case 'flamethrower':
+        for (let k = 0; k < FLAME.flames; k++) {
+          const spread = (k / (FLAME.flames - 1) - 0.5) * 0.36 + (Math.random() - 0.5) * 0.05;
+          this.spawnProj('flame', f, tip.x, tip.y, angle + spread, 650 + Math.random() * 350, -120, FLAME.dmg * m, i);
+        }
+        this.burst(tip.x, tip.y, '#ff6d00', 10, 260);
+        this.text(f.x, f.y - f.h - 30, '🔥 FWOOSH!', '#ff9100', 24);
+        break;
       case 'stick':
       case 'mascotstick': {
         // Giant stick slam: leap up, then smash down.
@@ -1760,6 +1838,10 @@ export class Game {
     this.callCats(f, BEES, 'bee');
     this.callCats(f, NINJAS, 'ninja');
     if (f.zombieAlly) this.summonOne(f, 'zombie', ZOMBIE_ALLY.hp, ZOMBIE_ALLY.dmg, inward * 200);
+    // October 21: the Baby Elephant, two Robo Drones and the Penguin.
+    this.summonOne(f, 'babyele', BABY_ELE.hp, BABY_ELE.dmg, inward * 240);
+    this.callCats(f, { count: DRONE.max, hp: DRONE.hp, dmg: DRONE.dmg, max: DRONE.max }, 'drone');
+    this.summonOne(f, 'penguin', PENGUIN.hp, PENGUIN.dmg, inward * 90);
     for (let k = 0; k < SUMMONER.snowmen; k++) {
       if (this.snowmen.filter((m) => m.alive && m.owner === f).length >= this.maxSnowmen) break;
       const m = new Snowman(f, f.x + (k - 1) * 56, f.y - 6);
@@ -1797,6 +1879,47 @@ export class Game {
       f.hitCd.set(e.id, this.time + 0.5);
       this.damage(e, PLASMA.spin * f.dmgMult, f, (sign(dx) || 1) * 650, -450, 'half');
     }
+  }
+
+  /** Guitar: Power Chord! A ring of sound blasts everyone around you away, and they're dizzy for a moment. */
+  private powerChord(f: Fighter) {
+    const R = GUITAR.R * f.scale;
+    this.ring(f.x, f.cy, R, 0.45, '#ff4081');
+    this.ring(f.x, f.cy, R * 0.6, 0.35, '#ffd740');
+    this.burst(f.x, f.cy, '#ff4081', 14, 340);
+    this.text(f.x, f.y - f.h - 34, '🎸 POWER CHORD!', '#ff4081', 26);
+    this.shake = Math.min(18, this.shake + 6);
+    this.play('boom');
+    for (const e of this.bodies()) {
+      if (!e.alive || e.team === f.team) continue;
+      const dx = e.x - f.x;
+      if (Math.hypot(dx, e.cy - f.cy) > R + e.w / 2) continue;
+      f.hitCd.set(e.id, this.time + 0.5);
+      if (this.damage(e, GUITAR.chord * f.dmgMult, f, (sign(dx) || 1) * GUITAR.push, -650, 'fling') && e.alive) e.stun = Math.max(e.stun, GUITAR.stun);
+    }
+  }
+
+  /** Baseball Bat: HOME RUN! One big swing that sends whoever is in front of you flying. */
+  private homeRun(f: Fighter, slot: number, angle: number) {
+    f.slashT = 0.3;
+    f.slashAngle = angle;
+    f.slashSlot = slot;
+    const sh = f.shoulder();
+    const R = f.reach(slot) + 40 * f.scale;
+    const dir = Math.cos(angle) >= 0 ? 1 : -1;
+    f.facing = dir;
+    let any = false;
+    for (const e of this.bodies()) {
+      if (!e.alive || e.team === f.team) continue;
+      const dx = e.x - sh.x;
+      if (Math.hypot(dx, e.cy - sh.y) > R + e.w / 2 || dx * dir < -10) continue;
+      f.hitCd.set(e.id, this.time + 0.5);
+      this.damage(e, BAT.homeRun * f.dmgMult, f, dir * BAT.push, -BAT.lift, 'sky');
+      this.text(e.x, e.y - e.h - 36, '⚾ HOME RUN!', '#ffffff', 28);
+      any = true;
+    }
+    if (any) this.play('heavy');
+    else this.play('throw');
   }
 
   /** Frying Pan: BONK everyone in front of you. They see stars for a moment. */
@@ -2066,7 +2189,7 @@ export class Game {
     const c = new Cat(f, x, f.y - 6, hp, dmg, variant);
     c.vy = -450;
     this.cats.push(c);
-    const look = { sbsnow: ['#eafbff', '⛄!'], retro: ['#9e9e9e', '🔪!'], zombie: ['#7cb342', '🧟!'] }[variant as string] ?? ['#ff7a1a', '🔥!'];
+    const look = { sbsnow: ['#eafbff', '⛄!'], retro: ['#9e9e9e', '🔪!'], zombie: ['#7cb342', '🧟!'], babyele: ['#b0bec5', '🐘!'], penguin: ['#e1f5fe', '🐧!'] }[variant as string] ?? ['#ff7a1a', '🔥!'];
     this.burst(x, f.y - 40, look[0], 14, 300);
     this.text(x, f.y - 130, look[1], '#ffffff', 26);
   }
@@ -2487,7 +2610,7 @@ export class Game {
 
   /** Call Cat AI: little cats appear around the caller. */
   callCats(f: Fighter, o: { count: number; hp: number; dmg: number; max: number }, variant: CatVariant = 'cat') {
-    const icon = variant === 'fish' ? '🐟' : variant === 'soldier' ? '💂' : variant === 'bee' ? '🐝' : variant === 'ninja' ? '🥷' : '🐱';
+    const icon = variant === 'fish' ? '🐟' : variant === 'soldier' ? '💂' : variant === 'bee' ? '🐝' : variant === 'ninja' ? '🥷' : variant === 'drone' ? '🤖' : '🐱';
     const have = this.cats.filter((c) => c.alive && c.owner === f && c.variant === variant).length;
     const n = Math.min(o.count, o.max - have);
     if (n <= 0) {
@@ -2496,7 +2619,7 @@ export class Game {
     }
     for (let k = 0; k < n; k++) {
       const x = f.x + (k - (n - 1) / 2) * 44;
-      const c = new Cat(f, x, f.y - (variant === 'bee' ? 60 : 10), o.hp, o.dmg, variant);
+      const c = new Cat(f, x, f.y - (variant === 'bee' || variant === 'drone' ? 60 : 10), o.hp, o.dmg, variant);
       c.vy = -500 - Math.random() * 300;
       c.vx = (k - (n - 1) / 2) * 120;
       this.cats.push(c);
@@ -2510,12 +2633,12 @@ export class Game {
   /** A cat touched an enemy. */
   catBite(c: Cat, e: Body, dmg = c.touchDmg) {
     // The dog waits 8 seconds between bites; the little pigeon pecks about once a second; the Retro Stickguy's knife every 1.5 s.
-    c.attackT = c.variant === 'dog' ? DOG.every : c.variant === 'lilpigeon' ? LIL_PIGEON.every : c.variant === 'retro' ? RETRO.every : c.variant === 'zboss' || c.variant === 'zbig' ? 1.2 : 0.8;
+    c.attackT = c.variant === 'dog' ? DOG.every : c.variant === 'lilpigeon' ? LIL_PIGEON.every : c.variant === 'retro' ? RETRO.every : c.variant === 'zboss' || c.variant === 'zbig' || c.variant === 'babyele' ? 1.2 : 0.8;
     const dir = sign(e.x - c.x) || c.facing;
     c.facing = dir;
     const big =
       c.variant === 'memory' || c.variant === 'soldier' || c.variant === 'sbsnow' || c.variant === 'skeleton' || c.variant === 'dog' || c.variant === 'chicken' ||
-      c.variant === 'retro' || c.variant === 'ninja' || c.variant === 'zbig' || c.variant === 'zboss';
+      c.variant === 'retro' || c.variant === 'ninja' || c.variant === 'zbig' || c.variant === 'zboss' || c.variant === 'babyele';
     this.damage(e, dmg, c, dir * (big ? 480 : 260), big ? -380 : -220, big ? 'ragdoll' : 'trip');
   }
 
@@ -2545,9 +2668,9 @@ export class Game {
     const scale = owner instanceof Fighter ? owner.scale : 1;
     const big = kind === 'boomerang' || kind === 'bomb' || kind === 'axe' || kind === 'fireball' || kind === 'six7' || kind === 'soup' || kind === 'hay';
     const r =
-      { arrow: 5, snowball: 11, minisnow: 8, boomerang: 16, bomb: 11, axe: 22, shuriken: 8, laser: 6, fireball: 14, six7: 24, poop: 10, soup: 14, icebolt: 9, banana: 10, fireslash: 34, dart: 6, memorybox: 12, rocket: 10, wave: 60, shard: 10, crash: 80, vine: 14, nerf: 6, bullet67: 7, water: 7, bubble: 18, yoyo: 13, fishthrow: 14, allyfire: 12, egg: 10, gum: 11, crow: 14, hay: 34, goo: 10, sound: 40 }[kind] *
+      { arrow: 5, snowball: 11, minisnow: 8, boomerang: 16, bomb: 11, axe: 22, shuriken: 8, laser: 6, fireball: 14, six7: 24, poop: 10, soup: 14, icebolt: 9, banana: 10, fireslash: 34, dart: 6, memorybox: 12, rocket: 10, wave: 60, shard: 10, crash: 80, vine: 14, nerf: 6, bullet67: 7, water: 7, bubble: 18, yoyo: 13, fishthrow: 14, allyfire: 12, egg: 10, gum: 11, crow: 14, hay: 34, goo: 10, sound: 40, pebble: 6, flame: 14 }[kind] *
       (big || kind === 'fireslash' ? scale : 1);
-    const life = { arrow: 2, snowball: 3, minisnow: 3, boomerang: 3.5, bomb: 1.5, axe: 3.5, shuriken: 2, laser: 0.7, fireball: 2, six7: 3.5, poop: 3, soup: 3, icebolt: 2, banana: 3, fireslash: 0.7, dart: 2, memorybox: 0.35, rocket: 2, wave: 1.7, shard: 1.6, crash: 1.9, vine: 0.42, nerf: 2, bullet67: 1.2, water: 0.9, bubble: 2.6, yoyo: 3.5, fishthrow: 3, allyfire: 2, egg: 2.5, gum: 2.5, crow: 3.5, hay: 2.4, goo: 2.5, sound: 0.45 }[kind];
+    const life = { arrow: 2, snowball: 3, minisnow: 3, boomerang: 3.5, bomb: 1.5, axe: 3.5, shuriken: 2, laser: 0.7, fireball: 2, six7: 3.5, poop: 3, soup: 3, icebolt: 2, banana: 3, fireslash: 0.7, dart: 2, memorybox: 0.35, rocket: 2, wave: 1.7, shard: 1.6, crash: 1.9, vine: 0.42, nerf: 2, bullet67: 1.2, water: 0.9, bubble: 2.6, yoyo: 3.5, fishthrow: 3, allyfire: 2, egg: 2.5, gum: 2.5, crow: 3.5, hay: 2.4, goo: 2.5, sound: 0.45, pebble: 2, flame: 0.5 }[kind];
     this.projectiles.push({
       kind,
       x,
@@ -2684,6 +2807,12 @@ export class Game {
           p.hit.add(e.id);
           if (this.damage(e, p.dmg, p.owner, dir * 450, -350, PROJ_FINISH[p.kind]) && e.alive) this.setBurn(e, FIRE_SWORD.slashBurnS, FIRE_SWORD.slashBurn, p.owner);
           this.burst(e.x, e.cy, '#ff6d00', 10, 260);
+          continue;
+        }
+        if (p.kind === 'flame') {
+          // Flames go through everyone and set them on fire.
+          p.hit.add(e.id);
+          if (this.damage(e, p.dmg, p.owner, dir * 160, -120, PROJ_FINISH[p.kind]) && e.alive) this.setBurn(e, FLAME.burnS, FLAME.burn, p.owner);
           continue;
         }
         if (p.kind === 'laser') {
@@ -2968,6 +3097,8 @@ export class Game {
     const alive = this.fighters.filter((f) => f.alive);
     if (this.cut) return { decided: false, team: null };
     if (this.ob) return outbreakWinner(this);
+    if (this.hill) return hillWinner(this);
+    if (this.race) return raceWinner(this);
     if (this.fishPhase) {
       // Everyone against the Fishy boss first; then back to Free For All / Teams.
       if (!this.fish?.alive) {
@@ -3081,6 +3212,13 @@ export class Game {
       maxX = Math.max(...list.map((b) => b.x + b.w));
       minY = Math.min(...list.map((b) => b.y - b.h - 40));
       maxY = Math.max(...list.map((b) => b.y + 20));
+      // King of the Hill: keep the zone on screen too.
+      if (this.hill) {
+        minX = Math.min(minX, this.hill.x - this.hill.w / 2);
+        maxX = Math.max(maxX, this.hill.x + this.hill.w / 2);
+        minY = Math.min(minY, this.hill.y - 220);
+        maxY = Math.max(maxY, this.hill.y + 20);
+      }
     } else {
       minX = 0;
       maxX = this.map.w;

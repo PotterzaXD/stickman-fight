@@ -61,6 +61,10 @@ export const MELEE_FINISH: Partial<Record<WeaponId, Finish>> = {
   egg: 'ragdoll',
   gum: 'ragdoll',
   drumstick: 'fling',
+  guitar: 'fling',
+  bat: 'sky',
+  slingshot: 'ragdoll',
+  flamethrower: 'ashes',
 };
 
 /** Finisher for a skill shot. */
@@ -90,6 +94,8 @@ export const PROJ_FINISH: Partial<Record<ProjKind, Finish>> = {
   allyfire: 'ragdoll',
   egg: 'trip',
   gum: 'ragdoll',
+  pebble: 'ragdoll',
+  flame: 'ashes',
 };
 
 /** One flying body part (shotgun point blank: blown to pieces). */
@@ -161,7 +167,7 @@ export interface Corpse {
   facing?: number;
 }
 
-export type Prop = 'grave' | 'cooked' | 'fried' | 'fade' | 'nugget' | 'drumstick' | 'pixels' | 'beefall';
+export type Prop = 'grave' | 'cooked' | 'fried' | 'fade' | 'nugget' | 'drumstick' | 'pixels' | 'beefall' | 'scrap';
 
 function ragdoll(f: Fighter, vx: number, vy: number, spin: number, cut: boolean) {
   const s = f.scale;
@@ -317,6 +323,12 @@ export function helperCorpse(c: Cat): Corpse | null {
       return propCorpse('pixels', c.x, c.y, '#111111', c.facing, 1.2);
     case 'bee':
       return propCorpse('beefall', c.x, c.y, '#fdd835', c.facing, 1.2);
+    // The Baby Elephant and the Penguin fade away like the Recall Memory boss; a Robo Drone falls apart.
+    case 'babyele':
+    case 'penguin':
+      return propCorpse('fade', c.x, c.y, c.color, c.facing, 1.4);
+    case 'drone':
+      return propCorpse('scrap', c.x, c.y, '#90a4ae', c.facing, 1.4);
     case 'soldier':
     case 'sbsnow':
     case 'fireally':

@@ -27,6 +27,10 @@ export const ACHIEVEMENTS = [
   'forestProtector',
   'getTricked',
   'greatJobBud',
+  'kingOfHill',
+  'raceWinner',
+  'rockOn',
+  'halfway',
 ] as const;
 export type AchievementId = (typeof ACHIEVEMENTS)[number];
 

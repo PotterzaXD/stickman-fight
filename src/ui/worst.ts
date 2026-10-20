@@ -4,7 +4,7 @@ import { go, register } from './router';
 
 /**
  * WORST Stickman Fighter: a separate little game that runs in its own frame (public/worst).
- * It is not mixed into Stickman Fight. Its "← Stickman Fight" button comes back to the menu.
+ * It is not mixed into Stickman Fight. Its "← Stickman Fight" button comes back to Other Versions.
  */
 register('worst', (root) => {
   stopMusic();
@@ -12,7 +12,7 @@ register('worst', (root) => {
   root.append(frame);
   frame.focus();
   const onMessage = (e: MessageEvent) => {
-    if (e.origin === location.origin && e.source === frame.contentWindow && e.data?.type === 'worst-exit') go('menu');
+    if (e.origin === location.origin && e.source === frame.contentWindow && e.data?.type === 'worst-exit') go('versions');
   };
   window.addEventListener('message', onMessage);
   return () => window.removeEventListener('message', onMessage);

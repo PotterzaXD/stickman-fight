@@ -102,11 +102,9 @@ register('menu', (root) => {
           h('button', { class: 'btn big primary', onclick: () => go('lobby') }, `⚔️ ${t('play')}`),
           h('button', { class: 'btn big online with-friends', onclick: () => go('online') }, `🌐 ${t('online')}`),
           h('button', { class: 'btn big friends', onclick: () => go('friends') }, `👥 ${t('friends')}`),
-          h('button', { class: 'btn big stickbrawl', onclick: () => go('stickbrawl') }, `🥊 ${t('stickBrawl')}`),
           h('button', { class: 'btn big outbreak', onclick: () => go('outbreak') }, `🧟 ${t('outbreak')}`),
-          h('button', { class: 'btn big worst', onclick: () => go('worst') }, `🤪 ${t('worstGame')}`),
-          h('button', { class: 'btn big worst worst2', onclick: () => go('worst2') }, `🤪 ${t('worst2Game')}`),
-          h('button', { class: 'btn big arena', onclick: () => go('arena') }, `🏟️ ${t('arenaGame')}`),
+          // Stick Brawl, WORST Stickman Fighter (v.1 and v.2) and Stick Arena all live in Other Versions.
+          h('button', { class: 'btn big versions', onclick: () => go('versions') }, `🕹️ ${t('otherVersions')}`),
           h('button', { class: 'btn big', onclick: () => go('shop') }, `🛒 ${t('shop')}`),
           h('button', { class: 'btn big', onclick: () => go('sandbox') }, `🧪 ${t('sandbox')}`),
           h('button', { class: 'btn big', onclick: () => go('achievements') }, `🏆 ${t('achievements')}`),

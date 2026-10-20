@@ -58,6 +58,9 @@ export function waveQueue(wave: number, players: number): ZombieKind[] {
   return q;
 }
 
+/** Zombies hit harder each wave: 1× at wave 1 up to 2× at wave 50, and it stays 2× after that in Endless. */
+export const zombieMult = (wave: number) => Math.min(2, 1 + Math.max(0, wave - 1) / 49);
+
 /** Zombie Boss HP: 3,000 at wave 10, +1,000 every 10 waves after. */
 export const zbossHp = (wave: number) => ZOMBIES.zboss.hp + 1000 * Math.max(0, Math.floor(wave / 10) - 1);
 
@@ -96,7 +99,7 @@ function spawnZombie(g: Game, kind: ZombieKind) {
     y = (p?.y ?? g.map.h / 2) - 200;
   }
   const z = ZOMBIES[kind];
-  const c = new Cat(ob.horde, x, y, kind === 'zboss' ? zbossHp(ob.wave) : z.hp, z.dmg, kind);
+  const c = new Cat(ob.horde, x, y, kind === 'zboss' ? zbossHp(ob.wave) : z.hp, z.dmg * zombieMult(ob.wave), kind);
   c.facing = x < g.map.w / 2 ? 1 : -1;
   g.cats.push(c);
   g.burst(x, y + 30, '#7cb342', 8, 200);
@@ -107,6 +110,29 @@ function spawnZombie(g: Game, kind: ZombieKind) {
 }
 
 const zombiesUp = (g: Game) => g.cats.filter((c) => c.alive && isZombie(c.variant));
+
+/** The Zombie Boss calls 3 little zombies every few seconds (in The Outbreak and in Sandbox). */
+export function updateZombieBosses(g: Game, dt: number) {
+  const up = zombiesUp(g);
+  for (const b of up) {
+    if (b.variant !== 'zboss') continue;
+    b.skillCd -= dt;
+    if (b.skillCd > 0) continue;
+    b.skillCd = OUTBREAK.bossCall;
+    // Not too many at once (Sandbox's own zombies count too).
+    if (up.filter((z) => z.team === b.team).length >= OUTBREAK.maxAlive + 5) continue;
+    const mult = g.ob ? zombieMult(g.ob.wave) : 1;
+    for (let k = 0; k < 3; k++) {
+      const z = new Cat(b.owner, b.x + (k - 1) * 50, b.y - b.h, ZOMBIES.zmini.hp, ZOMBIES.zmini.dmg * mult, 'zmini');
+      z.team = b.team;
+      z.color = b.color;
+      z.vy = -500;
+      g.cats.push(z);
+    }
+    g.text(b.x, b.y - b.h - 20, '🧟 ×3', '#c5e1a5', 28);
+    g.ring(b.x, b.y - b.h / 2, 140, 0.4, '#7cb342');
+  }
+}
 
 export function updateOutbreak(g: Game, dt: number) {
   const ob = g.ob!;
@@ -127,23 +153,6 @@ export function updateOutbreak(g: Game, dt: number) {
     if (ob.queue.length && ob.spawnT <= 0 && up.length < OUTBREAK.maxAlive) {
       spawnZombie(g, ob.queue.shift()!);
       ob.spawnT = OUTBREAK.every * (0.6 + Math.random() * 0.8);
-    }
-    // The Zombie Boss calls little zombies.
-    for (const b of up) {
-      if (b.variant !== 'zboss') continue;
-      b.skillCd -= dt;
-      if (b.skillCd <= 0) {
-        b.skillCd = OUTBREAK.bossCall;
-        if (up.length < OUTBREAK.maxAlive + 5) {
-          for (let k = 0; k < 3; k++) {
-            const z = new Cat(ob.horde, b.x + (k - 1) * 50, b.y - b.h, ZOMBIES.zmini.hp, ZOMBIES.zmini.dmg, 'zmini');
-            z.vy = -500;
-            g.cats.push(z);
-          }
-          g.text(b.x, b.y - b.h - 20, '🧟 ×3', '#c5e1a5', 28);
-          g.ring(b.x, b.y - b.h / 2, 140, 0.4, '#7cb342');
-        }
-      }
     }
     if (!ob.queue.length && !up.length && !lost(g)) {
       ob.phase = 'dawn';
