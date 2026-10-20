@@ -314,6 +314,45 @@ export const SONGS: Partial<Record<TrackId, { name: string; cover: string }>> = 
 let onSong: ((id: TrackId) => void) | null = null;
 export const setSongListener = (fn: (id: TrackId) => void) => (onSong = fn);
 
+/** Tracks that are real recordings instead of chiptune: the menu song from the Stickman fight YouTube channel. */
+const FILES: Partial<Record<TrackId, string>> = {
+  menu: '/music/menu.mp3',
+};
+const buffers = new Map<string, Promise<AudioBuffer | null>>();
+let source: AudioBufferSourceNode | null = null;
+
+function loadFile(a: AudioContext, url: string): Promise<AudioBuffer | null> {
+  let p = buffers.get(url);
+  if (!p) {
+    p = fetch(url)
+      .then((r) => r.arrayBuffer())
+      .then((b) => a.decodeAudioData(b))
+      .catch(() => null);
+    buffers.set(url, p);
+  }
+  return p;
+}
+
+/** Play a recording on a loop (it fades in like the chiptune tracks). Falls back to the chiptune if it can't load. */
+function playFile(a: AudioContext, id: TrackId, url: string) {
+  const g = gain!;
+  void loadFile(a, url).then((buf) => {
+    if (gain !== g || current !== id) return;
+    if (!buf) {
+      timer = window.setInterval(schedule, 40);
+      return;
+    }
+    const src = a.createBufferSource();
+    src.buffer = buf;
+    src.loop = true;
+    const vol = a.createGain();
+    vol.gain.value = 0.8;
+    src.connect(vol).connect(g);
+    src.start();
+    source = src;
+  });
+}
+
 /** Start a track (keeps playing if it already is). Fades between tracks. */
 export function playMusic(id: TrackId) {
   if (current === id && gain) return;
@@ -333,6 +372,8 @@ export function playMusic(id: TrackId) {
   gain.gain.setValueAtTime(0.0001, a.currentTime);
   gain.gain.linearRampToValueAtTime(1, a.currentTime + 0.6);
   gain.connect(bus);
+  const file = FILES[id];
+  if (file) return playFile(a, id, file);
   timer = window.setInterval(schedule, 40);
   schedule();
 }
@@ -342,6 +383,11 @@ export function stopMusic() {
   timer = 0;
   current = null;
   const a = audio();
+  if (source && a) {
+    const src = source;
+    setTimeout(() => src.stop(), 500);
+  }
+  source = null;
   if (gain && a) {
     const g = gain;
     g.gain.cancelScheduledValues(a.currentTime);
