@@ -161,7 +161,7 @@ export interface Corpse {
   facing?: number;
 }
 
-export type Prop = 'grave' | 'cooked' | 'fried' | 'fade' | 'nugget' | 'drumstick';
+export type Prop = 'grave' | 'cooked' | 'fried' | 'fade' | 'nugget' | 'drumstick' | 'pixels' | 'beefall';
 
 function ragdoll(f: Fighter, vx: number, vy: number, spin: number, cut: boolean) {
   const s = f.scale;
@@ -313,11 +313,25 @@ export function helperCorpse(c: Cat): Corpse | null {
       p.s = 0.3;
       return p;
     }
+    case 'retro':
+      return propCorpse('pixels', c.x, c.y, '#111111', c.facing, 1.2);
+    case 'bee':
+      return propCorpse('beefall', c.x, c.y, '#fdd835', c.facing, 1.2);
     case 'soldier':
     case 'sbsnow':
-    case 'fireally': {
-      // Ragdoll like a stickman (soldiers and the Stick Brawl allies are stickman sized).
-      const body = { x: c.x, y: c.y, vx: c.vx, vy: c.vy, facing: c.facing, color: c.color, scale: 1, boss: false, mascot: false, pigeon: false } as Fighter;
+    case 'fireally':
+    case 'ninja':
+    case 'zombie':
+    case 'znormal':
+    case 'zshooter':
+    case 'zmini':
+    case 'zbig':
+    case 'zrunner':
+    case 'zexploder':
+    case 'zboss': {
+      // Ragdoll like a stickman (soldiers, ninjas, zombies and the Stick Brawl allies are stickmen). Small and big zombies too.
+      const scale = c.h / 80;
+      const body = { x: c.x, y: c.y, vx: c.vx, vy: c.vy, facing: c.facing, color: c.variant === 'ninja' ? '#212121' : c.color, scale, boss: false, mascot: false, pigeon: false } as Fighter;
       return makeCorpse(body, 'ragdoll');
     }
   }
@@ -518,7 +532,7 @@ function drawPose(ctx: Ctx, c: Corpse, color: string, outline: string, eyes: boo
 function drawRagdoll(ctx: Ctx, c: Corpse) {
   const pts = c.pts!;
   const s = c.s;
-  const outline = c.boss && !c.mascot ? '#ff1744' : 'rgba(0,0,0,0.8)';
+  const outline = c.mascot ? 'rgba(0,0,0,0)' : c.boss ? '#ff1744' : 'rgba(0,0,0,0.8)';
   ctx.lineCap = 'round';
   const bones = BONES.filter(([a, b]) => !(c.style === 'half' && a === CHEST && b === BELLY));
   for (const [w, col] of [
@@ -625,7 +639,7 @@ function drawPieces(ctx: Ctx, c: Corpse, outline: string, time: number) {
 export function drawCorpse(ctx: Ctx, c: Corpse, time: number) {
   const fade = Math.min(1, (c.life - c.t) / 0.8);
   ctx.globalAlpha = Math.max(0, fade);
-  const outline = c.boss && !c.mascot ? '#ff1744' : 'rgba(0,0,0,0.8)';
+  const outline = c.mascot ? 'rgba(0,0,0,0)' : c.boss ? '#ff1744' : 'rgba(0,0,0,0.8)';
   switch (c.style) {
     case 'pieces':
       drawPieces(ctx, c, outline, time);

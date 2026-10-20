@@ -4,7 +4,7 @@ export interface Theme {
   sky: [string, string];
   plat: string;
   top: string;
-  deco: 'clouds' | 'stars' | 'snow' | 'embers' | 'space' | 'beach' | 'war' | 'jungle' | 'haunted' | 'candy' | 'farm' | 'graveyard';
+  deco: 'clouds' | 'stars' | 'snow' | 'embers' | 'space' | 'beach' | 'war' | 'jungle' | 'haunted' | 'candy' | 'farm' | 'graveyard' | 'inferno' | 'pirate' | 'desert';
   /** Gravity multiplier (space: low gravity, you jump higher and fall slower). */
   gravity?: number;
 }
@@ -23,10 +23,13 @@ export const THEMES: Record<ThemeId, Theme> = {
   candy: { sky: ['#f8bbd0', '#fff3e0'], plat: '#f48fb1', top: '#ffffff', deco: 'candy' },
   farm: { sky: ['#81d4fa', '#fffde7'], plat: '#8d6e63', top: '#9ccc65', deco: 'farm' },
   graveyard: { sky: ['#0d1b12', '#33473a'], plat: '#424a45', top: '#5b7f5f', deco: 'graveyard' },
+  inferno: { sky: ['#1a0500', '#d84315'], plat: '#3e2f2a', top: '#8d6e63', deco: 'inferno' },
+  pirate: { sky: ['#4fc3f7', '#e1f5fe'], plat: '#6d4c41', top: '#a1887f', deco: 'pirate' },
+  desert: { sky: ['#ffb74d', '#fff8e1'], plat: '#c68b4e', top: '#ffd180', deco: 'desert' },
 };
 
 /** Append only (shared map links send the index). */
-export const THEME_IDS: ThemeId[] = ['day', 'sunset', 'night', 'snow', 'lava', 'space', 'beach', 'war', 'jungle', 'haunted', 'candy', 'farm', 'graveyard'];
+export const THEME_IDS: ThemeId[] = ['day', 'sunset', 'night', 'snow', 'lava', 'space', 'beach', 'war', 'jungle', 'haunted', 'candy', 'farm', 'graveyard', 'inferno', 'pirate', 'desert'];
 
 const P = (x: number, y: number, w: number, h = 24): Platform => ({ x, y, w, h });
 /** Special block: concrete, lava or glass. */
@@ -35,7 +38,7 @@ const M = (x: number, y: number, w: number, dx: number, dy: number, period: numb
 const B = (kind: BlockKind, x: number, y: number, w: number, h = 24): Platform => ({ x, y, w, h, kind });
 
 /** Block kinds in shared map links (0 = normal platform). */
-const BLOCK_CODES: (BlockKind | undefined)[] = [undefined, 'concrete', 'lava', 'glass', 'sandbag'];
+const BLOCK_CODES: (BlockKind | undefined)[] = [undefined, 'concrete', 'lava', 'glass', 'sandbag', 'bounce', 'ice', 'spikes'];
 
 export const BUILTIN_MAPS: MapDef[] = [
   {
@@ -411,6 +414,78 @@ export const BUILTIN_MAPS: MapDef[] = [
     ],
     spawns: [],
   },
+  {
+    // Burning City: the rooftops of a city on fire. Burning lava streets down below, a broken glass tower and a bounce pad on a car roof.
+    id: 'burning',
+    name: 'm.burning',
+    w: 2000,
+    h: 1100,
+    theme: 'inferno',
+    builtin: true,
+    platforms: [
+      B('lava', 0, 1020, 2000, 80),
+      B('concrete', 80, 760, 360, 260),
+      B('concrete', 620, 640, 260, 380),
+      B('concrete', 1120, 700, 300, 320),
+      B('concrete', 1600, 780, 320, 240),
+      B('bounce', 960, 960, 90, 20),
+      B('glass', 660, 440, 180, 20),
+      P(220, 560, 180),
+      P(1200, 500, 200),
+      M(880, 330, 200, 0, -120, 5),
+      P(1640, 560, 200),
+      P(420, 300, 160),
+      P(1480, 300, 160),
+    ],
+    spawns: [],
+  },
+  {
+    // Pirate Ship: the deck of a big ship on the sea (fall off and you're in the water). The mast is a lift, the crow's nest at the top.
+    id: 'pirate',
+    name: 'm.pirate',
+    w: 1900,
+    h: 1000,
+    theme: 'pirate',
+    builtin: true,
+    deco: 'ship',
+    platforms: [
+      P(260, 760, 1380, 60),
+      B('concrete', 260, 640, 260, 120),
+      B('concrete', 1380, 600, 260, 160),
+      M(900, 660, 100, 0, -360, 6),
+      P(840, 230, 220),
+      P(560, 470, 220),
+      P(1120, 470, 220),
+      B('sandbag', 700, 720, 70, 40),
+      B('sandbag', 1130, 720, 70, 40),
+      P(40, 560, 140),
+      P(1720, 560, 140),
+    ],
+    spawns: [],
+  },
+  {
+    // Desert: sand dunes with cactus spikes, a slippery ice oasis in the middle and bounce pads to jump up to the cliffs.
+    id: 'desert',
+    name: 'm.desert',
+    w: 2000,
+    h: 1000,
+    theme: 'desert',
+    builtin: true,
+    platforms: [
+      P(80, 820, 1840, 70),
+      B('spikes', 520, 800, 120, 20),
+      B('spikes', 1360, 800, 120, 20),
+      B('ice', 860, 640, 280, 24),
+      B('bounce', 300, 800, 80, 20),
+      B('bounce', 1620, 800, 80, 20),
+      B('concrete', 120, 480, 300, 40),
+      B('concrete', 1580, 480, 300, 40),
+      M(760, 380, 180, 300, 0, 6),
+      P(880, 220, 240),
+      B('spikes', 960, 200, 80, 20),
+    ],
+    spawns: [],
+  },
 ];
 
 /** The built-in maps the Ancient Guardian unlock counts (the ones from before the October 18 maps, so the new maps don't make it harder). */
@@ -426,7 +501,7 @@ export const MAP_SIZES = {
 function platformSpots(map: MapDef): Vec[] {
   const out: Vec[] = [];
   for (const p of map.platforms) {
-    if (p.w < 40 || p.kind === 'lava') continue;
+    if (p.w < 40 || p.kind === 'lava' || p.kind === 'spikes') continue;
     const n = Math.max(1, Math.floor(p.w / 150));
     for (let i = 0; i < n; i++) out.push({ x: p.x + ((i + 0.5) * p.w) / n, y: p.y });
   }
@@ -476,7 +551,9 @@ export function encodeMap(m: MapDef): string {
     t: m.theme,
     p: m.platforms.map((p) => {
       const a = [p.x, p.y, p.w, p.h].map(Math.round);
-      const k = BLOCK_CODES.indexOf(p.kind);
+      const k = Math.max(0, BLOCK_CODES.indexOf(p.kind));
+      // Moving platforms: how far and how fast too.
+      if (p.move) return [...a, k, Math.round(p.move.dx), Math.round(p.move.dy), Math.round(p.move.period * 10) / 10];
       return k > 0 ? [...a, k] : a;
     }),
     s: m.spawns.map((s) => [Math.round(s.x), Math.round(s.y)]),
@@ -500,7 +577,9 @@ export function decodeMap(code: string): MapDef | null {
       .map((a: number[]) => {
         const p = P(num(a[0], -500, w + 500), num(a[1], -500, h + 500), num(a[2], 10, 5000), num(a[3], 10, 500));
         const kind = BLOCK_CODES[Math.floor(num(a[4], 0, BLOCK_CODES.length - 1))];
-        return kind ? { ...p, kind } : p;
+        const q: Platform = kind ? { ...p, kind } : p;
+        if (a.length >= 8) q.move = { dx: num(a[5], -3000, 3000), dy: num(a[6], -3000, 3000), period: num(a[7], 1, 30) };
+        return q;
       });
     const spawns: Vec[] = (Array.isArray(c.s) ? c.s : []).slice(0, 24).map((a: number[]) => ({ x: num(a[0], 0, w), y: num(a[1], 0, h) }));
     if (!platforms.length) return null;

@@ -6,7 +6,7 @@ import { SHOP_WEAPONS } from '../game/weapons';
 import { t } from '../i18n';
 import { save } from '../save';
 import { grant } from '../achievements';
-import { h, shareLink } from './dom';
+import { h, shareLink, toast } from './dom';
 import { startLoop } from './loop';
 import { go, register } from './router';
 
@@ -55,6 +55,14 @@ export function shareGame() {
 register('menu', (root) => {
   // Catch up on Collector for weapons owned before achievements existed.
   grant([]);
+  // Beat wave 10 of The Outbreak and came back to the menu: the zombie ally is unlocked.
+  if (save.data.pendingZombie) {
+    save.update((d) => {
+      d.pendingZombie = false;
+      d.zombieAlly = true;
+    });
+    setTimeout(() => toast(t('obZombieUnlocked')), 300);
+  }
   const canvas = h('canvas', { class: 'bg-canvas' });
   let game = demoGame();
   let restartAt = 0;
@@ -95,7 +103,10 @@ register('menu', (root) => {
           h('button', { class: 'btn big online with-friends', onclick: () => go('online') }, `🌐 ${t('online')}`),
           h('button', { class: 'btn big friends', onclick: () => go('friends') }, `👥 ${t('friends')}`),
           h('button', { class: 'btn big stickbrawl', onclick: () => go('stickbrawl') }, `🥊 ${t('stickBrawl')}`),
+          h('button', { class: 'btn big outbreak', onclick: () => go('outbreak') }, `🧟 ${t('outbreak')}`),
           h('button', { class: 'btn big worst', onclick: () => go('worst') }, `🤪 ${t('worstGame')}`),
+          h('button', { class: 'btn big worst worst2', onclick: () => go('worst2') }, `🤪 ${t('worst2Game')}`),
+          h('button', { class: 'btn big arena', onclick: () => go('arena') }, `🏟️ ${t('arenaGame')}`),
           h('button', { class: 'btn big', onclick: () => go('shop') }, `🛒 ${t('shop')}`),
           h('button', { class: 'btn big', onclick: () => go('sandbox') }, `🧪 ${t('sandbox')}`),
           h('button', { class: 'btn big', onclick: () => go('achievements') }, `🏆 ${t('achievements')}`),

@@ -1,6 +1,6 @@
 import { BOT_COLORS, PLAYER_COLORS, TEAM_COLORS } from '../game/game';
 import { allMaps } from '../game/maps';
-import { BEACH_MAP, BEACH_MODES, PIGEON_MAX, SECRET_KINDS, isBossMode, isSecret, type SecretKind, type Difficulty, type MapDef, type MatchConfig, type Mode, type SlotConfig } from '../game/types';
+import { BEACH_MAP, BEACH_MODES, PIGEON_MAX, SECRET_KINDS, isBossMode, isSecret, isXBoss, type SecretKind, type Difficulty, type MapDef, type MatchConfig, type Mode, type SlotConfig } from '../game/types';
 import { GUARDIAN_MAPS } from '../game/maps';
 import { HATS } from '../game/hats';
 import { hasAch } from '../achievements';
@@ -160,7 +160,7 @@ register('lobby', (root, arg) => {
   if (arg?.mapId) m.mapId = arg.mapId;
   if (!maps.some((x) => x.id === m.mapId)) m.mapId = 'arena';
   m.bosses = Math.max(1, Math.min(MAX_BOSSES, m.bosses ?? 1));
-  if (m.mode === 'sandbox' || (m.mode === 'buffalo' && !hasAch('buffalo')) || (isSecret(m.mode) && !save.data.secrets.includes(m.mode))) m.mode = 'ffa';
+  if (m.mode === 'sandbox' || m.mode === 'outbreak' || (m.mode === 'buffalo' && !hasAch('buffalo')) || (isSecret(m.mode) && !save.data.secrets.includes(m.mode))) m.mode = 'ffa';
   if (m.mapId === BEACH_MAP && !BEACH_MODES.includes(m.mode)) m.mode = 'boss';
 
   const body = h('div', { class: 'page-body' });
@@ -328,6 +328,9 @@ register('lobby', (root, arg) => {
           modeBtn('mascot', '⚪'),
           modeBtn('buffalo', '🐃'),
           modeBtn('pigeon', '🐦'),
+          modeBtn('elephant', '🐘'),
+          modeBtn('scarecrow', '🌾'),
+          modeBtn('robo', '🤖'),
           // Secret bosses only show up once you have unlocked them.
           ...SECRET_KINDS.filter((k) => save.data.secrets.includes(k)).map((k) => modeBtn(k, SECRET_ICONS[k])),
           // Locked ones show as ??? with a hint.
@@ -336,7 +339,7 @@ register('lobby', (root, arg) => {
           ),
         ),
         h('p', { class: 'muted' }, t(`${m.mode}Desc` as Key)),
-        isSecret(m.mode) ? h('small', { class: 'muted' }, `🪙🏆 ${t(`${m.mode}Reward` as Key)}`) : null,
+        isSecret(m.mode) || isXBoss(m.mode) ? h('small', { class: 'muted' }, `🪙🏆 ${t(`${m.mode}Reward` as Key)}`) : null,
         m.mode === 'buffalo' ? h('small', { class: 'muted' }, `🪙🏆 ${t('buffaloReward')}`) : null,
         m.mode === 'pigeon' ? h('small', { class: 'muted' }, `🪙🏆 ${t('pigeonReward')}`) : null,
         ...beachNotes(m.mapId, m.mode),

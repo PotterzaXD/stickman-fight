@@ -1,7 +1,7 @@
 import { BOSS_TEAM, Game, TEAM_COLORS, type FighterSpec, type MatchResult } from '../game/game';
 import { achName, grant, hasAch, type AchievementId } from '../achievements';
 import type { Fighter } from '../game/entities';
-import { PIGEON_WEAPON, SECRET_KINDS, isSecret, type BossKind, type SecretKind } from '../game/types';
+import { PIGEON_WEAPON, SECRET_KINDS, isSecret, isXBoss, type BossKind, type SecretKind, type XBossKind } from '../game/types';
 import { resolveHat } from '../game/hats';
 import { ALL_OWNABLE, WEAPONS } from '../game/weapons';
 import { BUILTIN_MAPS, GUARDIAN_MAPS } from '../game/maps';
@@ -16,18 +16,22 @@ import { h } from './dom';
 import { slotLooks } from './lobby';
 import { startLoop } from './loop';
 import { go, register } from './router';
+import { afterWave, livesOf, outbreakInfo, outbreakTitle } from './outbreak';
 
 function buildSpecs(match: MatchConfig): FighterSpec[] {
   const owned = save.data.owned;
   const looks = slotLooks(match);
   const sandbox = match.mode === 'sandbox';
+  // The Outbreak: everyone is on one side, with the lives left on this save.
+  const ob = match.mode === 'outbreak' ? save.data.outbreak[match.obSlot ?? 0] : null;
   // Sandbox lets you try any weapon you can own.
   const pool = sandbox ? WEAPONS.filter((w) => w.special !== 'boss').map((w) => w.id) : owned;
   return match.slots.map((s, i) => ({
     name: looks[i].name,
     // Sandbox: team colours, so you can see who is on which side.
-    color: sandbox ? TEAM_COLORS[s.team] ?? TEAM_COLORS[0] : looks[i].color,
-    team: match.mode === 'team' || sandbox ? s.team : isBossMode(match.mode) ? 0 : i,
+    // Free for all: everyone on their own team, in their own colour.
+    color: sandbox && !match.ffa ? TEAM_COLORS[s.team] ?? TEAM_COLORS[0] : looks[i].color,
+    team: sandbox && match.ffa ? i : match.mode === 'team' || sandbox ? s.team : isBossMode(match.mode) || ob ? 0 : i,
     human: s.kind === 'human',
     // The Pigeon: everyone holds a shotgun.
     weapon: match.mode === 'pigeon' ? PIGEON_WEAPON : s.weapon === 'random' ? pool[Math.floor(Math.random() * pool.length)] : s.weapon,
@@ -36,6 +40,9 @@ function buildSpecs(match: MatchConfig): FighterSpec[] {
     playerIndex: looks[i].playerIndex,
     hp: sandbox ? s.hp : undefined,
     power: sandbox ? s.power : undefined,
+    lives: ob ? livesOf(ob, i) : undefined,
+    // Beat wave 10 of The Outbreak: the Summoner brings a zombie ally too.
+    zombie: save.data.zombieAlly,
   }));
 }
 
@@ -51,11 +58,15 @@ export function bossNames(): Record<BossKind, string> {
     queen: t('queen_name'),
     tide: t('tide_name'),
     guardian: t('guardian_name'),
+    elephant: t('elephant_name'),
+    scarecrow: t('scarecrow_name'),
+    robo: t('robo_name'),
   };
 }
 
 export function bossNameFor(mode: Mode): string {
-  if (isSecret(mode) || mode === 'mascot' || mode === 'cat' || mode === 'buffalo' || mode === 'pigeon') return bossNames()[mode];
+  if (isSecret(mode) || isXBoss(mode) || mode === 'mascot' || mode === 'cat' || mode === 'buffalo' || mode === 'pigeon') return bossNames()[mode];
+  if (mode === 'outbreak') return t('obZombies');
   return t('boss_name');
 }
 
@@ -67,6 +78,7 @@ export const BUFFALO_COINS = 3000;
 export const FISH_COINS = 1000;
 export const PIGEON_COINS = 5000;
 export const SECRET_COINS: Record<SecretKind, number> = { queen: 4000, tide: 5000, guardian: 6000 };
+export const XBOSS_COINS: Record<XBossKind, number> = { elephant: 5000, scarecrow: 2000, robo: 3000 };
 const SECRET_ICON: Record<SecretKind, string> = { queen: '❄️', tide: '🌊', guardian: '🌲' };
 /** Grandfather Cat wins on a snow map that wake the Snow Queen. */
 const QUEEN_CAT_WINS = 3;
@@ -91,6 +103,8 @@ export interface MatchFacts {
   weapons: string[];
   /** Boss kinds beaten on the other side. */
   beaten: BossKind[];
+  /** Somebody knocked out one of your Clones (Get Tricked). */
+  tricked: boolean;
 }
 
 export function matchFacts(game: Game, r: Pick<MatchResult, 'winners' | 'winnerTeam'>, mine: Fighter[], startCoins: number): MatchFacts {
@@ -108,11 +122,12 @@ export function matchFacts(game: Game, r: Pick<MatchResult, 'winners' | 'winnerT
     patience: mine.some((f) => f.survived5),
     weapons: mine.flatMap((f) => f.weapons.map((w) => w.id)),
     beaten: game.fighters.filter((f) => f.boss && !f.alive && f.team !== r.winnerTeam).map(bossKind),
+    tricked: mine.some((f) => game.tricked.has(f)),
   };
 }
 
 function bossKind(f: Fighter): BossKind {
-  return f.secret ?? (f.mascot ? 'mascot' : f.cat ? 'cat' : f.buffalo ? 'buffalo' : f.fish ? 'fish' : f.pigeon ? 'pigeon' : 'boss');
+  return f.secret ?? f.xboss ?? (f.mascot ? 'mascot' : f.cat ? 'cat' : f.buffalo ? 'buffalo' : f.fish ? 'fish' : f.pigeon ? 'pigeon' : 'boss');
 }
 
 export interface RewardInfo {
@@ -144,6 +159,8 @@ function matchAchievements(r: RewardInfo): AchievementId[] {
   if (won && mode === 'pigeon') ach.push('pigeonBeat');
   if (won) ach.push('firstWin');
   if (!f) return ach;
+  // Get Tricked: in Play and online only (not Sandbox).
+  if (f.tricked && mode !== 'sandbox') ach.push('getTricked');
   const beat = (k: BossKind) => won && (mode === k || f.beaten.includes(k));
   for (const k of SECRET_KINDS) if (beat(k)) ach.push(SECRET_ACH[k]);
   if (won && f.untouched) ach.push('untouched');
@@ -196,6 +213,8 @@ export function giveReward(r: RewardInfo): HTMLElement[] {
     ? 1
     : isSecret(mode)
     ? SECRET_COINS[mode]
+    : isXBoss(mode)
+    ? XBOSS_COINS[mode]
     : mode === 'mascot'
     ? MASCOT_COINS
     : mode === 'cat'
@@ -245,7 +264,7 @@ export function resultTitle(r: Pick<MatchResult, 'mode' | 'winnerTeam' | 'winner
   // The Beach: the Fishy boss won, or (Boss Fight) it was beaten.
   if (beach && r.winnerTeam === BOSS_TEAM) return t('fishWon');
   if (beach && r.mode === 'boss') return t('fishDefeated');
-  if (isSecret(r.mode)) return t(r.winnerTeam === BOSS_TEAM ? 'secretWon' : 'secretDefeated', { name: bossNames()[r.mode] });
+  if (isSecret(r.mode) || isXBoss(r.mode)) return t(r.winnerTeam === BOSS_TEAM ? 'secretWon' : 'secretDefeated', { name: bossNames()[r.mode] });
   if (r.mode === 'buffalo') return r.winnerTeam === BOSS_TEAM ? t('buffaloWon') : t('buffaloDefeated');
   if (r.mode === 'pigeon') return t('pigeonDefeated');
   if (r.mode === 'mascot') return r.winnerTeam === BOSS_TEAM ? t('mascotWon') : t('mascotDefeated');
@@ -261,6 +280,8 @@ export function matchTrack(game: Game): TrackId {
   const secret = game.bosses.find((b) => b.secret && b.team !== 0)?.secret ?? game.bosses.find((b) => b.secret)?.secret;
   if (secret) return secret;
   if (game.mode === 'pigeon' || game.bosses.some((b) => b.pigeon)) return 'pigeon';
+  if (game.mode === 'outbreak') return 'outbreak';
+  if (game.mode === 'elephant' || game.bosses.some((b) => b.xboss === 'elephant')) return 'elephant';
   if (isBossMode(game.mode) || (game.mode === 'sandbox' && game.bosses.length)) return 'boss';
   if (game.mode === 'sandbox') return 'sandbox';
   return game.map.theme;
@@ -277,7 +298,8 @@ register('play', (root, { match, fromEditor }) => {
   const overlay = h('div', { class: 'overlay hidden' });
   root.append(h('div', { class: 'play' }, canvas, overlay));
 
-  const back = () => (fromEditor ? go('editor', { map: fromEditor }) : match.mode === 'sandbox' ? go('sandbox') : go('menu'));
+  const outbreak = match.mode === 'outbreak';
+  const back = () => (fromEditor ? go('editor', { map: fromEditor }) : match.mode === 'sandbox' ? go('sandbox') : outbreak ? go('outbreakLobby', { slot: match.obSlot ?? 0 }) : go('menu'));
 
   const showPause = () => {
     if (game.over) return;
@@ -293,7 +315,8 @@ register('play', (root, { match, fromEditor }) => {
           'div',
           { class: 'col gap' },
           h('button', { class: 'btn big primary', onclick: hidePause }, `▶ ${t('resume')}`),
-          h('button', { class: 'btn', onclick: () => start() }, `🔄 ${t('restart')}`),
+          // The Outbreak can't be restarted (lives count).
+          outbreak ? null : h('button', { class: 'btn', onclick: () => start() }, `🔄 ${t('restart')}`),
           h('button', { class: 'btn ghost', onclick: back }, `🚪 ${t('quit')}`),
         ),
       ),
@@ -306,7 +329,29 @@ register('play', (root, { match, fromEditor }) => {
     overlay.classList.add('hidden');
   };
 
+  const showOutbreakResult = (r: MatchResult) => {
+    const wave = game.ob?.wave ?? 1;
+    const lines = afterWave(game, r, match.obSlot ?? 0, game.fighters.filter((f) => f.human));
+    // Get Tricked counts here too.
+    const tricked = grant(game.fighters.some((f) => f.human && game.tricked.has(f)) ? ['getTricked'] : []);
+    for (const id of tricked) lines.push(h('p', { class: 'treasure-got' }, t('achNew', { name: achName(id) })));
+    jingle(r.winnerTeam === 0 ? 'victory' : 'defeat');
+    const ranked = game.fighters.filter((f) => !f.cloneOf && !f.horde).sort((a, b) => b.kos - a.kos);
+    overlay.replaceChildren(
+      h(
+        'div',
+        { class: 'modal result' },
+        h('h2', {}, outbreakTitle(r, wave)),
+        ...lines,
+        h('ul', { class: 'scores' }, ...ranked.map((f) => h('li', {}, h('span', { class: 'dot', style: `background:${f.color}` }), h('b', {}, f.name), h('span', { class: 'muted' }, `${f.lives > 0 ? `❤️×${f.lives}` : '💀'} ${f.kos} KO`)))),
+        h('div', { class: 'row gap center' }, h('button', { class: 'btn ghost', onclick: () => go('menu') }, `🏠 ${t('menu')}`), h('button', { class: 'btn big primary', onclick: back }, r.winnerTeam === 0 ? t('obNext') : t('obBack'))),
+      ),
+    );
+    overlay.classList.remove('hidden');
+  };
+
   const showResult = (r: MatchResult) => {
+    if (outbreak) return showOutbreakResult(r);
     // Win: 3-5 coins (bosses: 500 each, Grandfather Cat: 1,000 + the Treasure). Bots (or the boss) win: 1 coin.
     const bosses = game.bosses.length;
     const humans = game.fighters.filter((f) => !f.boss && !f.cloneOf);
@@ -339,6 +384,7 @@ register('play', (root, { match, fromEditor }) => {
     overlay.classList.remove('hidden');
   };
 
+  const obSave = outbreak ? save.data.outbreak[match.obSlot ?? 0] : null;
   const start = () => {
     hidePause();
     sticks?.destroy();
@@ -352,6 +398,8 @@ register('play', (root, { match, fromEditor }) => {
       extraBosses: match.mode === 'sandbox' ? match.extraBosses : undefined,
       helpers: match.mode === 'sandbox' ? match.helpers : undefined,
       clones: match.mode === 'sandbox' ? match.clones : undefined,
+      ffa: match.mode === 'sandbox' && !!match.ffa,
+      outbreak: outbreak && obSave ? outbreakInfo(obSave) : undefined,
     });
     game.onOver = showResult;
     startCoins = save.data.coins;

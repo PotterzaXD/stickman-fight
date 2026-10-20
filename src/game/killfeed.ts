@@ -5,7 +5,7 @@ import { save } from '../save';
  * 'kill' = knocked out by someone. The others are the map's fault (nobody hit them first).
  * 'water'/'void'/'lava' with a killer = someone knocked them in.
  */
-export type FeedKind = 'kill' | 'water' | 'void' | 'lava' | 'burn' | 'peck' | 'meow' | 'chick' | 'chicken' | 'fish' | 'memory' | 'dog' | 'skeleton' | 'lilpigeon';
+export type FeedKind = 'kill' | 'water' | 'void' | 'lava' | 'burn' | 'peck' | 'meow' | 'chick' | 'chicken' | 'fish' | 'memory' | 'dog' | 'skeleton' | 'lilpigeon' | 'retro' | 'zombie' | 'bee' | 'spikes';
 
 const EN: Record<FeedKind, { solo: string[]; by: string[] }> = {
   kill: {
@@ -88,6 +88,22 @@ const EN: Record<FeedKind, { solo: string[]; by: string[] }> = {
     solo: ['{v} flew away. Coo…', '{v} got distracted by bread 🍞', '{v} went home to the park'],
     by: ['{k} plucked all of {v}’s feathers 🪶', '{k} somehow beat all 250,000 HP of {v}', '{v} got shooed away by {k}', '{k} turned {v} into a pigeon pie 🥧'],
   },
+  retro: {
+    solo: ['{v} went back to 8-bit heaven 👾', '{v} ran out of pixels', '{v} got a GAME OVER screen'],
+    by: ['{k} pressed the reset button on {v} 👾', '{k} blew the dust out of {v}’s cartridge', '{v} got downgraded to 1 pixel by {k}', '{k} sent {v} back to the arcade'],
+  },
+  zombie: {
+    solo: ['{v} went back to sleep in the ground 🪦', '{v} finally rests in peace 🧟', '{v} fell apart. Again'],
+    by: ['{k} made {v} un-undead 🧟', '{k} sent {v} back to the graveyard 🪦', '{v} wanted brains. {k} said no 🧠', '{k} told {v} it was time for bed again'],
+  },
+  bee: {
+    solo: ['{v} buzzed its last buzz 🐝', '{v} went back to the hive', '{v} flew into a window'],
+    by: ['{k} swatted {v} 🐝', '{k} turned {v} into honey 🍯', '{v} got un-bee-lievably beaten by {k}', '{k} said "no thank you" to {v} 🐝'],
+  },
+  spikes: {
+    solo: ['{v} sat on the spikes. Ouch 🌵', '{v} found out spikes are pointy', '{v} became a pincushion 📌'],
+    by: ['{k} pushed {v} onto the spikes 🌵', '{k} turned {v} into a pincushion 📌', '{v} got kebabbed thanks to {k} 🍢'],
+  },
 };
 
 const TH: Record<FeedKind, { solo: string[]; by: string[] }> = {
@@ -162,6 +178,22 @@ const TH: Record<FeedKind, { solo: string[]; by: string[] }> = {
     solo: ['{v} บินหนีไปแล้ว กุ๊กกรู…', '{v} มัวแต่สนใจขนมปัง 🍞', '{v} กลับบ้านที่สวนสาธารณะ'],
     by: ['{k} ถอนขน {v} หมดตัว 🪶', '{k} เอาชนะ {v} ทั้ง 250,000 HP ได้ยังไงเนี่ย', '{v} โดน {k} ไล่ไปแล้ว', '{k} เอา {v} ไปทำพายนกพิราบ 🥧'],
   },
+  retro: {
+    solo: ['{v} กลับไปสวรรค์ 8 บิตแล้ว 👾', '{v} พิกเซลหมดแล้ว', '{v} เจอหน้าจอ GAME OVER'],
+    by: ['{k} กดปุ่มรีเซ็ต {v} 👾', '{k} เป่าฝุ่นตลับเกม {v}', '{v} โดน {k} ลดเหลือ 1 พิกเซล', '{k} ส่ง {v} กลับร้านเกม'],
+  },
+  zombie: {
+    solo: ['{v} กลับไปนอนในดินแล้ว 🪦', '{v} ได้พักผ่อนสักที 🧟', '{v} หลุดเป็นชิ้น ๆ อีกแล้ว'],
+    by: ['{k} ทำให้ {v} หายเป็นซอมบี้ 🧟', '{k} ส่ง {v} กลับสุสาน 🪦', '{v} อยากกินสมอง แต่ {k} ไม่ให้ 🧠', '{k} บอก {v} ว่าถึงเวลานอนอีกรอบแล้ว'],
+  },
+  bee: {
+    solo: ['{v} หึ่งครั้งสุดท้าย 🐝', '{v} บินกลับรังแล้ว', '{v} บินชนกระจก'],
+    by: ['{k} ตบ {v} ร่วง 🐝', '{k} ทำให้ {v} กลายเป็นน้ำผึ้ง 🍯', '{v} โดน {k} ไล่ตบ', '{k} บอก {v} ว่าไม่เอาผึ้งนะ 🐝'],
+  },
+  spikes: {
+    solo: ['{v} นั่งทับหนาม โอ๊ย 🌵', '{v} เพิ่งรู้ว่าหนามมันแหลม', '{v} กลายเป็นหมอนปักเข็ม 📌'],
+    by: ['{k} ผลัก {v} ลงหนาม 🌵', '{k} ทำให้ {v} กลายเป็นหมอนปักเข็ม 📌', '{v} กลายเป็นไม้เสียบเพราะ {k} 🍢'],
+  },
 };
 
 /** How many lines each kind has (the same in every language). */
@@ -184,11 +216,12 @@ export function feedParts(kind: FeedKind, byKiller: boolean, n: number, killer: 
 export function helperName(kind: string, owner: string): string {
   const th = save.data.settings.lang === 'th';
   const name = (th ? HELPER_TH : HELPER_EN)[kind] ?? kind;
+  if (!owner) return name;
   return th ? `${name}ของ ${owner}` : `${owner}’s ${name}`;
 }
 
-const HELPER_EN: Record<string, string> = { snowman: 'Snowman', cat: 'Cat', fish: 'Fish', memory: 'Recall Memory', soldier: 'Soldier', sbsnow: 'Snowman', fireally: 'Fire Ally', redguy: 'Red Guy', chick: 'Chick', chicken: 'Chicken', lilpigeon: 'Little Pigeon', skeleton: 'Skeleton', dog: 'Dog' };
-const HELPER_TH: Record<string, string> = { snowman: 'สโนว์แมน', cat: 'แมว', fish: 'ปลา', memory: 'Recall Memory', soldier: 'ทหาร', sbsnow: 'สโนว์แมน', fireally: 'สหายไฟ', redguy: 'เจ้าตัวแดง', chick: 'ลูกเจี๊ยบ', chicken: 'แม่ไก่', lilpigeon: 'นกพิราบน้อย', skeleton: 'โครงกระดูก', dog: 'หมา' };
+const HELPER_EN: Record<string, string> = { snowman: 'Snowman', cat: 'Cat', fish: 'Fish', memory: 'Recall Memory', soldier: 'Soldier', sbsnow: 'Snowman', fireally: 'Fire Ally', redguy: 'Red Guy', chick: 'Chick', chicken: 'Chicken', lilpigeon: 'Little Pigeon', skeleton: 'Skeleton', dog: 'Dog', retro: 'Retro Stickguy', zombie: 'Zombie Ally', bee: 'Bee', ninja: 'Ninja', znormal: 'Zombie', zshooter: 'Shooter Zombie', zmini: 'Mini Zombie', zbig: 'Big Zombie', zrunner: 'Runner Zombie', zexploder: 'Exploder Zombie', zboss: 'Zombie Boss' };
+const HELPER_TH: Record<string, string> = { snowman: 'สโนว์แมน', cat: 'แมว', fish: 'ปลา', memory: 'Recall Memory', soldier: 'ทหาร', sbsnow: 'สโนว์แมน', fireally: 'สหายไฟ', redguy: 'เจ้าตัวแดง', chick: 'ลูกเจี๊ยบ', chicken: 'แม่ไก่', lilpigeon: 'นกพิราบน้อย', skeleton: 'โครงกระดูก', dog: 'หมา', retro: 'Retro Stickguy', zombie: 'ซอมบี้พวกเรา', bee: 'ผึ้ง', ninja: 'นินจา', znormal: 'ซอมบี้', zshooter: 'ซอมบี้นักยิง', zmini: 'ซอมบี้จิ๋ว', zbig: 'ซอมบี้ยักษ์', zrunner: 'ซอมบี้วิ่งไว', zexploder: 'ซอมบี้ระเบิด', zboss: 'บอสซอมบี้' };
 
 /**
  * Kill feed line colours for helpers with their own lines: background, text, and border.
@@ -204,4 +237,7 @@ export const FEED_STYLE: Partial<Record<FeedKind, { bg: string; text: string; bo
   dog: { bg: 'rgba(0,188,212,0.92)', text: '#ffffff' },
   skeleton: { bg: 'rgba(250,250,250,0.95)', text: '#212121' },
   lilpigeon: { bg: 'rgba(144,164,174,0.95)', text: '#ffffff', border: 'rgba(255,255,255,0.95)' },
+  retro: { bg: 'rgba(17,17,17,0.95)', text: '#ffffff', border: 'rgba(255,255,255,0.95)' },
+  zombie: { bg: 'rgba(104,159,56,0.92)', text: '#ffffff' },
+  bee: { bg: 'rgba(253,216,53,0.95)', text: '#212121', border: 'rgba(33,33,33,0.9)' },
 };

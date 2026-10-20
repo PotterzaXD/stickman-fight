@@ -1,5 +1,6 @@
 import { CAT_VARIANTS, Cat, Fighter, REVIVES, Snowman, type ProjKind, type Projectile } from '../game/entities';
 import { biting } from '../game/critters';
+import { OB_PHASES } from '../game/outbreak';
 import type { WeaponId } from '../game/weapons';
 import type { Game, NetEvent } from '../game/game';
 import { FINISHES, makeCorpse } from '../game/finish';
@@ -26,11 +27,13 @@ export interface Snapshot {
   gl?: number[][];
   /** The Snow Queen's Blizzard: [warning seconds left, storm seconds left]. */
   bz?: [number, number];
+  /** The Outbreak: wave, night (1-0), phase, zombies left. */
+  ob?: [number, number, number, number];
   /** Summoner's Clones (extra fighters after the ones from the start): [fighter index, owner index, weapon id]. */
   cl?: [number, number, string][];
 }
 
-const KINDS: ProjKind[] = ['arrow', 'snowball', 'minisnow', 'boomerang', 'bomb', 'axe', 'shuriken', 'laser', 'fireball', 'six7', 'poop', 'soup', 'icebolt', 'banana', 'fireslash', 'dart', 'memorybox', 'rocket', 'wave', 'shard', 'crash', 'vine', 'nerf', 'bullet67', 'water', 'bubble', 'yoyo', 'fishthrow', 'allyfire', 'egg', 'gum'];
+const KINDS: ProjKind[] = ['arrow', 'snowball', 'minisnow', 'boomerang', 'bomb', 'axe', 'shuriken', 'laser', 'fireball', 'six7', 'poop', 'soup', 'icebolt', 'banana', 'fireslash', 'dart', 'memorybox', 'rocket', 'wave', 'shard', 'crash', 'vine', 'nerf', 'bullet67', 'water', 'bubble', 'yoyo', 'fishthrow', 'allyfire', 'egg', 'gum', 'crow', 'hay', 'goo', 'sound'];
 const r1 = (v: number) => Math.round(v);
 const r2 = (v: number) => Math.round(v * 100) / 100;
 
@@ -101,6 +104,7 @@ export function encodeSnapshot(g: Game): Snapshot {
   if (clones.length) snap.cl = clones;
   if (g.caption) snap.cap = [g.caption.key, g.caption.who, r2(g.caption.t)];
   if (g.blizzard) snap.bz = [r2(g.blizzard.warn), r2(g.blizzard.t)];
+  if (g.ob) snap.ob = [g.ob.wave, r2(g.ob.night), OB_PHASES.indexOf(g.ob.phase), g.ob.left];
   g.events = [];
   return snap;
 }
@@ -258,6 +262,12 @@ export class Mirror {
     });
     g.blizzard = s.bz ? { warn: s.bz[0], t: s.bz[1], tick: 1, owner: null } : null;
     g.caption = s.cap ? { key: s.cap[0] as Key, who: s.cap[1], t: s.cap[2] } : null;
+    if (g.ob && s.ob) {
+      g.ob.wave = s.ob[0];
+      g.ob.night = s.ob[1];
+      g.ob.phase = OB_PHASES[s.ob[2]] ?? 'night';
+      g.ob.left = s.ob[3];
+    }
     g.glassT = g.map.platforms.map(() => 0);
     for (const [i, t] of s.gl ?? []) if (i in g.glassT) g.glassT[i] = t;
     g.applyEvents(s.e);
@@ -275,6 +285,8 @@ export class Mirror {
         body.angles[0] = wrap(body.angles[0] + wrap(t.a0 - body.angles[0]) * Math.min(1, dt * 22));
         if (body.angles.length > 1) body.angles[1] = wrap(body.angles[1] + wrap(t.a1 - body.angles[1]) * Math.min(1, dt * 22));
         body.hurtFlash -= dt;
+        // The Elephant keeps flapping its ears.
+        if (body.xboss === 'elephant') body.walkPhase += dt * 9;
       } else {
         body.hurtFlash -= dt;
         if (body instanceof Cat) {

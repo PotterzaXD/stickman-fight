@@ -10,6 +10,8 @@ import { startLoop } from './loop';
 import { bossNameFor, bossNames, giveReward, matchFacts, matchTrack, resultTitle } from './play';
 import { jingle, playMusic } from '../music';
 import { onRoomClosed } from './roomScreen';
+import { afterWave, outbreakTitle } from './outbreak';
+import { grant } from '../achievements';
 import { go, register } from './router';
 
 const STEP = 1 / 120;
@@ -65,8 +67,32 @@ register('netplay', (root) => {
     overlay.classList.remove('hidden');
   };
 
+  /** The Outbreak: coins and badges for this device; the host also keeps the save. */
+  const showOutbreakResult = (r: Pick<MatchResult, 'winnerTeam'>) => {
+    const mine = localIdx.map((i) => game.fighters[i]);
+    const lines = afterWave(game, r, host ? s.state?.obSlot ?? 0 : null, mine);
+    const tricked = grant(mine.some((f) => game.tricked.has(f)) ? ['getTricked'] : []);
+    for (const id of tricked) lines.push(h('p', { class: 'treasure-got' }, t('achNew', { name: t(`ach.${id}`) })));
+    jingle(r.winnerTeam === 0 ? 'victory' : 'defeat');
+    const ranked = game.fighters.filter((f) => !f.cloneOf && !f.horde).sort((a, b) => b.kos - a.kos);
+    overlay.replaceChildren(
+      h(
+        'div',
+        { class: 'modal result' },
+        h('h2', {}, outbreakTitle(r, game.ob?.wave ?? 1)),
+        ...lines,
+        h('ul', { class: 'scores' }, ...ranked.map((f) => h('li', {}, h('span', { class: 'dot', style: `background:${f.color}` }), h('b', {}, f.name), h('span', { class: 'muted' }, f.lives > 0 ? `❤️×${f.lives}` : '💀')))),
+        host
+          ? h('div', { class: 'row gap center' }, h('button', { class: 'btn ghost', onclick: () => host.toLobby() }, `🏠 ${t('backToRoom')}`), h('button', { class: 'btn big primary', onclick: () => host.start() }, r.winnerTeam === 0 ? t('obNext') : `🔄 ${t('playAgain')}`))
+          : h('div', { class: 'col gap' }, h('p', { class: 'muted' }, `⏳ ${t('waitingHost')}`), h('button', { class: 'btn ghost', onclick: leave }, `🚪 ${t('leave')}`)),
+      ),
+    );
+    overlay.classList.remove('hidden');
+  };
+
   const showResult = (r: Pick<MatchResult, 'mode' | 'winnerTeam' | 'winners'> & { fish?: boolean }) => {
     menuOpen = true;
+    if (r.mode === 'outbreak') return showOutbreakResult(r);
     // Coins only for devices that had someone in this match: win 3-5 (beating the bosses: 500 per boss), otherwise 1.
     // Grandfather Cat: 1,000 coins and the Treasure for every device that played.
     let coinLine: HTMLElement[] = [];
@@ -116,6 +142,7 @@ register('netplay', (root) => {
       potions: start.potions,
       bosses: start.bosses,
       bossWeapons: start.bossWeapons,
+      outbreak: start.outbreak,
     });
     mirror = host ? null : new Mirror(game);
     startCoins = save.data.coins;
