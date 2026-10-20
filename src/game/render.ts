@@ -2,6 +2,8 @@ import type { Body, Cat, Fighter, Snowman, Projectile } from './entities';
 import { BOSS_TEAM, FEED_LIFE, type Game } from './game';
 import { FEED_STYLE, feedParts, helperName } from './killfeed';
 import { drawExtraDeco, drawExtraProjectile, drawExtraWeapon, drawRedGuy, drawSbAlly } from './extras';
+import { drawGadget, drawGadgetDeco, drawGadgetProjectile, drawGadgetProp, drawGadgetWeapon, drawHill, drawModeBoard } from './gadgets';
+import { HILL, RACE_WEAPONS } from './hill';
 import { drawCritter, drawCritterDeco, drawCritterProjectile, drawCritterProp, drawCritterWeapon } from './critters';
 import { t } from '../i18n';
 import { drawCorpse, type Corpse } from './finish';
@@ -161,7 +163,7 @@ export function drawBackground(ctx: Ctx, map: MapDef, vw: number, vh: number, ca
       ctx.arc(fx, fy, 8 + ph * 60, 0, Math.PI * 2);
       ctx.fill();
     }
-  } else if (!drawExtraDeco(ctx, th.deco, vw, vh, par, time) && !drawCritterDeco(ctx, th.deco, vw, vh, par, time) && !drawMonsterDeco(ctx, th.deco, vw, vh, par, time)) {
+  } else if (!drawExtraDeco(ctx, th.deco, vw, vh, par, time) && !drawCritterDeco(ctx, th.deco, vw, vh, par, time) && !drawMonsterDeco(ctx, th.deco, vw, vh, par, time) && !drawGadgetDeco(ctx, th.deco, vw, vh, par, time)) {
     for (let i = 0; i < 40; i++) {
       const x = ((hash(i) * vw - par) % vw + vw) % vw;
       const y = vh - (((hash(i + 7) * vh + time * (40 + hash(i) * 60)) % vh) + vh) % vh;
@@ -938,7 +940,7 @@ export function drawWeaponShape(ctx: Ctx, id: WeaponId, len: number, s: number, 
       ctx.fill();
       break;
     default:
-      if (!drawExtraWeapon(ctx, id, len, s, ready, performance.now() / 1000) && !drawCritterWeapon(ctx, id, len, s, ready, performance.now() / 1000)) drawMonsterWeapon(ctx, id, len, s, ready, performance.now() / 1000);
+      if (!drawExtraWeapon(ctx, id, len, s, ready, performance.now() / 1000) && !drawCritterWeapon(ctx, id, len, s, ready, performance.now() / 1000) && !drawMonsterWeapon(ctx, id, len, s, ready, performance.now() / 1000)) drawGadgetWeapon(ctx, id, len, s, ready, performance.now() / 1000);
   }
 }
 
@@ -1338,6 +1340,7 @@ function drawProp(ctx: Ctx, c: Corpse, time: number) {
     ctx.restore();
     steam(x, y - 92 * c.s, c.s < 1 ? 2 : 4, 50 * c.s);
   } else if (c.prop === 'pixels' || c.prop === 'beefall') drawMonsterProp(ctx, c.prop, x, y, d, c.t / c.life);
+  else if (c.prop === 'scrap') drawGadgetProp(ctx, x, y, c.t / c.life);
   else if (c.prop) drawCritterProp(ctx, c.prop, x, y, d, time);
   ctx.globalAlpha = 1;
 }
@@ -2058,7 +2061,7 @@ function drawSnowman(ctx: Ctx, m: Snowman) {
 }
 
 function drawProjectile(ctx: Ctx, p: Projectile, time: number) {
-  if (drawExtraProjectile(ctx, p, time) || drawCritterProjectile(ctx, p, time) || drawMonsterProjectile(ctx, p, time)) return;
+  if (drawExtraProjectile(ctx, p, time) || drawCritterProjectile(ctx, p, time) || drawMonsterProjectile(ctx, p, time) || drawGadgetProjectile(ctx, p, time)) return;
   switch (p.kind) {
     case 'nerf': {
       // Foam dart: blue body, orange tip
@@ -2435,6 +2438,8 @@ export function renderGame(g: Game, ctx: Ctx, vw: number, vh: number, dpr: numbe
   ctx.setTransform(dpr * z, 0, 0, dpr * z, dpr * (vw / 2 - g.cam.x * z + sx), dpr * (vh / 2 - g.cam.y * z + sy));
 
   drawPlatforms(ctx, g.map, g.time, g.glassT);
+  // King of the Hill: the zone, in the colour of whoever holds it alone.
+  if (g.hill) drawHill(ctx, g.hill.x, g.hill.y, g.hill.w, g.hill.holder === null ? null : g.fighters.find((f) => f.team === g.hill!.holder)?.color ?? null, g.time);
 
   for (const gb of g.groundBalls) {
     if (gb.life < 1.5 && Math.floor(gb.life * 8) % 2 === 0) continue;
@@ -2448,7 +2453,7 @@ export function renderGame(g: Game, ctx: Ctx, vw: number, vh: number, dpr: numbe
       continue;
     }
     // Chicks, the Chicken, the little pigeon, skeletons (a pile of bones when beaten) and the dog (asleep).
-    if (drawCritter(ctx, c, g.time) || drawMonster(ctx, c, g.time)) continue;
+    if (drawCritter(ctx, c, g.time) || drawMonster(ctx, c, g.time) || drawGadget(ctx, c, g.time)) continue;
     if (!c.alive) continue;
     if (c.variant === 'sbsnow' || c.variant === 'fireally') {
       drawSbAlly(ctx, c, g.time);
@@ -2529,6 +2534,17 @@ export function renderGame(g: Game, ctx: Ctx, vw: number, vh: number, dpr: numbe
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   if (g.blizzard) drawBlizzard(ctx, g.blizzard, vw, vh, g.time);
   if (g.ob) drawOutbreakSky(ctx, g.ob, vw, vh, g.cats.find((c) => c.alive && c.variant === 'zboss') ?? null);
+  if (g.hill) {
+    const h = g.hill;
+    const rows = g.fighters.filter((f) => !f.cloneOf && !f.boss).map((f) => ({ name: f.name, color: f.color, s: h.score.get(f.team) ?? 0 }));
+    rows.sort((a, b) => b.s - a.s);
+    drawModeBoard(ctx, `👑 ${HILL.win}s`, rows.map((r) => ({ name: r.name, color: r.color, text: `${Math.floor(r.s)}`, frac: r.s / HILL.win })));
+  }
+  if (g.race) {
+    const rows = [...g.race].map(([f, lvl]) => ({ name: f.name, color: f.color, lvl }));
+    rows.sort((a, b) => b.lvl - a.lvl);
+    drawModeBoard(ctx, `🔫 ${RACE_WEAPONS.length}`, rows.map((r) => ({ name: r.name, color: r.color, text: `${Math.min(r.lvl + 1, RACE_WEAPONS.length)}/${RACE_WEAPONS.length}`, frac: r.lvl / RACE_WEAPONS.length })));
+  }
   // (On the Beach, bosses on your side that went down in the cutscene drop off the list.)
   // The Pigeon has no bar: nobody gets to see how much of its 500,000 HP is left.
   const bars = g.bosses.filter((b) => (b.alive || b.team === BOSS_TEAM) && !b.pigeon);

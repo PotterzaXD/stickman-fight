@@ -1,5 +1,5 @@
 import type { Cat, Fighter, Projectile } from './entities';
-import type { OutbreakState } from './outbreak';
+import { zombieMult, type OutbreakState } from './outbreak';
 import type { Platform } from './types';
 
 type Ctx = CanvasRenderingContext2D;
@@ -1068,7 +1068,8 @@ export function drawOutbreakSky(ctx: Ctx, ob: OutbreakState, vw: number, vh: num
     ctx.fill();
   }
   // Wave counter
-  const text = `🌙 Wave ${ob.wave}${ob.endless ? '' : ' / 50'}  ·  🧟 ${ob.left}`;
+  // How much harder the zombies hit this wave (2× from wave 50 on).
+  const text = `🌙 Wave ${ob.wave}${ob.endless ? '' : ' / 50'}  ·  🧟 ${ob.left}  ·  💪 ×${zombieMult(ob.wave).toFixed(2).replace(/\.?0+$/, '')}`;
   ctx.font = '800 16px "Baloo 2", system-ui, sans-serif';
   const w = ctx.measureText(text).width + 24;
   ctx.fillStyle = 'rgba(0,0,0,0.55)';

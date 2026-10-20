@@ -72,3 +72,15 @@ export async function shareLink(url: string, title: string, text: string, copied
     prompt(title, url);
   }
 }
+
+/** "Now playing": a little card with a song's cover art and name, in the top corner for a few seconds. */
+export function songCard(name: string, cover: string, label: string) {
+  for (const old of document.querySelectorAll('.song-card')) old.remove();
+  const el = h('div', { class: 'song-card' }, h('img', { src: cover, alt: '' }), h('div', {}, h('small', {}, `🎵 ${label}`), h('b', {}, name)));
+  document.body.append(el);
+  requestAnimationFrame(() => el.classList.add('show'));
+  setTimeout(() => {
+    el.classList.remove('show');
+    setTimeout(() => el.remove(), 400);
+  }, 4000);
+}

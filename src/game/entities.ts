@@ -354,7 +354,8 @@ export class Snowman extends Body {
 export type CatVariant =
   | 'cat' | 'fish' | 'memory' | 'soldier' | 'sbsnow' | 'fireally' | 'redguy' | 'chick' | 'chicken' | 'lilpigeon' | 'skeleton' | 'dog'
   | 'retro' | 'zombie' | 'bee' | 'ninja'
-  | ZombieKind;
+  | ZombieKind
+  | 'babyele' | 'drone' | 'penguin';
 /** The Outbreak's zombies (on the zombies' side). */
 export type ZombieKind = 'znormal' | 'zshooter' | 'zmini' | 'zbig' | 'zrunner' | 'zexploder' | 'zboss';
 export const ZOMBIE_KINDS: ZombieKind[] = ['znormal', 'zshooter', 'zmini', 'zbig', 'zrunner', 'zexploder', 'zboss'];
@@ -363,6 +364,7 @@ export const isZombie = (v: CatVariant): v is ZombieKind => (ZOMBIE_KINDS as str
 export const CAT_VARIANTS: CatVariant[] = [
   'cat', 'fish', 'memory', 'soldier', 'sbsnow', 'fireally', 'redguy', 'chick', 'chicken', 'lilpigeon', 'skeleton', 'dog',
   'retro', 'zombie', 'bee', 'ninja', 'znormal', 'zshooter', 'zmini', 'zbig', 'zrunner', 'zexploder', 'zboss',
+  'babyele', 'drone', 'penguin',
 ];
 /** Helpers that don't vanish when beaten: they stay where they went down (the red guy frozen, skeletons as bones, the dog asleep) until their weapon or the Summoner brings them back. */
 export const REVIVES = (v: CatVariant) => v === 'redguy' || v === 'skeleton' || v === 'dog';
@@ -392,6 +394,13 @@ export const ZOMBIE_ALLY = { hp: 100, dmg: 12 };
 /** Bee Hive: bees fly at enemies and sting. Ninja Scroll: ninjas that dash next to enemies. */
 export const BEES = { count: 5, hp: 30, dmg: 5, max: 15 };
 export const NINJAS = { count: 2, hp: 300, dmg: 25, max: 4 };
+/**
+ * The October 21 helpers (Summoner and Sandbox): the Baby Elephant (a little Magical Elephant: trunk slap, and it sprays water),
+ * the Robo Drone (flies over enemies and zaps them with a laser) and the Penguin (waddles, then belly-slides into enemies).
+ */
+export const BABY_ELE = { hp: 600, dmg: 25, spray: 8, drops: 4, every: 3 };
+export const DRONE = { hp: 150, dmg: 12, every: 1.3, max: 2 };
+export const PENGUIN = { hp: 120, dmg: 22, slideEvery: 3, slideS: 1.1 };
 /** The Outbreak's zombies: HP, damage and speed. The Zombie Boss gets 1,000 more HP every 10 waves. */
 export const ZOMBIES: Record<ZombieKind, { hp: number; dmg: number; speed: number }> = {
   znormal: { hp: 100, dmg: 10, speed: 150 },
@@ -442,8 +451,8 @@ export class Cat extends Body {
     // Zombies and ninjas are stickmen too; the mini zombie is small, the big one and the Zombie Boss are huge.
     const stick = variant === 'soldier' || variant === 'sbsnow' || variant === 'fireally' || variant === 'skeleton' || variant === 'ninja' || variant === 'zombie' || variant === 'znormal' || variant === 'zshooter' || variant === 'zrunner' || variant === 'zexploder';
     const [w, h] =
-      variant === 'memory' ? [46, 128] : stick ? [30, 80] : variant === 'redguy' ? [16, 43] : variant === 'retro' ? [30, 60] : variant === 'bee' ? [16, 14] : variant === 'zmini' ? [20, 48] : variant === 'zbig' ? [52, 120] : variant === 'zboss' ? [80, 190] : variant === 'chick' ? [16, 16] : variant === 'chicken' ? [38, 42] : variant === 'lilpigeon' ? [28, 32] : variant === 'dog' ? [46, 34] : [34, 30];
-    super(x, y, w, h, hp, owner.team, variant === 'sbsnow' ? '#bdeeff' : variant === 'fireally' ? '#ff7a1a' : variant === 'redguy' ? '#f66' : variant === 'skeleton' ? '#eeeeee' : variant === 'retro' ? '#111111' : isZombie(variant) || variant === 'zombie' ? '#7cb342' : owner.color);
+      variant === 'memory' ? [46, 128] : stick ? [30, 80] : variant === 'redguy' ? [16, 43] : variant === 'retro' ? [30, 60] : variant === 'bee' ? [16, 14] : variant === 'zmini' ? [20, 48] : variant === 'zbig' ? [52, 120] : variant === 'zboss' ? [80, 190] : variant === 'babyele' ? [56, 50] : variant === 'drone' ? [34, 18] : variant === 'penguin' ? [28, 40] : variant === 'chick' ? [16, 16] : variant === 'chicken' ? [38, 42] : variant === 'lilpigeon' ? [28, 32] : variant === 'dog' ? [46, 34] : [34, 30];
+    super(x, y, w, h, hp, owner.team, variant === 'sbsnow' ? '#bdeeff' : variant === 'fireally' ? '#ff7a1a' : variant === 'redguy' ? '#f66' : variant === 'skeleton' ? '#eeeeee' : variant === 'retro' ? '#111111' : variant === 'babyele' ? '#b0bec5' : variant === 'penguin' ? '#263238' : isZombie(variant) || variant === 'zombie' ? '#7cb342' : owner.color);
     this.owner = owner;
     this.touchDmg = touchDmg;
     this.facing = owner.facing;
@@ -487,7 +496,9 @@ export type ProjKind =
   | 'crow'
   | 'hay'
   | 'goo'
-  | 'sound';
+  | 'sound'
+  | 'pebble'
+  | 'flame';
 
 /** Thrown weapons that fly out and come back to the hand. */
 export const returns = (k: ProjKind) => k === 'boomerang' || k === 'axe' || k === 'six7' || k === 'yoyo';

@@ -1,6 +1,7 @@
-import { TEAM_COLORS } from '../game/game';
-import { BEES, CHICK, CHICKEN, DOG, LIL_PIGEON, MEMORY_ALLY, NINJAS, PIGEON_HP, RED_GUY, RETRO, SB_ALLY, SECRET_HP, SKELETON, SNOWMAN_HP, SOLDIER_HP, XBOSS_HP, ZOMBIE_ALLY } from '../game/entities';
-import { HELPER_KINDS, SB_CHICKS, SECRET_KINDS, XBOSS_KINDS, type HelperKind, type SandboxHelper } from '../game/types';
+import { SB_ROCK_AT, TEAM_COLORS } from '../game/game';
+import { playMusic } from '../music';
+import { BABY_ELE, BEES, CHICK, CHICKEN, DOG, DRONE, LIL_PIGEON, MEMORY_ALLY, NINJAS, PENGUIN, PIGEON_HP, RED_GUY, RETRO, SB_ALLY, SECRET_HP, SKELETON, SNOWMAN_HP, SOLDIER_HP, XBOSS_HP, ZOMBIES, ZOMBIE_ALLY } from '../game/entities';
+import { HELPER_KINDS, SB_CHICKS, SB_ZOMBIE_KINDS, SECRET_KINDS, XBOSS_KINDS, isSbZombie, type HelperKind, type SandboxHelper, type SbZombieKind } from '../game/types';
 import { hasAch } from '../achievements';
 import { allMaps } from '../game/maps';
 import type { BossKind, Difficulty, MatchConfig, SandboxBoss, SlotConfig } from '../game/types';
@@ -21,22 +22,35 @@ const MAX_SB_BOSSES = 20;
 /** Helpers (chick slots don't count). */
 const MAX_SB_HELPERS = 30;
 const MAX_SB_CLONES = 10;
+/** Zombies (the Zombie Boss counts as one). */
+const MAX_SB_ZOMBIES = 30;
+
 const POWERS = [25, 50, 100, 200, 500, 1000];
 const BOSS_HP: Record<BossKind, number> = { boss: 5000, cat: 10000, mascot: 50000, buffalo: 8000, fish: 9999, pigeon: PIGEON_HP, ...SECRET_HP, ...XBOSS_HP };
 export const BOSS_ICON: Record<BossKind, string> = { boss: '👹', cat: '🐱', mascot: '⚪', buffalo: '🐃', fish: '🐟', pigeon: '🐦', queen: '❄️', tide: '🌊', guardian: '🌲', elephant: '🐘', scarecrow: '🌾', robo: '🤖' };
-const HELPER_ICON: Record<HelperKind, string> = {
+const HELPER_ICON: Record<HelperKind | SbZombieKind, string> = {
   cat: '🐱', fish: '🐟', memory: '💭', soldier: '💂', snowman: '☃️', sbsnow: '⛄', fireally: '🔥', redguy: '🟥', chicken: '🐔', chick: '🐥', lilpigeon: '🐦', skeleton: '💀', dog: '🐕', retro: '👾', bee: '🐝', ninja: '🥷', zombie: '🧟',
+  babyele: '🐘', drone: '🛸', penguin: '🐧',
+  znormal: '🧟', zshooter: '🤢', zmini: '🧒', zbig: '🦍', zrunner: '🏃', zexploder: '💥', zboss: '👑',
 };
-const HELPER_HP: Record<HelperKind, number> = {
+const HELPER_HP: Record<HelperKind | SbZombieKind, number> = {
   cat: 100, fish: 50, memory: MEMORY_ALLY.hp, soldier: SOLDIER_HP, snowman: SNOWMAN_HP, sbsnow: SB_ALLY.hp, fireally: SB_ALLY.hp, redguy: RED_GUY.hp,
   chicken: CHICKEN.hp, chick: CHICK.hp, lilpigeon: LIL_PIGEON.hp, skeleton: SKELETON.hp, dog: DOG.hp, retro: RETRO.hp, bee: BEES.hp, ninja: NINJAS.hp, zombie: ZOMBIE_ALLY.hp,
+  babyele: BABY_ELE.hp, drone: DRONE.hp, penguin: PENGUIN.hp,
+  znormal: ZOMBIES.znormal.hp, zshooter: ZOMBIES.zshooter.hp, zmini: ZOMBIES.zmini.hp, zbig: ZOMBIES.zbig.hp, zrunner: ZOMBIES.zrunner.hp, zexploder: ZOMBIES.zexploder.hp, zboss: ZOMBIES.zboss.hp,
 };
-/** Helpers that count toward the limit (chicks don't). */
-const counted = (list: SandboxHelper[]) => list.filter((x) => x.kind !== 'chick').length;
+/** Helpers that count toward the helper limit (chicks don't, zombies have their own). */
+const counted = (list: SandboxHelper[]) => list.filter((x) => x.kind !== 'chick' && !isSbZombie(x.kind)).length;
+const zombieCount = (list: SandboxHelper[]) => list.filter((x) => isSbZombie(x.kind)).length;
+
+/** How crowded a Sandbox match is: bots, bosses, helpers (a chick slot is 1), zombies and Clones. */
+export function sandboxCrowd(m: MatchConfig): number {
+  return m.slots.filter((s) => s.kind === 'bot').length + (m.extraBosses?.length ?? 0) + (m.helpers?.length ?? 0) + (m.clones?.length ?? 0);
+}
 /** The Pigeon shows up in Sandbox after you beat it once. */
 const pigeonOpen = () => hasAch('pigeonBeat');
 /** The zombie ally shows up after you beat wave 10 of The Outbreak. */
-const helperOpen = (k: HelperKind) => k !== 'zombie' || save.data.zombieAlly;
+const helperOpen = (k: HelperKind | SbZombieKind) => k !== 'zombie' || save.data.zombieAlly;
 
 function defaultSandbox(): MatchConfig {
   return {
@@ -54,7 +68,7 @@ register('sandbox', (root) => {
   m.mode = 'sandbox';
   m.extraBosses ??= [];
   m.extraBosses = m.extraBosses.filter((b) => b.kind in BOSS_HP && (!(SECRET_KINDS as string[]).includes(b.kind) || save.data.secrets.includes(b.kind)) && (b.kind !== 'pigeon' || pigeonOpen()));
-  m.helpers = (m.helpers ?? []).filter((x) => HELPER_KINDS.includes(x.kind) && helperOpen(x.kind));
+  m.helpers = (m.helpers ?? []).filter((x) => (HELPER_KINDS.includes(x.kind as HelperKind) || isSbZombie(x.kind)) && helperOpen(x.kind));
   m.clones = (m.clones ?? []).filter((i) => Number.isInteger(i) && i >= 0 && i < m.slots.length);
   if (!maps.some((x) => x.id === m.mapId)) m.mapId = 'arena';
 
@@ -66,7 +80,7 @@ register('sandbox', (root) => {
   const validate = () => {
     if (!m.slots.length && !m.extraBosses!.length) return t('sbEmpty');
     // Free for all: any two of anything can fight.
-    if (m.ffa) return m.slots.length + m.extraBosses!.length + counted(m.helpers!) + m.clones!.length >= 2 ? '' : t('needTwo');
+    if (m.ffa) return m.slots.length + m.extraBosses!.length + counted(m.helpers!) + zombieCount(m.helpers!) + m.clones!.length >= 2 ? '' : t('needTwo');
     if (teams().size < 2) return t('sbNeedTwoTeams');
     return '';
   };
@@ -211,16 +225,30 @@ register('sandbox', (root) => {
         removeBtn(() => m.extraBosses!.splice(i, 1)),
       ),
     );
-    const helperRows = m.helpers!.map((hp: SandboxHelper, i) =>
+    const helperRow = (hp: SandboxHelper) =>
       h(
         'div',
         { class: 'slot' },
         h('span', { class: 'slot-name', style: `--c:${TEAM_COLORS[hp.team]}` }, `${HELPER_ICON[hp.kind]} ${t(`helper.${hp.kind}` as Key)}`),
         h('small', { class: 'muted' }, hp.kind === 'chick' ? `×${SB_CHICKS} ❤️ ${HELPER_HP.chick}` : `❤️ ${HELPER_HP[hp.kind].toLocaleString()}`),
         teamPicker(hp),
-        removeBtn(() => m.helpers!.splice(i, 1)),
-      ),
-    );
+        removeBtn(() => m.helpers!.splice(m.helpers!.indexOf(hp), 1)),
+      );
+    const helperRows = m.helpers!.filter((x) => !isSbZombie(x.kind)).map(helperRow);
+    const zombieRows = m.helpers!.filter((x) => isSbZombie(x.kind)).map(helperRow);
+    const addZombie = (kind: SbZombieKind) =>
+      h(
+        'button',
+        {
+          class: 'btn small',
+          disabled: zombieCount(m.helpers!) >= MAX_SB_ZOMBIES,
+          onclick: () => {
+            m.helpers!.push({ kind, team: 1 });
+            render();
+          },
+        },
+        `+ ${HELPER_ICON[kind]} ${t(`helper.${kind}` as Key)}`,
+      );
     const addHelper = (kind: HelperKind) =>
       h(
         'button',
@@ -248,6 +276,8 @@ register('sandbox', (root) => {
         `+ ${BOSS_ICON[kind]} ${names[kind]}`,
       );
 
+    // Lots of bots, bosses, helpers, zombies and Clones: the Sandbox music turns into hard rock.
+    playMusic(sandboxCrowd(m) > SB_ROCK_AT ? 'rock' : 'sandbox');
     const err = validate();
     errorEl.textContent = err;
     startBtn.disabled = !!err;
@@ -347,6 +377,14 @@ register('sandbox', (root) => {
         h('div', { class: 'row gap wrap' }, ...HELPER_KINDS.filter(helperOpen).map(addHelper)),
         save.data.zombieAlly ? null : h('small', { class: 'muted' }, `🔒 🧟 ${t('zombieLocked')}`),
         h('div', { class: 'slots' }, ...helperRows),
+      ),
+      h(
+        'section',
+        {},
+        h('h3', {}, `🧟 ${t('sbZombies')} (${zombieCount(m.helpers!)}/${MAX_SB_ZOMBIES})`),
+        h('p', { class: 'muted small' }, t('sbZombiesDesc')),
+        h('div', { class: 'row gap wrap' }, ...SB_ZOMBIE_KINDS.map(addZombie)),
+        h('div', { class: 'slots' }, ...zombieRows),
       ),
       h(
         'section',

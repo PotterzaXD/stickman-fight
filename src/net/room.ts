@@ -8,7 +8,7 @@ import { MASCOT_WEAPONS } from '../game/weapons';
 import { HATS, hatExists, resolveHat } from '../game/hats';
 import type { Snapshot } from './snapshot';
 
-export const PROTO = 10;
+export const PROTO = 11;
 export const MIN_ROOM = 2;
 export const MAX_ROOM = 30;
 export const MAX_LOCAL = 6;

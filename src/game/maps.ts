@@ -4,7 +4,7 @@ export interface Theme {
   sky: [string, string];
   plat: string;
   top: string;
-  deco: 'clouds' | 'stars' | 'snow' | 'embers' | 'space' | 'beach' | 'war' | 'jungle' | 'haunted' | 'candy' | 'farm' | 'graveyard' | 'inferno' | 'pirate' | 'desert';
+  deco: 'clouds' | 'stars' | 'snow' | 'embers' | 'space' | 'beach' | 'war' | 'jungle' | 'haunted' | 'candy' | 'farm' | 'graveyard' | 'inferno' | 'pirate' | 'desert' | 'stage';
   /** Gravity multiplier (space: low gravity, you jump higher and fall slower). */
   gravity?: number;
 }
@@ -26,10 +26,11 @@ export const THEMES: Record<ThemeId, Theme> = {
   inferno: { sky: ['#1a0500', '#d84315'], plat: '#3e2f2a', top: '#8d6e63', deco: 'inferno' },
   pirate: { sky: ['#4fc3f7', '#e1f5fe'], plat: '#6d4c41', top: '#a1887f', deco: 'pirate' },
   desert: { sky: ['#ffb74d', '#fff8e1'], plat: '#c68b4e', top: '#ffd180', deco: 'desert' },
+  stage: { sky: ['#12001f', '#3d0a4f'], plat: '#212121', top: '#ff4081', deco: 'stage' },
 };
 
 /** Append only (shared map links send the index). */
-export const THEME_IDS: ThemeId[] = ['day', 'sunset', 'night', 'snow', 'lava', 'space', 'beach', 'war', 'jungle', 'haunted', 'candy', 'farm', 'graveyard', 'inferno', 'pirate', 'desert'];
+export const THEME_IDS: ThemeId[] = ['day', 'sunset', 'night', 'snow', 'lava', 'space', 'beach', 'war', 'jungle', 'haunted', 'candy', 'farm', 'graveyard', 'inferno', 'pirate', 'desert', 'stage'];
 
 const P = (x: number, y: number, w: number, h = 24): Platform => ({ x, y, w, h });
 /** Special block: concrete, lava or glass. */
@@ -483,6 +484,28 @@ export const BUILTIN_MAPS: MapDef[] = [
       M(760, 380, 180, 300, 0, 6),
       P(880, 220, 240),
       B('spikes', 960, 200, 80, 20),
+    ],
+    spawns: [],
+  },
+  {
+    // October 21: a rock concert. Speaker stacks to stand on, a lighting rig up top that slides, and bounce pads by the stage.
+    id: 'stage',
+    name: 'm.stage',
+    w: 1900,
+    h: 1000,
+    theme: 'stage',
+    builtin: true,
+    platforms: [
+      P(200, 800, 1500, 60),
+      B('bounce', 230, 780, 80, 20),
+      B('bounce', 1590, 780, 80, 20),
+      B('concrete', 40, 600, 160, 40),
+      B('concrete', 1700, 600, 160, 40),
+      P(560, 620, 260),
+      P(1080, 620, 260),
+      B('glass', 820, 470, 260, 20),
+      M(520, 300, 300, 560, 0, 7),
+      P(860, 160, 180),
     ],
     spawns: [],
   },

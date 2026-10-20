@@ -29,11 +29,13 @@ export interface Snapshot {
   bz?: [number, number];
   /** The Outbreak: wave, night (1-0), phase, zombies left. */
   ob?: [number, number, number, number];
+  /** King of the Hill: the zone (x, y, width), who holds it (-1 = nobody), and each team's seconds. */
+  hl?: [number, number, number, number, [number, number][]];
   /** Summoner's Clones (extra fighters after the ones from the start): [fighter index, owner index, weapon id]. */
   cl?: [number, number, string][];
 }
 
-const KINDS: ProjKind[] = ['arrow', 'snowball', 'minisnow', 'boomerang', 'bomb', 'axe', 'shuriken', 'laser', 'fireball', 'six7', 'poop', 'soup', 'icebolt', 'banana', 'fireslash', 'dart', 'memorybox', 'rocket', 'wave', 'shard', 'crash', 'vine', 'nerf', 'bullet67', 'water', 'bubble', 'yoyo', 'fishthrow', 'allyfire', 'egg', 'gum', 'crow', 'hay', 'goo', 'sound'];
+const KINDS: ProjKind[] = ['arrow', 'snowball', 'minisnow', 'boomerang', 'bomb', 'axe', 'shuriken', 'laser', 'fireball', 'six7', 'poop', 'soup', 'icebolt', 'banana', 'fireslash', 'dart', 'memorybox', 'rocket', 'wave', 'shard', 'crash', 'vine', 'nerf', 'bullet67', 'water', 'bubble', 'yoyo', 'fishthrow', 'allyfire', 'egg', 'gum', 'crow', 'hay', 'goo', 'sound', 'pebble', 'flame'];
 const r1 = (v: number) => Math.round(v);
 const r2 = (v: number) => Math.round(v * 100) / 100;
 
@@ -105,6 +107,7 @@ export function encodeSnapshot(g: Game): Snapshot {
   if (g.caption) snap.cap = [g.caption.key, g.caption.who, r2(g.caption.t)];
   if (g.blizzard) snap.bz = [r2(g.blizzard.warn), r2(g.blizzard.t)];
   if (g.ob) snap.ob = [g.ob.wave, r2(g.ob.night), OB_PHASES.indexOf(g.ob.phase), g.ob.left];
+  if (g.hill) snap.hl = [r1(g.hill.x), r1(g.hill.y), r1(g.hill.w), g.hill.holder ?? -1, [...g.hill.score].map(([team, sc]) => [team, r1(sc)])];
   g.events = [];
   return snap;
 }
@@ -267,6 +270,13 @@ export class Mirror {
       g.ob.night = s.ob[1];
       g.ob.phase = OB_PHASES[s.ob[2]] ?? 'night';
       g.ob.left = s.ob[3];
+    }
+    if (g.hill && s.hl) {
+      g.hill.x = s.hl[0];
+      g.hill.y = s.hl[1];
+      g.hill.w = s.hl[2];
+      g.hill.holder = s.hl[3] < 0 ? null : s.hl[3];
+      g.hill.score = new Map(s.hl[4]);
     }
     g.glassT = g.map.platforms.map(() => 0);
     for (const [i, t] of s.gl ?? []) if (i in g.glassT) g.glassT[i] = t;

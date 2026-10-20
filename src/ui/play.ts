@@ -12,7 +12,7 @@ import { isBossMode, type MatchConfig, type Mode } from '../game/types';
 import { t, teamName } from '../i18n';
 import { save } from '../save';
 import { sfx } from '../sfx';
-import { h } from './dom';
+import { h, toast } from './dom';
 import { slotLooks } from './lobby';
 import { startLoop } from './loop';
 import { go, register } from './router';
@@ -158,6 +158,8 @@ function matchAchievements(r: RewardInfo): AchievementId[] {
   // Beating the Pigeon also puts it in Sandbox.
   if (won && mode === 'pigeon') ach.push('pigeonBeat');
   if (won) ach.push('firstWin');
+  if (won && mode === 'hill') ach.push('kingOfHill');
+  if (won && mode === 'race') ach.push('raceWinner');
   if (!f) return ach;
   // Get Tricked: in Play and online only (not Sandbox).
   if (f.tricked && mode !== 'sandbox') ach.push('getTricked');
@@ -282,6 +284,7 @@ export function matchTrack(game: Game): TrackId {
   if (game.mode === 'pigeon' || game.bosses.some((b) => b.pigeon)) return 'pigeon';
   if (game.mode === 'outbreak') return 'outbreak';
   if (game.mode === 'elephant' || game.bosses.some((b) => b.xboss === 'elephant')) return 'elephant';
+  if (game.mode === 'sandbox' && game.rock) return 'rock';
   if (isBossMode(game.mode) || (game.mode === 'sandbox' && game.bosses.length)) return 'boss';
   if (game.mode === 'sandbox') return 'sandbox';
   return game.map.theme;
@@ -425,6 +428,15 @@ register('play', (root, { match, fromEditor }) => {
     paused: () => paused,
     onResize: layout,
     overlay: (ctx, w) => {
+      // Sandbox: the music turns into hard rock when it gets crowded (and back when it calms down).
+      if (game.mode === 'sandbox' && !game.over && !paused) {
+        playMusic(matchTrack(game));
+        // Rock On: get the Sandbox rocking.
+        if (game.rock && !hasAch('rockOn')) {
+          grant(['rockOn']);
+          toast(t('achNew', { name: achName('rockOn') }));
+        }
+      }
       sticks?.draw(ctx);
       // Pause button
       ctx.fillStyle = 'rgba(0,0,0,0.45)';

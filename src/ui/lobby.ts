@@ -239,6 +239,8 @@ register('lobby', (root, arg) => {
     const weaponSelect = (s: SlotConfig) => {
       // The Pigeon: everyone gets a shotgun.
       if (m.mode === 'pigeon') return h('select', { disabled: true }, h('option', {}, t('w.shotgun')));
+      // Weapon Race: everyone starts on the same weapon and goes up the ladder.
+      if (m.mode === 'race') return h('select', { disabled: true }, h('option', {}, `🔫 ${t('race')}`));
       const sel = h(
         'select',
         {
@@ -323,6 +325,8 @@ register('lobby', (root, arg) => {
           { class: 'segs' },
           modeBtn('ffa', '🥊'),
           modeBtn('team', '🤝'),
+          modeBtn('hill', '👑'),
+          modeBtn('race', '🔫'),
           modeBtn('boss', '👹'),
           modeBtn('cat', '🐱'),
           modeBtn('mascot', '⚪'),
