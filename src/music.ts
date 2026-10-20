@@ -21,6 +21,11 @@ export type TrackId =
   | 'candy'
   | 'farm'
   | 'graveyard'
+  | 'inferno'
+  | 'pirate'
+  | 'desert'
+  | 'outbreak'
+  | 'elephant'
   | 'boss'
   | 'pigeon'
   | 'queen'
@@ -89,6 +94,11 @@ const TRACKS: Record<TrackId, TrackDef> = {
   // Graveyard: slow, creepy and a little silly
   graveyard: { bpm: 100, root: 52, scale: HARM, chords: [0, 3, 5, 4], lead: 'triangle', bass: 'square', arp: 'sine', drums: [HALF, 'k...t...s...t.t.'], busy: 0.45, bassRhythm: 'x.......x.x.....', seed: 131, leadOct: 1 },
   // The Pigeon: a silly, bouncy theme that loops for as long as the fight goes on
+  inferno: { bpm: 160, root: 59, scale: PHRYG, chords: [0, 1, 5, 6], lead: 'sawtooth', bass: 'sawtooth', arp: 'square', drums: [DRIVE, 'k.hks.h.k.hks.ss'], busy: 0.75, bassRhythm: 'xx.xxx.xxx.xxx.x', seed: 137 },
+  pirate: { bpm: 140, root: 62, scale: MINOR, chords: [0, 5, 6, 4], lead: 'square', bass: 'triangle', arp: 'triangle', drums: ['k..h..s.k..h..s.', 'k..hk.s.k.hh..s.'], busy: 0.65, bassRhythm: 'x..x..x.x..x..x.', seed: 139, swing: 0.18 },
+  desert: { bpm: 116, root: 62, scale: HARM, chords: [0, 1, 0, 6], lead: 'triangle', bass: 'square', arp: 'sine', drums: ['k..t..t.s..t.tt.', 'k.tt..t.s..t..t.'], busy: 0.5, bassRhythm: 'x..x....x..x....', seed: 149 },
+  outbreak: { bpm: 104, root: 52, scale: HARM, chords: [0, 1, 5, 4], lead: 'sawtooth', bass: 'sawtooth', arp: 'square', drums: [HALF, 'k..k..s.k.k...s.'], busy: 0.5, bassRhythm: 'x.xx..x.x.xx..x.', seed: 151, leadOct: -1 },
+  elephant: { bpm: 164, root: 60, scale: LYDIAN, chords: [0, 4, 5, 1], lead: 'square', bass: 'sawtooth', arp: 'triangle', drums: [DRIVE, 'k.hks.hkk.hks.ss'], busy: 0.8, bassRhythm: 'x.xxx.xxx.xxx.xx', seed: 157, leadOct: 1 },
   pigeon: { bpm: 150, root: 62, scale: MAJOR, chords: [0, 4, 5, 3, 0, 4, 1, 4], lead: 'square', bass: 'triangle', arp: 'square', drums: ['k.h.s.h.k.k.s.h.', 'k.hks.h.k.h.s.hh'], busy: 0.75, bassRhythm: 'x.xx..x.x.xx..x.', seed: 97, swing: 0.08, leadOct: 1 },
   // Standard bosses: fast and intense
   boss: { bpm: 168, root: 57, scale: HARM, chords: [0, 5, 3, 4], lead: 'square', bass: 'sawtooth', arp: 'square', drums: [DRIVE, 'k.hks.hkk.hks.ss'], busy: 0.8, bassRhythm: 'xxxxxxxxxxxxxxxx', seed: 61 },

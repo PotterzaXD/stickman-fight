@@ -1,6 +1,6 @@
 import { TEAM_COLORS } from '../game/game';
-import { CHICK, CHICKEN, DOG, LIL_PIGEON, MEMORY_ALLY, PIGEON_HP, RED_GUY, SB_ALLY, SECRET_HP, SKELETON, SNOWMAN_HP, SOLDIER_HP } from '../game/entities';
-import { HELPER_KINDS, SB_CHICKS, SECRET_KINDS, type HelperKind, type SandboxHelper } from '../game/types';
+import { BEES, CHICK, CHICKEN, DOG, LIL_PIGEON, MEMORY_ALLY, NINJAS, PIGEON_HP, RED_GUY, RETRO, SB_ALLY, SECRET_HP, SKELETON, SNOWMAN_HP, SOLDIER_HP, XBOSS_HP, ZOMBIE_ALLY } from '../game/entities';
+import { HELPER_KINDS, SB_CHICKS, SECRET_KINDS, XBOSS_KINDS, type HelperKind, type SandboxHelper } from '../game/types';
 import { hasAch } from '../achievements';
 import { allMaps } from '../game/maps';
 import type { BossKind, Difficulty, MatchConfig, SandboxBoss, SlotConfig } from '../game/types';
@@ -22,19 +22,21 @@ const MAX_SB_BOSSES = 20;
 const MAX_SB_HELPERS = 30;
 const MAX_SB_CLONES = 10;
 const POWERS = [25, 50, 100, 200, 500, 1000];
-const BOSS_HP: Record<BossKind, number> = { boss: 5000, cat: 10000, mascot: 50000, buffalo: 8000, fish: 9999, pigeon: PIGEON_HP, ...SECRET_HP };
-export const BOSS_ICON: Record<BossKind, string> = { boss: '👹', cat: '🐱', mascot: '⚪', buffalo: '🐃', fish: '🐟', pigeon: '🐦', queen: '❄️', tide: '🌊', guardian: '🌲' };
+const BOSS_HP: Record<BossKind, number> = { boss: 5000, cat: 10000, mascot: 50000, buffalo: 8000, fish: 9999, pigeon: PIGEON_HP, ...SECRET_HP, ...XBOSS_HP };
+export const BOSS_ICON: Record<BossKind, string> = { boss: '👹', cat: '🐱', mascot: '⚪', buffalo: '🐃', fish: '🐟', pigeon: '🐦', queen: '❄️', tide: '🌊', guardian: '🌲', elephant: '🐘', scarecrow: '🌾', robo: '🤖' };
 const HELPER_ICON: Record<HelperKind, string> = {
-  cat: '🐱', fish: '🐟', memory: '💭', soldier: '💂', snowman: '☃️', sbsnow: '⛄', fireally: '🔥', redguy: '🟥', chicken: '🐔', chick: '🐥', lilpigeon: '🐦', skeleton: '💀', dog: '🐕',
+  cat: '🐱', fish: '🐟', memory: '💭', soldier: '💂', snowman: '☃️', sbsnow: '⛄', fireally: '🔥', redguy: '🟥', chicken: '🐔', chick: '🐥', lilpigeon: '🐦', skeleton: '💀', dog: '🐕', retro: '👾', bee: '🐝', ninja: '🥷', zombie: '🧟',
 };
 const HELPER_HP: Record<HelperKind, number> = {
   cat: 100, fish: 50, memory: MEMORY_ALLY.hp, soldier: SOLDIER_HP, snowman: SNOWMAN_HP, sbsnow: SB_ALLY.hp, fireally: SB_ALLY.hp, redguy: RED_GUY.hp,
-  chicken: CHICKEN.hp, chick: CHICK.hp, lilpigeon: LIL_PIGEON.hp, skeleton: SKELETON.hp, dog: DOG.hp,
+  chicken: CHICKEN.hp, chick: CHICK.hp, lilpigeon: LIL_PIGEON.hp, skeleton: SKELETON.hp, dog: DOG.hp, retro: RETRO.hp, bee: BEES.hp, ninja: NINJAS.hp, zombie: ZOMBIE_ALLY.hp,
 };
 /** Helpers that count toward the limit (chicks don't). */
 const counted = (list: SandboxHelper[]) => list.filter((x) => x.kind !== 'chick').length;
 /** The Pigeon shows up in Sandbox after you beat it once. */
 const pigeonOpen = () => hasAch('pigeonBeat');
+/** The zombie ally shows up after you beat wave 10 of The Outbreak. */
+const helperOpen = (k: HelperKind) => k !== 'zombie' || save.data.zombieAlly;
 
 function defaultSandbox(): MatchConfig {
   return {
@@ -52,7 +54,7 @@ register('sandbox', (root) => {
   m.mode = 'sandbox';
   m.extraBosses ??= [];
   m.extraBosses = m.extraBosses.filter((b) => b.kind in BOSS_HP && (!(SECRET_KINDS as string[]).includes(b.kind) || save.data.secrets.includes(b.kind)) && (b.kind !== 'pigeon' || pigeonOpen()));
-  m.helpers = (m.helpers ?? []).filter((x) => HELPER_KINDS.includes(x.kind));
+  m.helpers = (m.helpers ?? []).filter((x) => HELPER_KINDS.includes(x.kind) && helperOpen(x.kind));
   m.clones = (m.clones ?? []).filter((i) => Number.isInteger(i) && i >= 0 && i < m.slots.length);
   if (!maps.some((x) => x.id === m.mapId)) m.mapId = 'arena';
 
@@ -63,12 +65,16 @@ register('sandbox', (root) => {
   const teams = () => new Set([...m.slots.map((s) => s.team), ...m.extraBosses!.map((b) => b.team)]);
   const validate = () => {
     if (!m.slots.length && !m.extraBosses!.length) return t('sbEmpty');
+    // Free for all: any two of anything can fight.
+    if (m.ffa) return m.slots.length + m.extraBosses!.length + counted(m.helpers!) + m.clones!.length >= 2 ? '' : t('needTwo');
     if (teams().size < 2) return t('sbNeedTwoTeams');
     return '';
   };
 
   const teamPicker = (o: { team: number }) =>
-    h(
+    m.ffa
+      ? null
+      : h(
       'div',
       { class: 'team-pick' },
       ...TEAM_COLORS.map((c, ti) =>
@@ -246,7 +252,26 @@ register('sandbox', (root) => {
     errorEl.textContent = err;
     startBtn.disabled = !!err;
     body.replaceChildren(
-      h('section', {}, h('p', { class: 'muted' }, t('sandboxDesc'))),
+      h(
+        'section',
+        {},
+        h('p', { class: 'muted' }, t('sandboxDesc')),
+        // Free for all: nobody is on anybody's team.
+        h(
+          'label',
+          { class: 'switch-row' },
+          h('input', {
+            type: 'checkbox',
+            checked: !!m.ffa,
+            onchange: (e: Event) => {
+              m.ffa = (e.target as HTMLInputElement).checked;
+              render();
+            },
+          }),
+          h('b', {}, `🥊 ${t('sbFfa')}`),
+          h('small', { class: 'muted' }, t('sbFfaDesc')),
+        ),
+      ),
       h(
         'section',
         {},
@@ -309,6 +334,7 @@ register('sandbox', (root) => {
           pigeonOpen() ? addBoss('pigeon') : null,
           // Secret bosses stay hidden until you unlock them.
           ...SECRET_KINDS.filter((k) => save.data.secrets.includes(k)).map(addBoss),
+          ...XBOSS_KINDS.map(addBoss),
         ),
         h('small', { class: 'muted' }, `👹 ${m.extraBosses!.length}/${MAX_SB_BOSSES}`),
         h('div', { class: 'slots' }, ...fighterRows, ...bossRows),
@@ -318,7 +344,8 @@ register('sandbox', (root) => {
         {},
         h('h3', {}, `${t('helpers')} (${counted(m.helpers!)}/${MAX_SB_HELPERS})`),
         h('p', { class: 'muted small' }, t('helpersDesc')),
-        h('div', { class: 'row gap wrap' }, ...HELPER_KINDS.map(addHelper)),
+        h('div', { class: 'row gap wrap' }, ...HELPER_KINDS.filter(helperOpen).map(addHelper)),
+        save.data.zombieAlly ? null : h('small', { class: 'muted' }, `🔒 🧟 ${t('zombieLocked')}`),
         h('div', { class: 'slots' }, ...helperRows),
       ),
       h(

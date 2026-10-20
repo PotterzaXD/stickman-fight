@@ -25,6 +25,8 @@ export const ACHIEVEMENTS = [
   'winterWarrior',
   'oceanConqueror',
   'forestProtector',
+  'getTricked',
+  'greatJobBud',
 ] as const;
 export type AchievementId = (typeof ACHIEVEMENTS)[number];
 

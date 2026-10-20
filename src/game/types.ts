@@ -23,7 +23,12 @@ export interface Intent {
 }
 
 export type Difficulty = 'easy' | 'medium' | 'hard';
-export type Mode = 'ffa' | 'team' | 'boss' | 'cat' | 'mascot' | 'buffalo' | 'pigeon' | 'sandbox' | SecretKind;
+export type Mode = 'ffa' | 'team' | 'boss' | 'cat' | 'mascot' | 'buffalo' | 'pigeon' | 'sandbox' | 'outbreak' | XBossKind | SecretKind;
+
+/** The October 20 bosses: the Magical Elephant (flies with its big ears), the Giant Scarecrow and Robo Stick. */
+export type XBossKind = 'elephant' | 'scarecrow' | 'robo';
+export const XBOSS_KINDS: XBossKind[] = ['elephant', 'scarecrow', 'robo'];
+export const isXBoss = (m: string): m is XBossKind => (XBOSS_KINDS as string[]).includes(m);
 
 /** The secret bosses: hidden until you meet their unlock conditions. */
 export type SecretKind = 'queen' | 'tide' | 'guardian';
@@ -31,7 +36,7 @@ export const SECRET_KINDS: SecretKind[] = ['queen', 'tide', 'guardian'];
 export const isSecret = (m: string): m is SecretKind => (SECRET_KINDS as string[]).includes(m);
 
 /** Boss Fight, Grandfather Cat, the Mascot, Buffalo, the Pigeon and the secret bosses: everyone teams up against the boss. */
-export const isBossMode = (m: Mode) => m === 'boss' || m === 'cat' || m === 'mascot' || m === 'buffalo' || m === 'pigeon' || isSecret(m);
+export const isBossMode = (m: Mode) => m === 'boss' || m === 'cat' || m === 'mascot' || m === 'buffalo' || m === 'pigeon' || isXBoss(m) || isSecret(m);
 /** The Pigeon: up to this many fighters, everyone holds a shotgun, and KO'd fighters come back. */
 export const PIGEON_MAX = 30;
 export const PIGEON_WEAPON = 'shotgun';
@@ -39,10 +44,10 @@ export const PIGEON_WEAPON = 'shotgun';
 export const BEACH_MODES: Mode[] = ['ffa', 'team', 'boss'];
 export const BEACH_MAP = 'beach';
 export type FallMode = 'ko' | 'bounce';
-export type ThemeId = 'day' | 'sunset' | 'night' | 'snow' | 'lava' | 'space' | 'beach' | 'war' | 'jungle' | 'haunted' | 'candy' | 'farm' | 'graveyard';
+export type ThemeId = 'day' | 'sunset' | 'night' | 'snow' | 'lava' | 'space' | 'beach' | 'war' | 'jungle' | 'haunted' | 'candy' | 'farm' | 'graveyard' | 'inferno' | 'pirate' | 'desert';
 
-/** Special blocks from the map editor. No kind = a normal platform. Sandbags stop bullets. */
-export type BlockKind = 'concrete' | 'lava' | 'glass' | 'sandbag';
+/** Special blocks from the map editor. No kind = a normal platform. Sandbags stop bullets. Bounce pads launch you, ice is slippery, spikes hurt. */
+export type BlockKind = 'concrete' | 'lava' | 'glass' | 'sandbag' | 'bounce' | 'ice' | 'spikes';
 
 export interface Platform {
   x: number;
@@ -64,7 +69,7 @@ export interface MapDef {
   spawns: Vec[];
   builtin?: boolean;
   /** Big background picture (the Space map's spaceship, the Beach's palm trees). */
-  deco?: 'spaceship' | 'palms';
+  deco?: 'spaceship' | 'palms' | 'ship';
 }
 
 export interface SlotConfig {
@@ -81,7 +86,7 @@ export interface SlotConfig {
 }
 
 /** Bosses you can add in Sandbox. */
-export type BossKind = 'boss' | 'cat' | 'mascot' | 'buffalo' | 'fish' | 'pigeon' | SecretKind;
+export type BossKind = 'boss' | 'cat' | 'mascot' | 'buffalo' | 'fish' | 'pigeon' | XBossKind | SecretKind;
 
 export interface SandboxBoss {
   kind: BossKind;
@@ -92,8 +97,9 @@ export interface SandboxBoss {
 }
 
 /** Helpers you can drop into Sandbox: every helper any weapon or the Summoner can call. A chick slot is 10 chicks. */
-export type HelperKind = 'cat' | 'fish' | 'memory' | 'soldier' | 'snowman' | 'sbsnow' | 'fireally' | 'redguy' | 'chicken' | 'chick' | 'lilpigeon' | 'skeleton' | 'dog';
-export const HELPER_KINDS: HelperKind[] = ['cat', 'fish', 'memory', 'soldier', 'snowman', 'sbsnow', 'fireally', 'redguy', 'chicken', 'chick', 'lilpigeon', 'skeleton', 'dog'];
+export type HelperKind = 'cat' | 'fish' | 'memory' | 'soldier' | 'snowman' | 'sbsnow' | 'fireally' | 'redguy' | 'chicken' | 'chick' | 'lilpigeon' | 'skeleton' | 'dog' | 'retro' | 'bee' | 'ninja' | 'zombie';
+/** The zombie ally is only here once you have beaten wave 10 of The Outbreak (see `zombieAlly` in the save). */
+export const HELPER_KINDS: HelperKind[] = ['cat', 'fish', 'memory', 'soldier', 'snowman', 'sbsnow', 'fireally', 'redguy', 'chicken', 'chick', 'lilpigeon', 'skeleton', 'dog', 'retro', 'bee', 'ninja', 'zombie'];
 /** Chicks come 10 to a slot (and don't count toward the helper limit). */
 export const SB_CHICKS = 10;
 
@@ -114,4 +120,17 @@ export interface MatchConfig {
   helpers?: SandboxHelper[];
   /** Sandbox: Clones, each the slot index (player or bot) it copies. */
   clones?: number[];
+  /** Sandbox: Free For All, nobody is on anybody's team (fighters, bosses, helpers and Clones). */
+  ffa?: boolean;
+  /** The Outbreak: which save (0-2) this wave belongs to. */
+  obSlot?: number;
+}
+
+/** The Outbreak: one wave of zombies. */
+export interface OutbreakInfo {
+  wave: number;
+  /** Endless, or Until Wave 50. */
+  endless: boolean;
+  /** Zombie allies that join you (one for every 10 waves cleared). */
+  allies: number;
 }

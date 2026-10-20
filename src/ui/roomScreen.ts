@@ -13,7 +13,7 @@ import { h, shareLink, toast } from './dom';
 import { friendRow, inviteButton } from './friends';
 import { mapThumb } from './icons';
 import { SECRET_ICONS, beachNotes, bossPicker, keepScroll, mapLabel } from './lobby';
-import { BEACH_MAP, BEACH_MODES, SECRET_KINDS, isSecret } from '../game/types';
+import { BEACH_MAP, BEACH_MODES, SECRET_KINDS, isSecret, isXBoss } from '../game/types';
 import { go, register } from './router';
 
 export function roomLink(code: string) {
@@ -173,6 +173,10 @@ register('room', (root) => {
               ['mascot', `${mascotUnlocked(st.hostWeapons) ? '⚪' : '🔒'} ${t('mascot')}`],
               ['buffalo', `${st.hostBuffalo ? '🐃' : '🔒'} ${t('buffalo')}`],
               ['pigeon', `🐦 ${t('pigeon')}`],
+              ['elephant', `🐘 ${t('elephant')}`],
+              ['scarecrow', `🌾 ${t('scarecrow')}`],
+              ['robo', `🤖 ${t('robo')}`],
+              ['outbreak', `🧟 ${t('outbreak')}`],
               // Secret bosses only show once the host has unlocked them.
               ...SECRET_KINDS.filter((k) => st.hostSecrets?.includes(k)).map((k): [Mode, string] => [k, `${SECRET_ICONS[k]} ${t(k)}`]),
             ],
@@ -184,7 +188,25 @@ register('room', (root) => {
             },
           ),
           st.mode === 'buffalo' ? h('small', { class: 'muted' }, `🪙🏆 ${t('buffaloReward')}`) : null,
-          isSecret(st.mode) ? h('small', { class: 'muted' }, `🪙🏆 ${t(`${st.mode}Reward` as Key)}`) : null,
+          isSecret(st.mode) || isXBoss(st.mode) ? h('small', { class: 'muted' }, `🪙🏆 ${t(`${st.mode}Reward` as Key)}`) : null,
+          // The Outbreak uses the host's save: pick which one.
+          st.mode === 'outbreak' ? h('small', { class: 'muted' }, t('outbreakDesc')) : null,
+          st.mode === 'outbreak'
+            ? h(
+                'div',
+                { class: 'row gap wrap' },
+                h('b', {}, `💾 ${t('obHostSave')}`),
+                seg<string>(
+                  String(st.obSlot ?? 0),
+                  [0, 1, 2].map((i): [string, string] => {
+                    const sl = host ? save.data.outbreak[i] : null;
+                    return [String(i), `${t('obSlot', { n: i + 1 })}${sl ? ` · ${t('obWave', { n: sl.wave })}` : ''}`];
+                  }),
+                  (v) => host?.setRoom({ obSlot: Number(v) }),
+                ),
+                h('small', { class: 'muted' }, `🌙 ${t('obWave', { n: st.obWave ?? 1 })} · ${st.obEndless === false ? t('obUntil50') : t('obEndless')}`),
+              )
+            : null,
           ...beachNotes(st.mapId, st.mode),
           st.mode === 'mascot' ? h('small', { class: 'muted' }, `🪙🏆 ${t('mascotReward')}`) : null,
           st.mode === 'cat' ? h('small', { class: 'muted' }, `🪙🏆 ${t('catReward')}`) : null,

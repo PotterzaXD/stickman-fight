@@ -21,6 +21,8 @@ import './ui/achievements';
 import './ui/sandbox';
 import './ui/stickbrawl';
 import './ui/worst';
+import './ui/worst2';
+import './ui/outbreak';
 import { session, setSession } from './net/room';
 
 const app = document.getElementById('app')!;

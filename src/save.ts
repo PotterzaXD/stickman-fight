@@ -8,7 +8,7 @@ export interface SaveData {
   hats: string[];
   customMaps: MapDef[];
   /** potions: healing potions drop in matches (on by default). Music and sound volumes are 0-100. */
-  settings: { lang: Lang; fallMode: FallMode; potions: boolean; musicVol: number; sfxVol: number; musicMute: boolean; sfxMute: boolean };
+  settings: { lang: Lang; fallMode: FallMode; potions: boolean; musicVol: number; sfxVol: number; musicMute: boolean; sfxMute: boolean; killFeed: boolean };
   lastMatch?: MatchConfig;
   /** The last Sandbox setup. */
   lastSandbox?: MatchConfig;
@@ -22,8 +22,32 @@ export interface SaveData {
   name: string;
   /** Names typed for P1-P6 on this device. */
   localNames: string[];
+  /** The Outbreak: 3 save slots (null = empty). */
+  outbreak: (OutbreakSave | null)[];
+  /** Beat wave 10 in The Outbreak: the Summoner also brings a zombie ally. */
+  zombieAlly: boolean;
+  /** Beat wave 10 but still in The Outbreak: the zombie ally unlocks back at the menu. */
+  pendingZombie: boolean;
   updatedAt: number;
 }
+
+/** One Outbreak save slot. */
+export interface OutbreakSave {
+  /** The next wave to fight (1 = start). */
+  wave: number;
+  /** Endless, or Until wave 50. */
+  endless: boolean;
+  /** Lives left for each player and bot, in the order of the setup. */
+  lives: number[];
+  /** Best wave cleared on this slot. */
+  best: number;
+  /** Until 50: wave 50 is cleared. */
+  done?: boolean;
+  /** Players, bots, hats and weapons picked before the wave. */
+  setup?: MatchConfig;
+}
+
+export const OB_SLOTS = 3;
 
 export interface Stats {
   /** Grandfather Cat wins on a snow map (3 unlock the Snow Queen). */
@@ -53,9 +77,12 @@ function defaults(): SaveData {
     achievements: [],
     secrets: [],
     stats: { catSnowWins: 0, mapsWon: [], usedWeapons: [] },
-    settings: { lang: thai ? 'th' : 'en', fallMode: 'ko', potions: true, musicVol: 70, sfxVol: 80, musicMute: false, sfxMute: false },
+    settings: { lang: thai ? 'th' : 'en', fallMode: 'ko', potions: true, musicVol: 70, sfxVol: 80, musicMute: false, sfxMute: false, killFeed: true },
     name: '',
     localNames: [],
+    outbreak: [null, null, null],
+    zombieAlly: false,
+    pendingZombie: false,
     updatedAt: 0,
   };
 }
@@ -82,6 +109,7 @@ export function normalize(raw: unknown): SaveData {
       sfxVol: vol(r.settings?.sfxVol, d.settings.sfxVol),
       musicMute: typeof r.settings?.musicMute === 'boolean' ? r.settings.musicMute : !oldSound,
       sfxMute: typeof r.settings?.sfxMute === 'boolean' ? r.settings.sfxMute : !oldSound,
+      killFeed: r.settings?.killFeed !== false,
     },
     lastMatch: r.lastMatch,
     lastSandbox: r.lastSandbox,
@@ -94,7 +122,24 @@ export function normalize(raw: unknown): SaveData {
     },
     name: cleanName(r.name),
     localNames: Array.isArray(r.localNames) ? r.localNames.slice(0, 6).map(cleanName) : [],
+    outbreak: Array.from({ length: OB_SLOTS }, (_, i) => obSlot(Array.isArray(r.outbreak) ? r.outbreak[i] : null)),
+    zombieAlly: r.zombieAlly === true,
+    pendingZombie: r.pendingZombie === true,
     updatedAt: Number.isFinite(r.updatedAt) ? (r.updatedAt as number) : 0,
+  };
+}
+
+function obSlot(v: unknown): OutbreakSave | null {
+  if (!v || typeof v !== 'object') return null;
+  const o = v as Partial<OutbreakSave>;
+  const n = (x: unknown, lo: number, hi: number, def: number) => (Number.isFinite(x) ? Math.max(lo, Math.min(hi, Math.floor(x as number))) : def);
+  return {
+    wave: n(o.wave, 1, 9999, 1),
+    endless: o.endless !== false,
+    lives: Array.isArray(o.lives) ? o.lives.slice(0, 30).map((l) => n(l, 0, 5, 5)) : [],
+    best: n(o.best, 0, 9999, 0),
+    done: o.done === true,
+    setup: o.setup && typeof o.setup === 'object' ? o.setup : undefined,
   };
 }
 

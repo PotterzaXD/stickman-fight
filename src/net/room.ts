@@ -1,13 +1,14 @@
 import type { RealtimeChannel } from '@supabase/supabase-js';
 import { supabase } from '../cloud';
 import { TEAM_COLORS, randomBossWeapons, type FighterSpec, type MatchResult } from '../game/game';
-import { BEACH_MAP, BEACH_MODES, isBossMode, isSecret, type Controller, type Difficulty, type FallMode, type MapDef, type Mode } from '../game/types';
+import { BEACH_MAP, BEACH_MODES, isBossMode, isSecret, type Controller, type Difficulty, type FallMode, type MapDef, type Mode, type OutbreakInfo } from '../game/types';
+import { OUTBREAK } from '../game/outbreak';
 import { cleanName, save } from '../save';
 import { MASCOT_WEAPONS } from '../game/weapons';
 import { HATS, hatExists, resolveHat } from '../game/hats';
 import type { Snapshot } from './snapshot';
 
-export const PROTO = 9;
+export const PROTO = 10;
 export const MIN_ROOM = 2;
 export const MAX_ROOM = 30;
 export const MAX_LOCAL = 6;
@@ -37,6 +38,8 @@ export interface Member {
   hat?: string;
   /** Joined during a match: plays from the next round. */
   waiting?: boolean;
+  /** This player's device has the zombie ally (beat wave 10 of The Outbreak). */
+  zombie?: boolean;
 }
 
 export interface RoomState {
@@ -57,6 +60,10 @@ export interface RoomState {
   hostSecrets?: string[];
   phase: 'lobby' | 'playing';
   members: Member[];
+  /** The Outbreak: the host's save (0-2), its next wave and if it is Endless. */
+  obSlot?: number;
+  obWave?: number;
+  obEndless?: boolean;
 }
 
 export interface NetSpec extends FighterSpec {
@@ -74,6 +81,8 @@ export interface StartPayload {
   potions: boolean;
   /** Each boss's two weapons, so every device draws the same bosses. */
   bossWeapons: string[][];
+  /** The Outbreak: the wave from the host's save. */
+  outbreak?: OutbreakInfo;
 }
 
 export interface NetResult {
@@ -86,7 +95,7 @@ export interface NetResult {
 }
 
 type Msg =
-  | { t: 'hello'; v: number; players: string[] }
+  | { t: 'hello'; v: number; players: string[]; zombie?: boolean }
   | { t: 'welcome'; device: string }
   | { t: 'reject'; reason: 'full' | 'version' }
   | { t: 'lobby'; state: RoomState }
@@ -410,6 +419,7 @@ export class RoomHost extends Emitter<RoomEvents> {
             team: counts.indexOf(Math.min(...counts)),
             difficulty: 'medium',
             waiting: st.phase === 'playing',
+            zombie: m.zombie === true,
           });
         });
         sendJson(peer.rel, { t: 'welcome', device: peer.id });
@@ -460,8 +470,16 @@ export class RoomHost extends Emitter<RoomEvents> {
     if (mem) this.patch(mem, p);
   }
 
-  setRoom(p: Partial<Pick<RoomState, 'mode' | 'fallMode' | 'size' | 'bosses' | 'potions'>> & { map?: MapDef }) {
+  setRoom(p: Partial<Pick<RoomState, 'mode' | 'fallMode' | 'size' | 'bosses' | 'potions' | 'obSlot'>> & { map?: MapDef }) {
     if (p.mode) this.state.mode = p.mode;
+    if (p.obSlot !== undefined) this.state.obSlot = Math.max(0, Math.min(2, Math.round(p.obSlot)));
+    // The Outbreak: start an Endless save in an empty slot.
+    if (this.state.mode === 'outbreak') {
+      const i = this.state.obSlot ?? 0;
+      this.state.obSlot = i;
+      if (!save.data.outbreak[i]) save.update((d) => (d.outbreak[i] = { wave: 1, endless: true, lives: [], best: 0 }));
+      this.syncOutbreak();
+    }
     if (p.bosses) this.state.bosses = Math.max(1, Math.min(3, Math.round(p.bosses)));
     if (p.fallMode) this.state.fallMode = p.fallMode;
     if (typeof p.potions === 'boolean') this.state.potions = p.potions;
@@ -526,8 +544,16 @@ export class RoomHost extends Emitter<RoomEvents> {
     this.emit('state', this.state);
   }
 
+  /** Show everyone the host's save: its next wave and if it is Endless. */
+  syncOutbreak() {
+    const slot = save.data.outbreak[this.state.obSlot ?? 0];
+    this.state.obWave = slot?.wave ?? 1;
+    this.state.obEndless = slot?.endless ?? true;
+  }
+
   canStart(): boolean {
     const ms = this.state.members;
+    if (this.state.mode === 'outbreak') return ms.length >= 1 && !save.data.outbreak[this.state.obSlot ?? 0]?.done;
     if (isBossMode(this.state.mode)) return ms.length >= 1;
     if (ms.length < 2) return false;
     return this.state.mode !== 'team' || new Set(ms.map((m) => m.team)).size >= 2;
@@ -537,10 +563,12 @@ export class RoomHost extends Emitter<RoomEvents> {
     const st = this.state;
     if (!st.map || !this.canStart()) return;
     for (const m of st.members) m.waiting = false;
+    // The Outbreak: the host's save decides the wave and each fighter's lives.
+    const ob = st.mode === 'outbreak' ? save.data.outbreak[st.obSlot ?? 0] : null;
     const specs: NetSpec[] = st.members.map((m, i) => ({
       name: m.name,
       color: st.mode === 'team' ? TEAM_COLORS[m.team] : ONLINE_COLORS[i % ONLINE_COLORS.length],
-      team: st.mode === 'team' ? m.team : isBossMode(st.mode) ? 0 : i,
+      team: st.mode === 'team' ? m.team : isBossMode(st.mode) || ob ? 0 : i,
       human: m.kind === 'human',
       weapon: m.weapon === 'random' ? st.hostWeapons[Math.floor(Math.random() * st.hostWeapons.length)] : m.weapon,
       difficulty: m.difficulty,
@@ -550,6 +578,9 @@ export class RoomHost extends Emitter<RoomEvents> {
       memberId: m.id,
       device: m.device,
       local: m.local,
+      lives: ob ? ob.lives[i] ?? OUTBREAK.lives : undefined,
+      // The zombie ally: each device's own unlock (bots go with the host's).
+      zombie: m.device === 'host' ? save.data.zombieAlly : !!m.zombie,
     }));
     this.remoteCtrl.clear();
     for (const m of st.members) if (m.kind === 'human' && m.device !== 'host') this.remoteCtrl.set(m.id, { x: 0, y: 0, active: false });
@@ -557,6 +588,7 @@ export class RoomHost extends Emitter<RoomEvents> {
     st.phase = 'playing';
     const bosses = st.mode === 'boss' ? st.bosses : 0;
     this.lastStart = { map: st.map, mode: st.mode, fallMode: st.fallMode, specs, bosses, potions: st.potions !== false, bossWeapons: Array.from({ length: bosses }, randomBossWeapons) };
+    if (ob) this.lastStart.outbreak = { wave: ob.wave, endless: ob.endless, allies: Math.floor(ob.wave / 10) };
     for (const p of this.peers.values()) sendJson(p.rel, { t: 'start', start: this.lastStart });
     this.changed();
     this.emit('start', this.lastStart);
@@ -577,6 +609,7 @@ export class RoomHost extends Emitter<RoomEvents> {
 
   toLobby() {
     this.state.phase = 'lobby';
+    if (this.state.mode === 'outbreak') this.syncOutbreak();
     this.changed();
   }
 
@@ -655,7 +688,7 @@ export class RoomClient extends Emitter<RoomEvents> {
             rej(m.reason as JoinError);
           } else client.onMessage(m);
         };
-        sendJson(rel, { t: 'hello', v: PROTO, players: names });
+        sendJson(rel, { t: 'hello', v: PROTO, players: names, zombie: save.data.zombieAlly });
       });
       client.device = welcome;
       rel.onmessage = (ev) => client.onMessage(JSON.parse(ev.data));

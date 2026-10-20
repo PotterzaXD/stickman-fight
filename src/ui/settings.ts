@@ -131,6 +131,13 @@ register('settings', (root) => {
           seg(s.potions ? 'on' : 'off', [['on', t('on')], ['off', t('off')]], (v) => (save.data.settings.potions = v === 'on')),
           h('p', { class: 'muted small' }, t('potionsDesc')),
         ),
+        h(
+          'section',
+          {},
+          h('h3', {}, `💬 ${t('killFeed')}`),
+          seg(s.killFeed !== false ? 'on' : 'off', [['on', t('on')], ['off', t('off')]], (v) => (save.data.settings.killFeed = v === 'on')),
+          h('p', { class: 'muted small' }, t('killFeedDesc')),
+        ),
         volumeRow('🎵', t('music'), 'musicVol', 'musicMute'),
         volumeRow('🔊', t('sfxLabel'), 'sfxVol', 'sfxMute'),
         h('section', {}, h('h3', {}, `☁️ ${t('account')}`), accountBox()),

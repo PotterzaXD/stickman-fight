@@ -10,6 +10,8 @@ import type { MapDef, Platform } from './types';
 import { GUNS, type WeaponId } from './weapons';
 import { drawBravery, drawBubble, drawBubbleWand, drawGun67, drawPan, drawPistol, drawShotgun, drawSniper, drawSummoner, drawWaterGun } from './guns';
 import { drawHat } from './hats';
+import { drawElephant, drawMonster, drawMonsterProp, drawMonsterBlock, drawMonsterDeco, drawMonsterProjectile, drawMonsterWeapon, drawOutbreakSky, drawPirateShip, drawXBossHead } from './monsters';
+import { save } from '../save';
 
 type Ctx = CanvasRenderingContext2D;
 
@@ -159,7 +161,7 @@ export function drawBackground(ctx: Ctx, map: MapDef, vw: number, vh: number, ca
       ctx.arc(fx, fy, 8 + ph * 60, 0, Math.PI * 2);
       ctx.fill();
     }
-  } else if (!drawExtraDeco(ctx, th.deco, vw, vh, par, time) && !drawCritterDeco(ctx, th.deco, vw, vh, par, time)) {
+  } else if (!drawExtraDeco(ctx, th.deco, vw, vh, par, time) && !drawCritterDeco(ctx, th.deco, vw, vh, par, time) && !drawMonsterDeco(ctx, th.deco, vw, vh, par, time)) {
     for (let i = 0; i < 40; i++) {
       const x = ((hash(i) * vw - par) % vw + vw) % vw;
       const y = vh - (((hash(i + 7) * vh + time * (40 + hash(i) * 60)) % vh) + vh) % vh;
@@ -171,6 +173,7 @@ export function drawBackground(ctx: Ctx, map: MapDef, vw: number, vh: number, ca
 
 /** Concrete, lava, glass and sandbag blocks from the map editor. */
 function drawBlock(ctx: Ctx, p: Platform, time: number, gone: number) {
+  if (drawMonsterBlock(ctx, p, time)) return;
   const r = Math.min(8, p.h / 2);
   if (p.kind === 'sandbag') {
     // Rows of stacked sandbags, each row shifted by half a bag.
@@ -360,6 +363,7 @@ function drawSpaceship(ctx: Ctx, cx: number, deck: number, time: number) {
 export function drawPlatforms(ctx: Ctx, map: MapDef, time = 0, glassT?: number[]) {
   const th = THEMES[map.theme];
   if (map.deco === 'spaceship') drawSpaceship(ctx, map.w / 2, 640, time);
+  if (map.deco === 'ship' && map.platforms[0]) drawPirateShip(ctx, map.platforms[0], map.w, map.h, time);
   if (map.theme === 'beach') {
     // The sea under the map
     const g = ctx.createLinearGradient(0, map.h + 60, 0, map.h + 500);
@@ -632,12 +636,9 @@ export function drawWeaponShape(ctx: Ctx, id: WeaponId, len: number, s: number, 
       break;
     case 'stick':
     case 'mascotstick':
-      // The Mascot's plain white stick
-      ctx.strokeStyle = 'rgba(0,0,0,0.75)';
-      ctx.lineWidth = 7 * s;
-      line(ctx, -6 * s, 0, len, 0);
-      ctx.strokeStyle = '#ffffff';
-      ctx.lineWidth = 4.5 * s;
+      // The Mascot's plain yellow stick (no outline, like the game icon)
+      ctx.strokeStyle = '#fdd835';
+      ctx.lineWidth = 5 * s;
       line(ctx, -6 * s, 0, len, 0);
       break;
     case 'ice':
@@ -937,7 +938,7 @@ export function drawWeaponShape(ctx: Ctx, id: WeaponId, len: number, s: number, 
       ctx.fill();
       break;
     default:
-      if (!drawExtraWeapon(ctx, id, len, s, ready, performance.now() / 1000)) drawCritterWeapon(ctx, id, len, s, ready, performance.now() / 1000);
+      if (!drawExtraWeapon(ctx, id, len, s, ready, performance.now() / 1000) && !drawCritterWeapon(ctx, id, len, s, ready, performance.now() / 1000)) drawMonsterWeapon(ctx, id, len, s, ready, performance.now() / 1000);
   }
 }
 
@@ -1336,7 +1337,8 @@ function drawProp(ctx: Ctx, c: Corpse, time: number) {
     ctx.stroke();
     ctx.restore();
     steam(x, y - 92 * c.s, c.s < 1 ? 2 : 4, 50 * c.s);
-  } else if (c.prop) drawCritterProp(ctx, c.prop, x, y, d, time);
+  } else if (c.prop === 'pixels' || c.prop === 'beefall') drawMonsterProp(ctx, c.prop, x, y, d, c.t / c.life);
+  else if (c.prop) drawCritterProp(ctx, c.prop, x, y, d, time);
   ctx.globalAlpha = 1;
 }
 
@@ -1666,9 +1668,11 @@ function drawPoison(ctx: Ctx, b: Body, time: number) {
 function drawFighter(ctx: Ctx, f: Fighter, time: number) {
   if (f.buffalo) return drawBuffalo(ctx, f);
   if (f.pigeon) return drawPigeon(ctx, f, time);
+  if (f.xboss === 'elephant') return drawElephant(ctx, f, time);
   const s = f.scale;
   const { x, y } = f;
-  const outline = f.boss && !f.mascot ? '#ff1744' : 'rgba(0,0,0,0.8)';
+  // The Mascot has no outlines at all (like the game icon).
+  const outline = f.mascot ? 'rgba(0,0,0,0)' : f.boss ? '#ff1744' : 'rgba(0,0,0,0.8)';
   const col = f.frozenT > 0 ? '#b3e5fc' : f.hurtFlash > 0 ? (f.mascot ? '#ffcdd2' : '#ffffff') : f.color;
   ctx.lineCap = 'round';
   ctx.lineJoin = 'round';
@@ -1760,7 +1764,7 @@ function drawFighter(ctx: Ctx, f: Fighter, time: number) {
     ctx.fill();
   }
   // The Mascot has no eyes (and the Fishy boss has fish eyes).
-  if (!f.mascot && !f.fish) {
+  if (!f.mascot && !f.fish && !f.xboss) {
     ctx.fillStyle = f.boss ? '#ff1744' : '#ffffff';
     ctx.beginPath();
     ctx.arc(head[0] + f.facing * 4 * s, head[1] - 2 * s, 3.2 * s, 0, Math.PI * 2);
@@ -1771,6 +1775,7 @@ function drawFighter(ctx: Ctx, f: Fighter, time: number) {
     ctx.fill();
   }
   if (f.secret) drawSecretHead(ctx, f, head[0], head[1], s, time);
+  if (f.xboss) drawXBossHead(ctx, f, head[0], head[1], s, time);
   drawHat(ctx, f.hat, head[0], head[1], s, f.facing, time);
   if (f.stun > 0.25 && !f.boss) {
     ctx.fillStyle = '#ffeb3b';
@@ -2053,7 +2058,7 @@ function drawSnowman(ctx: Ctx, m: Snowman) {
 }
 
 function drawProjectile(ctx: Ctx, p: Projectile, time: number) {
-  if (drawExtraProjectile(ctx, p, time) || drawCritterProjectile(ctx, p, time)) return;
+  if (drawExtraProjectile(ctx, p, time) || drawCritterProjectile(ctx, p, time) || drawMonsterProjectile(ctx, p, time)) return;
   switch (p.kind) {
     case 'nerf': {
       // Foam dart: blue body, orange tip
@@ -2443,7 +2448,7 @@ export function renderGame(g: Game, ctx: Ctx, vw: number, vh: number, dpr: numbe
       continue;
     }
     // Chicks, the Chicken, the little pigeon, skeletons (a pile of bones when beaten) and the dog (asleep).
-    if (drawCritter(ctx, c, g.time)) continue;
+    if (drawCritter(ctx, c, g.time) || drawMonster(ctx, c, g.time)) continue;
     if (!c.alive) continue;
     if (c.variant === 'sbsnow' || c.variant === 'fireally') {
       drawSbAlly(ctx, c, g.time);
@@ -2523,6 +2528,7 @@ export function renderGame(g: Game, ctx: Ctx, vw: number, vh: number, dpr: numbe
   // Boss health bars across the top (one per boss)
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   if (g.blizzard) drawBlizzard(ctx, g.blizzard, vw, vh, g.time);
+  if (g.ob) drawOutbreakSky(ctx, g.ob, vw, vh, g.cats.find((c) => c.alive && c.variant === 'zboss') ?? null);
   // (On the Beach, bosses on your side that went down in the cutscene drop off the list.)
   // The Pigeon has no bar: nobody gets to see how much of its 500,000 HP is left.
   const bars = g.bosses.filter((b) => (b.alive || b.team === BOSS_TEAM) && !b.pigeon);
@@ -2542,7 +2548,8 @@ export function renderGame(g: Game, ctx: Ctx, vw: number, vh: number, dpr: numbe
     ctx.fillText(`${boss.name}  ${Math.max(0, Math.ceil(boss.hp))} / ${boss.maxHp}`, vw / 2, y + 12);
   }
 
-  drawFeed(g, ctx, vw, 58 + bars.length * 26);
+  // The kill feed can be turned off in Settings.
+  if (save.data.settings.killFeed !== false) drawFeed(g, ctx, vw, 58 + bars.length * 26 + (g.ob && g.cats.some((c) => c.alive && c.variant === 'zboss') ? 26 : 0));
 
   // Big words across the screen (the Beach and its cutscene)
   if (g.caption) {
@@ -2574,7 +2581,8 @@ function drawFeed(g: Game, ctx: Ctx, vw: number, top: number) {
     const victim = g.fighters[item.victim];
     if (!victim) continue;
     const killer = g.fighters[item.killer];
-    const kName = killer ? (item.kh ? helperName(item.kh, killer.name) : killer.name) : '';
+    // A zombie's line just says which zombie (they all belong to the hidden horde).
+    const kName = killer ? (item.kh ? helperName(item.kh, killer.horde ? '' : killer.name) : killer.name) : '';
     const parts = feedParts(item.kind, !!killer, item.n, kName, item.vh ? helperName(item.vh, victim.name) : victim.name);
     const style = FEED_STYLE[item.kind];
     const age = FEED_LIFE - item.t;

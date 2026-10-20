@@ -1,5 +1,6 @@
 import type { Game } from './game';
-import { Body, CHICKEN, Cat, Fighter, SB_ALLY, Snowman } from './entities';
+import { Body, CHICKEN, Cat, Fighter, SB_ALLY, Snowman, ZOMBIES, isZombie } from './entities';
+import { zombieBoom } from './outbreak';
 import type { Difficulty, Intent, Platform } from './types';
 
 const rand = Math.random;
@@ -20,9 +21,9 @@ export function nearestEnemy(g: Game, me: Body, maxD = Infinity): Body | null {
   return best;
 }
 
-/** Ground that is safe to stand on: not lava, not broken glass. */
+/** Ground that is safe to stand on: not lava, not spikes, not broken glass. */
 function safe(g: Game, i: number) {
-  return g.solid(i) && g.map.platforms[i].kind !== 'lava';
+  return g.solid(i) && g.map.platforms[i].kind !== 'lava' && g.map.platforms[i].kind !== 'spikes';
 }
 
 /** First platform under (x, y), within `depth` pixels. */
@@ -408,6 +409,9 @@ export function updateSnowman(s: Snowman, dt: number, g: Game) {
 /** AI cats run at the nearest enemy, jump up to reach it, and bite on touch. */
 export function updateCat(c: Cat, dt: number, g: Game) {
   if (c.variant === 'redguy') return updateRedGuy(c, dt, g);
+  if (c.variant === 'bee') return updateBee(c, dt, g);
+  // Ninjas blink next to whoever they are after.
+  if (c.variant === 'ninja') ninjaBlink(c, dt, g);
   // The Chicken calls 3 more chicks every 3 seconds.
   if (c.variant === 'chicken') {
     c.callT -= dt;
@@ -430,14 +434,14 @@ export function updateCat(c: Cat, dt: number, g: Game) {
       if (home && Math.abs(home.x - c.x) > 70) c.moveX = sign(home.x - c.x);
     }
     // The Fire Ally keeps its distance and throws fireballs.
-    if (t && c.variant === 'fireally') {
+    if (t && (c.variant === 'fireally' || c.variant === 'zshooter')) {
       const d = Math.abs(t.x - c.x);
       c.moveX = d < 260 ? -sign(t.x - c.x) : d > 480 ? sign(t.x - c.x) : 0;
     }
     // Don't run off an edge unless the target is across a small gap.
     if (c.onGround && c.moveX !== 0 && !platformBelow(g, c.x + sign(c.moveX) * 30, c.y, 700)) {
       // The Fire Ally backing away just stops at the edge.
-      if (c.variant === 'fireally') c.moveX = 0;
+      if (c.variant === 'fireally' || c.variant === 'zshooter') c.moveX = 0;
       else if (t && t.y < c.y + 80 && Math.abs(t.x - c.x) > 120 && rand() < 0.5) {
         c.vy = -900;
         c.onGround = false;
@@ -453,13 +457,13 @@ export function updateCat(c: Cat, dt: number, g: Game) {
     }
   }
   // The boss ally walks a bit slower; fish flop about quickly.
-  const speed =
+  const speed = isZombie(c.variant) ? ZOMBIES[c.variant].speed : c.variant === 'zombie' ? 300 : c.variant === 'ninja' ? 380 : c.variant === 'retro' ? 290 :
     c.variant === 'memory' ? 280 : c.variant === 'fish' ? 360 : c.variant === 'soldier' || c.variant === 'sbsnow' || c.variant === 'fireally' || c.variant === 'skeleton' ? 300 : c.variant === 'dog' ? 380 : c.variant === 'chick' ? 300 : 330;
   if (c.stun > 0) c.vx *= Math.max(0, 1 - 2 * dt);
   else c.vx += (c.moveX * speed - c.vx) * Math.min(1, (c.onGround ? 10 : 4) * dt);
   if (c.moveX) c.facing = sign(c.moveX);
   const t = c.target && c.target.alive ? c.target : null;
-  const tall = c.variant === 'memory' || c.variant === 'soldier' || c.variant === 'sbsnow' || c.variant === 'fireally' || c.variant === 'skeleton';
+  const tall = c.variant === 'memory' || c.variant === 'soldier' || c.variant === 'sbsnow' || c.variant === 'fireally' || c.variant === 'skeleton' || c.h >= 60;
   if (t && c.onGround && t.cy < c.y - 90 && rand() < dt * 2.5) {
     c.vy = tall ? -1000 : -900;
     c.onGround = false;
@@ -477,6 +481,34 @@ export function updateCat(c: Cat, dt: number, g: Game) {
         c.attackT = 0.3;
         g.spawnProj('allyfire', c, hx, hy, ballisticAngle(dx, dy, 900, 300) + (rand() - 0.5) * 0.08, 900, 300, c.touchDmg, 0);
       }
+    }
+    return;
+  }
+  // Shooter zombies keep away and throw goo that slows you down.
+  if (c.variant === 'zshooter') {
+    if (t) c.facing = sign(t.x - c.x) || c.facing;
+    c.shootT -= dt;
+    if (t && c.shootT <= 0 && c.stun <= 0) {
+      const hx = c.x + c.facing * 22;
+      const hy = c.y - 54;
+      const dx = t.x - hx;
+      const dy = t.cy - hy;
+      if (Math.hypot(dx, dy) < 850) {
+        c.shootT = 2.2 + rand() * 0.8;
+        c.attackT = 0.6;
+        g.spawnProj('goo', c, hx, hy, ballisticAngle(dx, dy, 850, 500) + (rand() - 0.5) * 0.1, 850, 500, c.touchDmg, 0);
+      }
+    }
+    return;
+  }
+  // Exploder zombies blow up when they reach you.
+  if (c.variant === 'zexploder' && c.stun <= 0) {
+    for (const e of g.bodies()) {
+      if (!e.alive || e.team === c.team || !e.contains(c.x, c.cy, c.w / 2 + 10)) continue;
+      c.alive = false;
+      c.hp = 0;
+      zombieBoom(g, c);
+      return;
     }
     return;
   }
@@ -508,6 +540,56 @@ export function updateCat(c: Cat, dt: number, g: Game) {
     } else g.catBite(c, e);
     break;
   }
+}
+
+/** Bees fly straight at the closest enemy and sting. */
+function updateBee(c: Cat, dt: number, g: Game) {
+  c.thinkT -= dt;
+  c.attackT -= dt;
+  if (c.thinkT <= 0 || !c.target?.alive) {
+    c.thinkT = 0.3 + rand() * 0.2;
+    c.target = nearestEnemy(g, c);
+  }
+  const t = c.target && c.target.alive ? c.target : null;
+  // No gravity for bees.
+  c.vy -= g.gravity * dt;
+  const wob = Math.sin(g.time * 7 + c.id) * 60;
+  const tx = t ? t.x : c.owner.x + Math.sin(g.time + c.id) * 80;
+  const ty = t ? t.cy : c.owner.y - 120;
+  const dx = tx - c.x;
+  const dy = ty - c.cy;
+  const d = Math.hypot(dx, dy) || 1;
+  const sp = t ? 380 : 220;
+  c.vx += ((dx / d) * sp - c.vx) * Math.min(1, 5 * dt);
+  c.vy += ((dy / d) * sp + wob - c.vy) * Math.min(1, 5 * dt);
+  if (Math.abs(c.vx) > 20) c.facing = sign(c.vx);
+  if (c.attackT > 0 || c.stun > 0) return;
+  for (const e of g.bodies()) {
+    if (!e.alive || e.team === c.team || !e.contains(c.x, c.cy, 10)) continue;
+    g.catBite(c, e);
+    c.vy = -260;
+    c.vx = -c.facing * 200;
+    break;
+  }
+}
+
+/** A ninja far from its target disappears in smoke and shows up right next to it. */
+function ninjaBlink(c: Cat, dt: number, g: Game) {
+  c.skillCd -= dt;
+  const t = c.target && c.target.alive ? c.target : null;
+  if (!t || c.skillCd > 0 || c.stun > 0 || Math.hypot(t.x - c.x, t.cy - c.cy) < 220) return;
+  if (!platformBelow(g, t.x, t.y - 10, 60)) return;
+  c.skillCd = 4 + rand() * 2;
+  g.burst(c.x, c.cy, '#424242', 12, 260);
+  const side = rand() < 0.5 ? -1 : 1;
+  c.x = Math.max(10, Math.min(g.map.w - 10, t.x + side * 40));
+  c.y = t.y - 2;
+  c.vx = 0;
+  c.vy = 0;
+  c.facing = -side;
+  c.attackT = 0;
+  g.burst(c.x, c.cy, '#424242', 12, 260);
+  g.text(c.x, c.y - c.h - 16, '💨', '#ffffff', 20);
 }
 
 /** Where a Chicken's chicks are (the middle of them), or null if it has none. */

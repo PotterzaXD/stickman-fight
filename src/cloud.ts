@@ -58,9 +58,11 @@ function merge(local: SaveData, remote: SaveData): SaveData {
       usedWeapons: Array.from(new Set([...local.stats.usedWeapons, ...remote.stats.usedWeapons])),
     },
     // Volume settings belong to this device.
-    settings: { ...newer.settings, musicVol: local.settings.musicVol, sfxVol: local.settings.sfxVol, musicMute: local.settings.musicMute, sfxMute: local.settings.sfxMute },
+    settings: { ...newer.settings, musicVol: local.settings.musicVol, sfxVol: local.settings.sfxVol, musicMute: local.settings.musicMute, sfxMute: local.settings.sfxMute, killFeed: local.settings.killFeed },
     customMaps: [...maps.values()],
     name: newer.name || local.name || remote.name,
+    zombieAlly: local.zombieAlly || remote.zombieAlly,
+    pendingZombie: (local.pendingZombie || remote.pendingZombie) && !(local.zombieAlly || remote.zombieAlly),
     updatedAt: Date.now(),
   };
 }

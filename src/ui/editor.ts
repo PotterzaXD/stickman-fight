@@ -90,14 +90,25 @@ register('maps', (root) => {
   );
 });
 
-type Tool = 'platform' | BlockKind | 'spawn' | 'erase';
-const BLOCKS: BlockKind[] = ['concrete', 'lava', 'glass', 'sandbag'];
+type Tool = 'platform' | BlockKind | 'mover' | 'lift' | 'spawn' | 'erase';
+const BLOCKS: BlockKind[] = ['concrete', 'lava', 'glass', 'sandbag', 'bounce', 'ice', 'spikes'];
+/** Moving platforms: side to side, or up and down (a lift). */
+const MOVES = { mover: { dx: 240, dy: 0, period: 5 }, lift: { dx: 0, dy: -220, period: 4 } };
+const isMove = (t: Tool): t is 'mover' | 'lift' => t === 'mover' || t === 'lift';
 const isBlock = (t: Tool): t is BlockKind => (BLOCKS as string[]).includes(t);
 
 register('editor', (root, { map }) => {
   const m = map;
   let tool: Tool = 'platform';
   const history: string[] = [];
+  /** Undone steps, for Redo (a new change clears it). */
+  const future: string[] = [];
+  const state = () => JSON.stringify({ p: m.platforms, s: m.spawns });
+  const restore = (json: string) => {
+    const st = JSON.parse(json);
+    m.platforms = st.p;
+    m.spawns = st.s;
+  };
   let drag: { x0: number; y0: number; x1: number; y1: number } | null = null;
 
   const canvas = h('canvas', { class: 'editor-canvas' });
@@ -116,7 +127,8 @@ register('editor', (root, { map }) => {
   };
 
   const snapshot = () => {
-    history.push(JSON.stringify({ p: m.platforms, s: m.spawns }));
+    history.push(state());
+    future.length = 0;
     if (history.length > 60) history.shift();
   };
 
@@ -183,6 +195,10 @@ register('editor', (root, { map }) => {
     const y = snap(Math.min(d.y0, d.y1));
     const r: Platform = { x, y, w: Math.max(GRID * 2, snap(Math.abs(d.x1 - d.x0))), h: Math.max(GRID, snap(Math.abs(d.y1 - d.y0))) };
     if (isBlock(tool)) r.kind = tool;
+    if (isMove(tool)) {
+      r.h = Math.min(r.h, 40);
+      r.move = { ...MOVES[tool] };
+    }
     return r;
   };
 
@@ -198,7 +214,7 @@ register('editor', (root, { map }) => {
   canvas.addEventListener('pointerdown', (e) => {
     const r = canvas.getBoundingClientRect();
     const p = toWorld(e.clientX - r.left, e.clientY - r.top);
-    if (tool === 'platform' || isBlock(tool)) {
+    if (tool === 'platform' || isBlock(tool) || isMove(tool)) {
       canvas.setPointerCapture(e.pointerId);
       drag = { x0: p.x, y0: p.y, x1: p.x, y1: p.y };
     } else if (tool === 'spawn') {
@@ -231,6 +247,7 @@ register('editor', (root, { map }) => {
     // A tap makes a ready-sized platform.
     const tap: Platform = { x: snap(drag.x0 - 120), y: snap(drag.y0), w: 240, h: 24 };
     if (isBlock(tool)) tap.kind = tool;
+    if (isMove(tool)) tap.move = { ...MOVES[tool] };
     m.platforms.push(tiny ? tap : dragRect(drag));
     drag = null;
     draw();
@@ -254,6 +271,11 @@ register('editor', (root, { map }) => {
           ['lava', `🌋 ${t('toolLava')}`],
           ['glass', `🪟 ${t('toolGlass')}`],
           ['sandbag', `🟫 ${t('toolSandbag')}`],
+          ['bounce', `🟥 ${t('toolBounce')}`],
+          ['ice', `🧊 ${t('toolIce')}`],
+          ['spikes', `🔺 ${t('toolSpikes')}`],
+          ['mover', `↔️ ${t('toolMover')}`],
+          ['lift', `↕️ ${t('toolLift')}`],
           ['spawn', `🧍 ${t('toolSpawn')}`],
           ['erase', `🧽 ${t('toolErase')}`],
         ] as [Tool, string][]
@@ -336,13 +358,41 @@ register('editor', (root, { map }) => {
             onclick: () => {
               const last = history.pop();
               if (!last) return;
-              const s = JSON.parse(last);
-              m.platforms = s.p;
-              m.spawns = s.s;
+              future.push(state());
+              restore(last);
               draw();
             },
           },
           `↶ ${t('undo')}`,
+        ),
+        h(
+          'button',
+          {
+            class: 'btn small',
+            onclick: () => {
+              const next = future.pop();
+              if (!next) return;
+              history.push(state());
+              restore(next);
+              draw();
+            },
+          },
+          `↷ ${t('redo')}`,
+        ),
+        h(
+          'button',
+          {
+            class: 'btn small ghost',
+            onclick: async () => {
+              if (!m.platforms.length && !m.spawns.length) return;
+              if (!(await confirmBox(t('clearConfirm'), t('clearMap'), t('back')))) return;
+              snapshot();
+              m.platforms = [];
+              m.spawns = [];
+              draw();
+            },
+          },
+          `🗑 ${t('clearMap')}`,
         ),
         sizeSel,
         themeSel,
