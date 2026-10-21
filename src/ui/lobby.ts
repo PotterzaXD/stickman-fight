@@ -295,7 +295,8 @@ register('lobby', (root, arg) => {
           ? h('span', { class: 'slot-name', style: `--c:${looks[i].color}` }, '🎮 ', nameInput(looks[i].playerIndex))
           : h('span', { class: 'slot-name', style: `--c:${looks[i].color}` }, '🤖 ', looks[i].name),
         h('label', { class: 'field' }, h('small', {}, t('weapon')), weaponSelect(s)),
-        s.kind === 'bot' ? h('label', { class: 'field' }, h('small', {}, '⚙'), diffSelect(s)) : null,
+        // Players get an empty spot where bots pick their level, so the columns line up.
+        s.kind === 'bot' ? h('label', { class: 'field' }, h('small', {}, `⚙ ${t('level')}`), diffSelect(s)) : h('span', { class: 'field ghost' }),
         hatSelect(s, s.kind === 'bot'),
         m.mode === 'team' ? teamPicker(s) : null,
         h(
@@ -320,14 +321,14 @@ register('lobby', (root, arg) => {
         'section',
         {},
         h('h3', {}, t('mode')),
+        h('small', { class: 'seg-group' }, t('modesBattle')),
+        h('div', { class: 'segs' }, modeBtn('ffa', '🥊'), modeBtn('team', '🤝'), modeBtn('stock', '❤️'), modeBtn('hill', '👑'), modeBtn('race', '🔫')),
+        h('small', { class: 'seg-group' }, t('modesBosses')),
         h(
           'div',
           { class: 'segs' },
-          modeBtn('ffa', '🥊'),
-          modeBtn('team', '🤝'),
-          modeBtn('hill', '👑'),
-          modeBtn('race', '🔫'),
           modeBtn('boss', '👹'),
+          modeBtn('rush', '🔥'),
           modeBtn('cat', '🐱'),
           modeBtn('mascot', '⚪'),
           modeBtn('buffalo', '🐃'),
@@ -346,6 +347,7 @@ register('lobby', (root, arg) => {
         isSecret(m.mode) || isXBoss(m.mode) ? h('small', { class: 'muted' }, `🪙🏆 ${t(`${m.mode}Reward` as Key)}`) : null,
         m.mode === 'buffalo' ? h('small', { class: 'muted' }, `🪙🏆 ${t('buffaloReward')}`) : null,
         m.mode === 'pigeon' ? h('small', { class: 'muted' }, `🪙🏆 ${t('pigeonReward')}`) : null,
+        m.mode === 'rush' ? h('small', { class: 'muted' }, `🪙🏆 ${t('rushReward')}`) : null,
         ...beachNotes(m.mapId, m.mode),
         m.mode === 'cat' ? h('small', { class: 'muted' }, `🪙🏆 ${t('catReward')}`) : null,
         m.mode === 'mascot' ? h('small', { class: 'muted' }, `🪙🏆 ${t('mascotReward')}`) : null,
@@ -399,7 +401,7 @@ register('lobby', (root, arg) => {
           ),
         ),
         humans === 0 && m.slots.length ? h('p', { class: 'muted' }, `👀 ${t('watchOnly')}`) : null,
-        h('div', { class: 'slots' }, ...rows),
+        h('div', { class: `slots tidy ${m.mode === 'team' ? 'cols-team' : 'cols-play'}` }, ...rows),
       ),
     );
     startBtn.disabled = !!err;

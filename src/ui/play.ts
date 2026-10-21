@@ -4,7 +4,7 @@ import type { Fighter } from '../game/entities';
 import { PIGEON_WEAPON, SECRET_KINDS, isSecret, isXBoss, type BossKind, type SecretKind, type XBossKind } from '../game/types';
 import { resolveHat } from '../game/hats';
 import { ALL_OWNABLE, WEAPONS } from '../game/weapons';
-import { BUILTIN_MAPS, GUARDIAN_MAPS } from '../game/maps';
+import { BUILTIN_MAPS, GUARDIAN_MAPS, OUTBREAK_MAP } from '../game/maps';
 import { jingle, playMusic, type TrackId } from '../music';
 import { JoystickManager } from '../game/input';
 import { allMaps } from '../game/maps';
@@ -17,6 +17,7 @@ import { slotLooks } from './lobby';
 import { startLoop } from './loop';
 import { go, register } from './router';
 import { afterWave, livesOf, outbreakInfo, outbreakTitle } from './outbreak';
+import { RUSH } from '../game/oct22';
 
 function buildSpecs(match: MatchConfig): FighterSpec[] {
   const owned = save.data.owned;
@@ -105,6 +106,8 @@ export interface MatchFacts {
   beaten: BossKind[];
   /** Somebody knocked out one of your Clones (Get Tricked). */
   tricked: boolean;
+  /** 3 Lives: one of your stickmen won on its last life. */
+  lastLife: boolean;
 }
 
 export function matchFacts(game: Game, r: Pick<MatchResult, 'winners' | 'winnerTeam'>, mine: Fighter[], startCoins: number): MatchFacts {
@@ -123,6 +126,7 @@ export function matchFacts(game: Game, r: Pick<MatchResult, 'winners' | 'winnerT
     weapons: mine.flatMap((f) => f.weapons.map((w) => w.id)),
     beaten: game.fighters.filter((f) => f.boss && !f.alive && f.team !== r.winnerTeam).map(bossKind),
     tricked: mine.some((f) => game.tricked.has(f)),
+    lastLife: game.mode === 'stock' && myWinners.some((f) => f.lives === 1),
   };
 }
 
@@ -160,7 +164,9 @@ function matchAchievements(r: RewardInfo): AchievementId[] {
   if (won) ach.push('firstWin');
   if (won && mode === 'hill') ach.push('kingOfHill');
   if (won && mode === 'race') ach.push('raceWinner');
+  if (won && mode === 'rush') ach.push('rushDone');
   if (!f) return ach;
+  if (won && f.lastLife) ach.push('lastLife');
   // Get Tricked: in Play and online only (not Sandbox).
   if (f.tricked && mode !== 'sandbox') ach.push('getTricked');
   const beat = (k: BossKind) => won && (mode === k || f.beaten.includes(k));
@@ -225,6 +231,8 @@ export function giveReward(r: RewardInfo): HTMLElement[] {
     ? BUFFALO_COINS
     : mode === 'pigeon'
     ? PIGEON_COINS
+    : mode === 'rush'
+    ? RUSH.coins
     : mode === 'boss'
     ? beachBoss
       ? 0
@@ -269,6 +277,7 @@ export function resultTitle(r: Pick<MatchResult, 'mode' | 'winnerTeam' | 'winner
   if (isSecret(r.mode) || isXBoss(r.mode)) return t(r.winnerTeam === BOSS_TEAM ? 'secretWon' : 'secretDefeated', { name: bossNames()[r.mode] });
   if (r.mode === 'buffalo') return r.winnerTeam === BOSS_TEAM ? t('buffaloWon') : t('buffaloDefeated');
   if (r.mode === 'pigeon') return t('pigeonDefeated');
+  if (r.mode === 'rush') return t(r.winnerTeam === BOSS_TEAM ? 'rushLost' : 'rushWon');
   if (r.mode === 'mascot') return r.winnerTeam === BOSS_TEAM ? t('mascotWon') : t('mascotDefeated');
   if (r.mode === 'cat') return r.winnerTeam === BOSS_TEAM ? t('catWon') : t('catDefeated');
   if (r.mode === 'boss') return r.winnerTeam === BOSS_TEAM ? t(bosses > 1 ? 'bossesWon' : 'bossWon') : t(bosses > 1 ? 'bossesDefeated' : 'bossDefeated');
@@ -291,7 +300,8 @@ export function matchTrack(game: Game): TrackId {
 }
 
 register('play', (root, { match, fromEditor }) => {
-  const map = fromEditor ?? allMaps(save.data.customMaps).find((m) => m.id === match.mapId) ?? allMaps([])[0];
+  // The Outbreak is always at the Castle Gate.
+  const map = fromEditor ?? (match.mode === 'outbreak' ? OUTBREAK_MAP : allMaps(save.data.customMaps).find((m) => m.id === match.mapId) ?? allMaps([])[0]);
   let paused = false;
   let game!: Game;
   let startCoins = 0;
@@ -403,6 +413,7 @@ register('play', (root, { match, fromEditor }) => {
       clones: match.mode === 'sandbox' ? match.clones : undefined,
       ffa: match.mode === 'sandbox' && !!match.ffa,
       outbreak: outbreak && obSave ? outbreakInfo(obSave) : undefined,
+      juice: save.data.settings.juice,
     });
     game.onOver = showResult;
     startCoins = save.data.coins;

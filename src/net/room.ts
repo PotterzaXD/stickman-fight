@@ -3,12 +3,13 @@ import { supabase } from '../cloud';
 import { TEAM_COLORS, randomBossWeapons, type FighterSpec, type MatchResult } from '../game/game';
 import { BEACH_MAP, BEACH_MODES, isBossMode, isSecret, type Controller, type Difficulty, type FallMode, type MapDef, type Mode, type OutbreakInfo } from '../game/types';
 import { OUTBREAK } from '../game/outbreak';
+import { OUTBREAK_MAP } from '../game/maps';
 import { cleanName, save } from '../save';
 import { MASCOT_WEAPONS } from '../game/weapons';
 import { HATS, hatExists, resolveHat } from '../game/hats';
 import type { Snapshot } from './snapshot';
 
-export const PROTO = 11;
+export const PROTO = 12;
 export const MIN_ROOM = 2;
 export const MAX_ROOM = 30;
 export const MAX_LOCAL = 6;
@@ -587,7 +588,8 @@ export class RoomHost extends Emitter<RoomEvents> {
     this.leftIds = [];
     st.phase = 'playing';
     const bosses = st.mode === 'boss' ? st.bosses : 0;
-    this.lastStart = { map: st.map, mode: st.mode, fallMode: st.fallMode, specs, bosses, potions: st.potions !== false, bossWeapons: Array.from({ length: bosses }, randomBossWeapons) };
+    // The Outbreak is always at the Castle Gate.
+    this.lastStart = { map: ob ? OUTBREAK_MAP : st.map, mode: st.mode, fallMode: st.fallMode, specs, bosses, potions: st.potions !== false, bossWeapons: Array.from({ length: bosses }, randomBossWeapons) };
     if (ob) this.lastStart.outbreak = { wave: ob.wave, endless: ob.endless, allies: Math.floor(ob.wave / 10) };
     for (const p of this.peers.values()) sendJson(p.rel, { t: 'start', start: this.lastStart });
     this.changed();

@@ -42,9 +42,12 @@ import { MELEE_FINISH, PROJ_FINISH, helperCorpse, makeCorpse, updateCorpses, typ
 import { THEMES, pickSpawns } from './maps';
 import { HELPER_KINDS, PIGEON_WEAPON, SB_CHICKS, isSbZombie, isXBoss, type OutbreakInfo, type SandboxHelper } from './types';
 import { updateElephant, scarecrowSkill, roboSkill, steerCrow } from './bosses';
-import { OutbreakState, startOutbreak, outbreakWinner, updateOutbreak, updateZombieBosses, zombieBoom } from './outbreak';
+import { OutbreakState, startOutbreak, outbreakWinner, updateOutbreak, updateRise, updateZombieBosses, zombieBoom } from './outbreak';
 import { feedCount, type FeedKind } from './killfeed';
 import { HillState, hillWinner, raceKo, raceWinner, startHill, startRace, updateHill, updateRespawns } from './hill';
+import { BOOGER, FROG, GHOST, KNIGHT, LOLLIPOP } from './entities';
+import { helperArmour, oct22AttackGap, oct22Hit, oct22Skill, rushWinner, startRush, startStock, stockWinner, tennisBounce, updateRush, type RushState } from './oct22';
+import { Juice, wallPush } from './juice';
 import { BEACH_MAP, BEACH_MODES, isBossMode, isSecret, type BossKind, type Difficulty, type FallMode, type MapDef, type Mode, type SandboxBoss } from './types';
 import { SHOP_WEAPONS, weapon, type WeaponId } from './weapons';
 import type { Key } from '../i18n';
@@ -116,6 +119,8 @@ export interface GameOpts {
   ffa?: boolean;
   /** The Outbreak: the wave to fight. */
   outbreak?: OutbreakInfo;
+  /** Screen juice (Settings): hit-stop, slow motion and flashes. Default on. */
+  juice?: boolean;
 }
 
 /** Potions: 25% chance on each KO and every 10 seconds from the sky. Heal 25% of max HP. */
@@ -373,6 +378,11 @@ export class Game {
   /** Sandbox: it's crowded, so the music is hard rock. */
   rock = false;
   private calmT = 0;
+  /** Boss Rush: which boss is up (null in other modes), and the bosses' names in this device's language. */
+  rush: RushState | null = null;
+  rushNames: Partial<Record<BossKind, string>> = {};
+  /** Screen juice: hit-stop, slow motion, flashes and camera kicks (only on this device). */
+  juice = new Juice();
 
   constructor(map: MapDef, specs: FighterSpec[], opts: GameOpts) {
     // Each match gets its own copy of the platforms: moving platforms change their copy.
@@ -506,6 +516,9 @@ export class Game {
     }
     if (this.mode === 'hill') startHill(this);
     if (this.mode === 'race') startRace(this);
+    if (this.mode === 'stock') startStock(this);
+    if (this.mode === 'rush' && !this.demo) startRush(this, names);
+    this.juice.on = !this.demo && opts.juice !== false;
     // Sandbox: crowded from the start, so the rock music starts right away.
     if (this.mode === 'sandbox' && !this.demo && this.crowd() > SB_ROCK_AT) {
       this.rock = true;
@@ -514,7 +527,7 @@ export class Game {
   }
 
   /** Put a boss on the k-th widest platform (Buffalo, the Fishy boss, and Sandbox bosses). */
-  private addBoss(kind: BossKind, name: string, team: number, k: number, hp?: number): Fighter {
+  addBoss(kind: BossKind, name: string, team: number, k: number, hp?: number): Fighter {
     const wide = [...this.map.platforms].filter((p) => p.kind !== 'lava' && p.kind !== 'spikes').sort((p, q) => q.w - p.w);
     const top = wide.length ? wide[k % wide.length] : null;
     const weapons =
@@ -594,6 +607,9 @@ export class Game {
         : hp.kind === 'babyele' ? BABY_ELE
         : hp.kind === 'drone' ? DRONE
         : hp.kind === 'penguin' ? PENGUIN
+        : hp.kind === 'knight' ? KNIGHT
+        : hp.kind === 'frog' ? FROG
+        : hp.kind === 'ghost' ? GHOST
         : hp.kind === 'cat' ? BOSS_CATS
         : hp.kind === 'fish' ? FISHY.fish
         : hp.kind === 'memory' ? MEMORY_ALLY
@@ -614,12 +630,12 @@ export class Game {
       let n = 1;
       if (hp.kind === 'chick') n = Math.min(SB_CHICKS, MAX_CHICKS - this.cats.filter((c) => c.variant === 'chick' && c.owner === owner).length);
       for (let j = 0; j < n; j++) {
-        const c = new Cat(owner, x + (n > 1 ? (j - (n - 1) / 2) * 12 : 0), sp.y - (hp.kind === 'drone' ? 120 : 4), o.hp, o.dmg, hp.kind);
+        const c = new Cat(owner, x + (n > 1 ? (j - (n - 1) / 2) * 12 : 0), sp.y - (hp.kind === 'drone' || hp.kind === 'ghost' ? 120 : 4), o.hp, o.dmg, hp.kind);
         // Sandbox helpers stay until they are beaten.
         c.life = Infinity;
         c.team = team;
         // The red guy, the Retro Stickguy, zombies and the Stick Brawl allies keep their own colours.
-        c.color = hp.kind === 'redguy' || hp.kind === 'sbsnow' || hp.kind === 'fireally' || hp.kind === 'retro' || hp.kind === 'zombie' || hp.kind === 'babyele' || hp.kind === 'penguin' || isZombie(hp.kind) ? c.color : color;
+        c.color = hp.kind === 'redguy' || hp.kind === 'sbsnow' || hp.kind === 'fireally' || hp.kind === 'retro' || hp.kind === 'zombie' || hp.kind === 'babyele' || hp.kind === 'penguin' || hp.kind === 'frog' || hp.kind === 'ghost' || isZombie(hp.kind) ? c.color : color;
         this.cats.push(c);
       }
     });
@@ -885,7 +901,8 @@ export class Game {
     if (this.ob) updateOutbreak(this, dt);
     if (!this.cut) updateZombieBosses(this, dt);
     if (this.hill) updateHill(this, dt);
-    if ((this.hill || this.race) && !this.over) updateRespawns(this, dt);
+    if ((this.hill || this.race || this.mode === 'stock') && !this.over) updateRespawns(this, dt);
+    if (this.rush && !this.over) updateRush(this, dt);
     for (const f of this.fighters) if (f.alive) this.updateFighter(f, dt);
     for (const s of this.snowmen) {
       if (!s.alive) continue;
@@ -913,6 +930,8 @@ export class Game {
         this.helperRemains(c);
         continue;
       }
+      // Climbing out of the ground (The Outbreak at the Castle Gate).
+      if (updateRise(this, c, dt)) continue;
       if (this.cut) c.vx *= 0.8;
       else updateCat(c, dt, this);
       this.stepBody(c, dt);
@@ -963,6 +982,10 @@ export class Game {
     f.slashT -= dt;
     f.buttAnim -= dt;
     f.summonCd = Math.max(0, f.summonCd - dt);
+    if (f.sugarT > 0) {
+      f.sugarT -= dt;
+      if (Math.random() < dt * 14) this.burst(f.x, f.y - 20, Math.random() < 0.5 ? '#f48fb1' : '#fff176', 1, 120, false);
+    }
     if (f.pigeon) return this.updatePigeon(f, dt);
     if (f.xboss === 'elephant') return updateElephant(this, f, dt);
 
@@ -985,7 +1008,7 @@ export class Game {
     if (f.dashT > 0) f.vx = f.dashVx;
     else if (f.stun > 0) f.vx *= Math.max(0, 1 - 1.5 * dt);
     else {
-      const target = f.shielding ? 0 : it.moveX * f.speed * (f.slowT > 0 ? SLOW_SPEED : 1);
+      const target = f.shielding ? 0 : it.moveX * f.speed * (f.slowT > 0 ? SLOW_SPEED : 1) * (f.sugarT > 0 ? LOLLIPOP.speed : 1);
       // Ice is slippery: you slide and take a while to turn around.
       const grip = f.onGround ? (this.onIce(f) ? 1.6 : 14) : 6;
       f.vx += (target - f.vx) * Math.min(1, grip * dt);
@@ -1040,6 +1063,7 @@ export class Game {
   stepBody(b: Body, dt: number, gScale = 1) {
     b.vy = Math.min(b.vy + this.gravity * gScale * dt, 2200);
     const prevY = b.y;
+    const prevX = b.x;
     b.x += b.vx * dt;
     b.y += b.vy * dt;
     b.onGround = false;
@@ -1072,6 +1096,8 @@ export class Game {
         else if (kind === 'spikes') this.spikeHit(b);
       }
     }
+    // Walls: you can't walk through them or jump up through them (the Ghost floats through everything).
+    if (!(b instanceof Cat && b.variant === 'ghost')) this.map.platforms.forEach((p, i) => p.kind === 'wall' && this.solid(i) && wallPush(b, p, prevX, prevY));
   }
 
   /** Standing on an ice block? */
@@ -1198,6 +1224,7 @@ export class Game {
     // Sandbox: stronger (or weaker) fighters, and their snowmen and helpers.
     const by = src instanceof Snowman || src instanceof Cat ? src.owner : src;
     if (by instanceof Fighter) amount *= by.power;
+    amount *= helperArmour(target);
     amount = Math.round(amount);
     if (target instanceof Fighter && by instanceof Fighter && by !== target) {
       target.lastHitBy = by;
@@ -1233,6 +1260,7 @@ export class Game {
     this.text(target.x + (Math.random() - 0.5) * 20, target.y - target.h - 10, String(amount), amount >= 60 ? '#ff5252' : '#ffffff', 18 + Math.min(16, amount / 5));
     this.burst(target.x, target.cy, target.color, 5 + Math.floor(amount / 10), 260);
     this.shake = Math.min(14, this.shake + amount / 30);
+    this.juice.hit(this, target, amount, kx);
     if (target.hp <= 0) this.kill(target, src, how);
     return true;
   }
@@ -1265,7 +1293,7 @@ export class Game {
     if (b instanceof Fighter && b.pigeon && how !== 'void') how = 'trip';
     if (b instanceof Fighter && b.xboss === 'elephant' && how !== 'void') how = 'pop';
     // The Outbreak: going down costs a life.
-    if (b instanceof Fighter && this.ob && !b.horde) b.lives = Math.max(0, b.lives - 1);
+    if (b instanceof Fighter && (this.ob || this.mode === 'stock') && !b.horde && !b.boss) b.lives = Math.max(0, b.lives - 1);
     // An Exploder zombie blows up when it goes down.
     if (b instanceof Cat && b.variant === 'zexploder' && how !== 'void') zombieBoom(this, b);
     if (fighter) b.finish = how;
@@ -1294,6 +1322,7 @@ export class Game {
     if (b.kind === 'fighter') {
       this.text(b.x, b.y - b.h - 30, 'KO!', '#ffeb3b', 34);
       if (how !== 'void') this.shake = Math.min(18, this.shake + 8);
+      this.juice.ko(this, b as Fighter);
       this.play('ko');
       if (how !== 'void' && this.potionsOn && Math.random() < POTION_CHANCE) this.dropPotion(b.x, b.cy);
     }
@@ -1373,6 +1402,8 @@ export class Game {
           ? 70 * f.dmgMult
           : def.id === 'dart'
           ? POISON.hit
+          : def.id === 'booger'
+          ? BOOGER.dmg * f.dmgMult
           : def.damage * f.dmgMult * clamp(speed / 12, 0.5, 1.3);
         const h = f.hand(i);
         const tp = f.tip(i);
@@ -1724,6 +1755,9 @@ export class Game {
         this.burst(tip.x, tip.y, '#ff6d00', 10, 260);
         this.text(f.x, f.y - f.h - 30, '🔥 FWOOSH!', '#ff9100', 24);
         break;
+      default:
+        oct22Skill(this, f, i, angle);
+        break;
       case 'stick':
       case 'mascotstick': {
         // Giant stick slam: leap up, then smash down.
@@ -1842,6 +1876,10 @@ export class Game {
     this.summonOne(f, 'babyele', BABY_ELE.hp, BABY_ELE.dmg, inward * 240);
     this.callCats(f, { count: DRONE.max, hp: DRONE.hp, dmg: DRONE.dmg, max: DRONE.max }, 'drone');
     this.summonOne(f, 'penguin', PENGUIN.hp, PENGUIN.dmg, inward * 90);
+    // October 22: the Knight, the Frog and the Ghost.
+    this.summonOne(f, 'knight', KNIGHT.hp, KNIGHT.dmg, inward * 130);
+    this.summonOne(f, 'frog', FROG.hp, FROG.dmg, inward * 180);
+    this.summonOne(f, 'ghost', GHOST.hp, GHOST.dmg, inward * 40);
     for (let k = 0; k < SUMMONER.snowmen; k++) {
       if (this.snowmen.filter((m) => m.alive && m.owner === f).length >= this.maxSnowmen) break;
       const m = new Snowman(f, f.x + (k - 1) * 56, f.y - 6);
@@ -2189,7 +2227,7 @@ export class Game {
     const c = new Cat(f, x, f.y - 6, hp, dmg, variant);
     c.vy = -450;
     this.cats.push(c);
-    const look = { sbsnow: ['#eafbff', '⛄!'], retro: ['#9e9e9e', '🔪!'], zombie: ['#7cb342', '🧟!'], babyele: ['#b0bec5', '🐘!'], penguin: ['#e1f5fe', '🐧!'] }[variant as string] ?? ['#ff7a1a', '🔥!'];
+    const look = { sbsnow: ['#eafbff', '⛄!'], retro: ['#9e9e9e', '🔪!'], zombie: ['#7cb342', '🧟!'], babyele: ['#b0bec5', '🐘!'], penguin: ['#e1f5fe', '🐧!'], knight: ['#cfd8dc', '🛡️!'], frog: ['#a5d6a7', '🐸!'], ghost: ['#ffffff', '👻!'] }[variant as string] ?? ['#ff7a1a', '🔥!'];
     this.burst(x, f.y - 40, look[0], 14, 300);
     this.text(x, f.y - 130, look[1], '#ffffff', 26);
   }
@@ -2633,12 +2671,12 @@ export class Game {
   /** A cat touched an enemy. */
   catBite(c: Cat, e: Body, dmg = c.touchDmg) {
     // The dog waits 8 seconds between bites; the little pigeon pecks about once a second; the Retro Stickguy's knife every 1.5 s.
-    c.attackT = c.variant === 'dog' ? DOG.every : c.variant === 'lilpigeon' ? LIL_PIGEON.every : c.variant === 'retro' ? RETRO.every : c.variant === 'zboss' || c.variant === 'zbig' || c.variant === 'babyele' ? 1.2 : 0.8;
+    c.attackT = oct22AttackGap(c) ?? (c.variant === 'dog' ? DOG.every : c.variant === 'lilpigeon' ? LIL_PIGEON.every : c.variant === 'retro' ? RETRO.every : c.variant === 'zboss' || c.variant === 'zbig' || c.variant === 'babyele' ? 1.2 : 0.8);
     const dir = sign(e.x - c.x) || c.facing;
     c.facing = dir;
     const big =
       c.variant === 'memory' || c.variant === 'soldier' || c.variant === 'sbsnow' || c.variant === 'skeleton' || c.variant === 'dog' || c.variant === 'chicken' ||
-      c.variant === 'retro' || c.variant === 'ninja' || c.variant === 'zbig' || c.variant === 'zboss' || c.variant === 'babyele';
+      c.variant === 'retro' || c.variant === 'ninja' || c.variant === 'zbig' || c.variant === 'zboss' || c.variant === 'babyele' || c.variant === 'knight';
     this.damage(e, dmg, c, dir * (big ? 480 : 260), big ? -380 : -220, big ? 'ragdoll' : 'trip');
   }
 
@@ -2668,9 +2706,9 @@ export class Game {
     const scale = owner instanceof Fighter ? owner.scale : 1;
     const big = kind === 'boomerang' || kind === 'bomb' || kind === 'axe' || kind === 'fireball' || kind === 'six7' || kind === 'soup' || kind === 'hay';
     const r =
-      { arrow: 5, snowball: 11, minisnow: 8, boomerang: 16, bomb: 11, axe: 22, shuriken: 8, laser: 6, fireball: 14, six7: 24, poop: 10, soup: 14, icebolt: 9, banana: 10, fireslash: 34, dart: 6, memorybox: 12, rocket: 10, wave: 60, shard: 10, crash: 80, vine: 14, nerf: 6, bullet67: 7, water: 7, bubble: 18, yoyo: 13, fishthrow: 14, allyfire: 12, egg: 10, gum: 11, crow: 14, hay: 34, goo: 10, sound: 40, pebble: 6, flame: 14 }[kind] *
+      { arrow: 5, snowball: 11, minisnow: 8, boomerang: 16, bomb: 11, axe: 22, shuriken: 8, laser: 6, fireball: 14, six7: 24, poop: 10, soup: 14, icebolt: 9, banana: 10, fireslash: 34, dart: 6, memorybox: 12, rocket: 10, wave: 60, shard: 10, crash: 80, vine: 14, nerf: 6, bullet67: 7, water: 7, bubble: 18, yoyo: 13, fishthrow: 14, allyfire: 12, egg: 10, gum: 11, crow: 14, hay: 34, goo: 10, sound: 40, pebble: 6, flame: 14, booger: 9, tennis: 9 }[kind] *
       (big || kind === 'fireslash' ? scale : 1);
-    const life = { arrow: 2, snowball: 3, minisnow: 3, boomerang: 3.5, bomb: 1.5, axe: 3.5, shuriken: 2, laser: 0.7, fireball: 2, six7: 3.5, poop: 3, soup: 3, icebolt: 2, banana: 3, fireslash: 0.7, dart: 2, memorybox: 0.35, rocket: 2, wave: 1.7, shard: 1.6, crash: 1.9, vine: 0.42, nerf: 2, bullet67: 1.2, water: 0.9, bubble: 2.6, yoyo: 3.5, fishthrow: 3, allyfire: 2, egg: 2.5, gum: 2.5, crow: 3.5, hay: 2.4, goo: 2.5, sound: 0.45, pebble: 2, flame: 0.5 }[kind];
+    const life = { arrow: 2, snowball: 3, minisnow: 3, boomerang: 3.5, bomb: 1.5, axe: 3.5, shuriken: 2, laser: 0.7, fireball: 2, six7: 3.5, poop: 3, soup: 3, icebolt: 2, banana: 3, fireslash: 0.7, dart: 2, memorybox: 0.35, rocket: 2, wave: 1.7, shard: 1.6, crash: 1.9, vine: 0.42, nerf: 2, bullet67: 1.2, water: 0.9, bubble: 2.6, yoyo: 3.5, fishthrow: 3, allyfire: 2, egg: 2.5, gum: 2.5, crow: 3.5, hay: 2.4, goo: 2.5, sound: 0.45, pebble: 2, flame: 0.5, booger: 2.5, tennis: 3.5 }[kind];
     this.projectiles.push({
       kind,
       x,
@@ -2822,7 +2860,9 @@ export class Game {
           this.burst(p.x, p.y, '#ff1744', 6, 220);
           continue;
         }
-        if (p.kind === 'fireball') this.explode(p, 120 * p.scale, true);
+        if (oct22Hit(this, p, e, dir)) {
+          // Booger or tennis ball (see oct22.ts).
+        } else if (p.kind === 'fireball') this.explode(p, 120 * p.scale, true);
         else if (p.kind === 'bomb') this.explode(p);
         else if (p.kind === 'soup') this.splash(p);
         else if (p.kind === 'poop') {
@@ -2916,6 +2956,12 @@ export class Game {
             if (p.kind === 'fireball') this.explode(p, 120 * p.scale, true);
             if (p.kind === 'rocket') this.explode(p, 150 * p.scale);
             if (p.kind === 'soup') this.splash(p);
+            p.dead = true;
+            break;
+          }
+          if (tennisBounce(p, pl)) break;
+          if (p.kind === 'booger') {
+            this.burst(p.x, Math.min(p.y, pl.y), '#9ccc65', 6, 160);
             p.dead = true;
             break;
           }
@@ -3099,6 +3145,8 @@ export class Game {
     if (this.ob) return outbreakWinner(this);
     if (this.hill) return hillWinner(this);
     if (this.race) return raceWinner(this);
+    if (this.mode === 'stock') return stockWinner(this);
+    if (this.rush) return rushWinner(this);
     if (this.fishPhase) {
       // Everyone against the Fishy boss first; then back to Free For All / Teams.
       if (!this.fish?.alive) {
@@ -3131,7 +3179,11 @@ export class Game {
       return;
     }
     // The Outbreak ends right after its morning cutscene.
-    if (this.endT < 0) this.endT = this.time + (this.ob ? 0.2 : 1.6);
+    if (this.endT < 0) {
+      this.endT = this.time + (this.ob ? 0.2 : 1.6);
+      // The last KO: a moment of slow motion.
+      if (!this.ob) this.juice.finale();
+    }
     if (this.time < this.endT) return;
     this.over = true;
     const winners = w.team === null ? [] : this.fighters.filter((f) => f.team === w.team && !f.boss && !f.cloneOf);

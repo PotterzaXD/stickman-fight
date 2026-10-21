@@ -1079,3 +1079,112 @@ select {
   background: linear-gradient(90deg, #d9a521, #c9463c);
   color: #1a0e00;
 }
+
+/* ---------- October 22 update: tidier menu, Play setup and Sandbox ---------- */
+/* Main menu: big buttons two by two, the small ones in one row, then How to play and Credits side by side. */
+.menu-buttons {
+  grid-template-columns: repeat(2, minmax(150px, 300px));
+}
+.menu-buttons .btn.online,
+.menu-buttons .btn.online.with-friends,
+.menu-buttons .btn.outbreak,
+.menu-buttons .btn.versions {
+  grid-column: auto;
+}
+.menu-tools {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(112px, 1fr));
+  gap: 8px;
+  width: min(100%, 612px);
+}
+.menu-tools .btn {
+  padding: 9px 4px;
+  font-size: 14px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.menu-foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 10px;
+}
+.menu-foot .howto {
+  margin-top: 0;
+}
+@media (max-width: 420px) {
+  .menu-buttons {
+    grid-template-columns: 1fr;
+  }
+  .menu-tools {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+/* Play setup: modes in two labelled groups. */
+.seg-group {
+  font-weight: 800;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  font-size: 12px;
+  margin-bottom: -4px;
+}
+
+/* Fighter rows: labels sit above their boxes, and on wide screens every row lines up in the same columns. */
+.slots.tidy .field {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 2px;
+}
+.slots.tidy .field small {
+  font-size: 11px;
+  line-height: 1.1;
+}
+.slots.tidy .field select,
+.slots.tidy .field input {
+  width: 100%;
+}
+.slots.tidy .field.ghost {
+  visibility: hidden;
+}
+@media (min-width: 860px) {
+  .slots.tidy .slot {
+    display: grid;
+    align-items: end;
+    gap: 6px 12px;
+  }
+  .slots.tidy .slot > .slot-name {
+    align-self: center;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .slots.tidy .slot > .team-pick,
+  .slots.tidy .slot > .icon-btn {
+    align-self: center;
+  }
+  .slots.cols-play .slot {
+    grid-template-columns: minmax(150px, 210px) repeat(3, minmax(120px, 1fr)) 32px;
+  }
+  .slots.cols-team .slot {
+    grid-template-columns: minmax(150px, 210px) repeat(3, minmax(120px, 1fr)) auto 32px;
+  }
+  .slots.cols-sb .slot {
+    grid-template-columns: 120px minmax(120px, 1fr) 110px 90px 90px minmax(110px, 1fr) auto 32px;
+  }
+  .slots.cols-sb-ffa .slot {
+    grid-template-columns: 120px minmax(120px, 1fr) 110px 90px 90px minmax(110px, 1fr) 32px;
+  }
+  .slots.cols-boss .slot {
+    grid-template-columns: minmax(150px, 220px) 110px 110px 1fr 32px;
+  }
+  .slots.cols-boss-ffa .slot {
+    grid-template-columns: minmax(150px, 220px) 110px 110px 1fr;
+  }
+  .slots.tidy .slot > .icon-btn {
+    justify-self: end;
+  }
+}

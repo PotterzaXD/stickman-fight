@@ -39,7 +39,7 @@ const M = (x: number, y: number, w: number, dx: number, dy: number, period: numb
 const B = (kind: BlockKind, x: number, y: number, w: number, h = 24): Platform => ({ x, y, w, h, kind });
 
 /** Block kinds in shared map links (0 = normal platform). */
-const BLOCK_CODES: (BlockKind | undefined)[] = [undefined, 'concrete', 'lava', 'glass', 'sandbag', 'bounce', 'ice', 'spikes'];
+const BLOCK_CODES: (BlockKind | undefined)[] = [undefined, 'concrete', 'lava', 'glass', 'sandbag', 'bounce', 'ice', 'spikes', 'wall'];
 
 export const BUILTIN_MAPS: MapDef[] = [
   {
@@ -509,7 +509,84 @@ export const BUILTIN_MAPS: MapDef[] = [
     ],
     spawns: [],
   },
+  {
+    // October 22: three rooms split by tall walls. Bounce pads launch you up onto the walls; from there you can drop into the next room.
+    id: 'fortress',
+    name: 'm.fortress',
+    w: 2200,
+    h: 1000,
+    theme: 'night',
+    builtin: true,
+    platforms: [
+      P(100, 820, 2000, 60),
+      B('wall', 720, 420, 40, 400),
+      B('wall', 1440, 420, 40, 400),
+      B('bounce', 620, 800, 70, 20),
+      B('bounce', 790, 800, 70, 20),
+      B('bounce', 1340, 800, 70, 20),
+      B('bounce', 1510, 800, 70, 20),
+      P(240, 600, 260),
+      P(1700, 600, 260),
+      P(960, 620, 280),
+      P(1000, 420, 200),
+      B('concrete', 640, 260, 200, 30),
+      B('concrete', 1360, 260, 200, 30),
+    ],
+    spawns: [],
+  },
+  {
+    // October 22: a swamp with lily pads, a log that floats across the middle and thorny bushes.
+    id: 'swamp',
+    name: 'm.swamp',
+    w: 2000,
+    h: 1000,
+    theme: 'jungle',
+    builtin: true,
+    platforms: [
+      P(80, 820, 700, 70),
+      P(1220, 820, 700, 70),
+      M(800, 800, 180, 240, 0, 5),
+      B('spikes', 420, 800, 90, 20),
+      B('spikes', 1490, 800, 90, 20),
+      P(260, 620, 150, 18),
+      P(1590, 620, 150, 18),
+      B('bounce', 960, 940, 80, 20),
+      P(820, 540, 360),
+      P(560, 380, 160, 18),
+      P(1280, 380, 160, 18),
+      B('ice', 900, 240, 200, 20),
+    ],
+    spawns: [],
+  },
 ];
+
+/**
+ * The Outbreak's own map (not in the map list): walls at both ends so nobody falls off, the players' big castle on the left
+ * (solid: you can't go into it, but you can stand on top), and open ground on the right where the zombies climb out of the earth.
+ */
+export const OUTBREAK_MAP: MapDef = {
+  id: 'castle',
+  name: 'm.castle',
+  w: 2400,
+  h: 1000,
+  theme: 'graveyard',
+  builtin: true,
+  deco: 'castle',
+  platforms: [
+    P(0, 820, 2400, 180),
+    B('wall', 0, 0, 40, 820),
+    B('wall', 2360, 0, 40, 820),
+    B('wall', 40, 380, 400, 440),
+    P(760, 620, 240),
+    P(1300, 600, 260),
+    P(1020, 430, 220),
+    P(500, 560, 160),
+  ],
+  // Humans start in front of their castle.
+  spawns: [520, 600, 680, 760, 840, 920, 1000, 1080].map((x) => ({ x, y: 820 })),
+};
+/** Zombies climb out of the ground in this part of the Castle Gate (from this far across to the right wall). */
+export const OB_ZOMBIE_FROM = 0.62;
 
 /** The built-in maps the Ancient Guardian unlock counts (the ones from before the October 18 maps, so the new maps don't make it harder). */
 export const GUARDIAN_MAPS = ['arena', 'sky', 'tower', 'bridge', 'snow', 'pit', 'volcano', 'factory', 'glass', 'rooftops', 'frozen', 'space', 'beach', 'elevator', 'war'];

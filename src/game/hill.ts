@@ -133,34 +133,41 @@ export function raceWinner(g: Game): { decided: boolean; team: number | null } {
 
 // ---------- coming back ----------
 
-/** King of the Hill and Weapon Race: KO'd fighters come back after a few seconds, away from their enemies. */
+/** King of the Hill, Weapon Race and 3 Lives: KO'd fighters come back after a few seconds, away from their enemies. */
 export function updateRespawns(g: Game, dt: number) {
   for (const f of g.fighters) {
     if (f.alive || f.boss || f.cloneOf || f.horde) continue;
+    // 3 Lives: out of lives = out.
+    if (g.mode === 'stock' && f.lives <= 0) continue;
     const t = (g.respawn.get(f) ?? RESPAWN_S) - dt;
     if (t > 0) {
       g.respawn.set(f, t);
       continue;
     }
     g.respawn.delete(f);
-    const spots = pickSpawns(g.map, 8);
-    const foes = g.fighters.filter((e) => e.alive && e.team !== f.team);
-    const spot = spots.reduce((a, b) => (far(b, foes) > far(a, foes) ? b : a));
-    f.alive = true;
-    f.hp = f.maxHp;
-    f.x = spot.x;
-    f.y = spot.y - 2;
-    f.vx = 0;
-    f.vy = 0;
-    f.stun = 0;
-    f.burnT = f.poisonT = f.frozenT = f.slowT = f.bubbleT = 0;
-    f.shieldHp = SHIELD_MAX;
-    f.shieldBroken = false;
-    f.cds = f.cds.map(() => 0);
-    f.boomerangOut = f.boomerangOut.map(() => false);
-    g.burst(f.x, f.y - 40, f.color, 14, 260);
-    g.text(f.x, f.y - 110, '✨', '#ffffff', 26);
+    bringBack(g, f);
   }
+}
+
+/** Put a KO'd fighter back on the map with full HP, at the spot farthest from its enemies. */
+export function bringBack(g: Game, f: Fighter) {
+  const spots = pickSpawns(g.map, 8);
+  const foes = g.fighters.filter((e) => e.alive && e.team !== f.team);
+  const spot = spots.reduce((a, b) => (far(b, foes) > far(a, foes) ? b : a));
+  f.alive = true;
+  f.hp = f.maxHp;
+  f.x = spot.x;
+  f.y = spot.y - 2;
+  f.vx = 0;
+  f.vy = 0;
+  f.stun = 0;
+  f.burnT = f.poisonT = f.frozenT = f.slowT = f.bubbleT = 0;
+  f.shieldHp = SHIELD_MAX;
+  f.shieldBroken = false;
+  f.cds = f.cds.map(() => 0);
+  f.boomerangOut = f.boomerangOut.map(() => false);
+  g.burst(f.x, f.y - 40, f.color, 14, 260);
+  g.text(f.x, f.y - 110, '✨', '#ffffff', 26);
 }
 
 const far = (p: { x: number; y: number }, foes: Fighter[]) => (foes.length ? Math.min(...foes.map((e) => Math.hypot(e.x - p.x, e.y - p.y))) : 0);

@@ -14,6 +14,8 @@ import { drawBravery, drawBubble, drawBubbleWand, drawGun67, drawPan, drawPistol
 import { drawHat } from './hats';
 import { drawElephant, drawMonster, drawMonsterProp, drawMonsterBlock, drawMonsterDeco, drawMonsterProjectile, drawMonsterWeapon, drawOutbreakSky, drawPirateShip, drawXBossHead } from './monsters';
 import { save } from '../save';
+import { STOCK_LIVES } from './oct22';
+import { clipAboveGround, drawCastle, drawToy, drawToyProjectile, drawToyWeapon, drawWall, swingArm, walkLegs } from './toys';
 
 type Ctx = CanvasRenderingContext2D;
 
@@ -176,6 +178,7 @@ export function drawBackground(ctx: Ctx, map: MapDef, vw: number, vh: number, ca
 /** Concrete, lava, glass and sandbag blocks from the map editor. */
 function drawBlock(ctx: Ctx, p: Platform, time: number, gone: number) {
   if (drawMonsterBlock(ctx, p, time)) return;
+  if (p.kind === 'wall') return drawWall(ctx, p);
   const r = Math.min(8, p.h / 2);
   if (p.kind === 'sandbag') {
     // Rows of stacked sandbags, each row shifted by half a bag.
@@ -406,6 +409,11 @@ export function drawPlatforms(ctx: Ctx, map: MapDef, time = 0, glassT?: number[]
     roundRect(ctx, p.x, p.y, p.w, p.h, Math.min(10, p.h / 2));
     ctx.stroke();
     if (p.move) drawMover(ctx, p, time);
+  }
+  // The Castle Gate: the players' castle on top of its big wall.
+  if (map.deco === 'castle') {
+    const keep = map.platforms.find((p) => p.kind === 'wall' && p.w > 200);
+    if (keep) drawCastle(ctx, keep, time);
   }
 }
 
@@ -940,7 +948,7 @@ export function drawWeaponShape(ctx: Ctx, id: WeaponId, len: number, s: number, 
       ctx.fill();
       break;
     default:
-      if (!drawExtraWeapon(ctx, id, len, s, ready, performance.now() / 1000) && !drawCritterWeapon(ctx, id, len, s, ready, performance.now() / 1000) && !drawMonsterWeapon(ctx, id, len, s, ready, performance.now() / 1000)) drawGadgetWeapon(ctx, id, len, s, ready, performance.now() / 1000);
+      if (!drawExtraWeapon(ctx, id, len, s, ready, performance.now() / 1000) && !drawCritterWeapon(ctx, id, len, s, ready, performance.now() / 1000) && !drawMonsterWeapon(ctx, id, len, s, ready, performance.now() / 1000) && !drawGadgetWeapon(ctx, id, len, s, ready, performance.now() / 1000)) drawToyWeapon(ctx, id, len, s, ready, performance.now() / 1000);
   }
 }
 
@@ -1680,32 +1688,35 @@ function drawFighter(ctx: Ctx, f: Fighter, time: number) {
   ctx.lineCap = 'round';
   ctx.lineJoin = 'round';
 
-  // Legs
-  let lf: [number, number], rf: [number, number];
-  if (f.onGround) {
-    const sw = Math.abs(f.vx) > 20 ? Math.sin(f.walkPhase) * 14 * s : 0;
-    lf = [x - 9 * s + sw, y];
-    rf = [x + 9 * s - sw, y];
-  } else {
-    lf = [x - 12 * s, y - 6 * s];
-    rf = [x + 10 * s, y - 14 * s];
-  }
-  const hip = [x, y - 34 * s];
+  // Legs: walking like a person (knees bend, feet lift, hips bob), standing, or tucked in the air.
+  const d = f.facing || 1;
+  const pace = f.onGround && Math.abs(f.vx) > 20 ? Math.abs(f.vx) / f.speed : 0;
+  const walk = walkLegs(x, y, s, f.walkPhase * d, pace, d);
+  let legs: { foot: { x: number; y: number }; knee: { x: number; y: number } }[];
+  if (f.onGround) legs = walk.legs;
+  else
+    legs = [
+      { foot: { x: x - d * 10 * s, y: y - 4 * s }, knee: { x: x - d * 2 * s, y: y - 16 * s } },
+      { foot: { x: x + d * 6 * s, y: y - 12 * s }, knee: { x: x + d * 12 * s, y: y - 24 * s } },
+    ];
+  const hip = f.onGround ? [walk.hip.x, walk.hip.y] : [x, y - 34 * s];
   const neck = [x, y - 62 * s];
   const head = [x, y - 73 * s];
   const sh = f.shoulder();
   const hands = f.weapons.map((_, i) => f.hand(i));
-  const back: [number, number] = f.weapons.length > 1 ? [hands[1].x, hands[1].y] : [x - f.facing * 10 * s + Math.sin(time * 5) * 2 * s, y - 38 * s];
+  // The free arm swings with the walk (and breathes a little when standing).
+  const arm = swingArm(sh, s, f.walkPhase * d, pace, d);
+  const back: [number, number] = f.weapons.length > 1 ? [hands[1].x, hands[1].y] : pace > 0 ? [arm.x, arm.y] : [x - f.facing * 10 * s + Math.sin(time * 5) * 2 * s, y - 38 * s];
 
   const strokes = (w: number, c: string) => {
     ctx.strokeStyle = c;
     ctx.lineWidth = w * s;
     ctx.beginPath();
-    ctx.moveTo(lf[0], lf[1]);
-    ctx.lineTo(hip[0] - 2 * s, hip[1] + 14 * s);
-    ctx.lineTo(hip[0], hip[1]);
-    ctx.lineTo(hip[0] + 2 * s, hip[1] + 14 * s);
-    ctx.lineTo(rf[0], rf[1]);
+    for (const l of legs) {
+      ctx.moveTo(l.foot.x, l.foot.y);
+      ctx.lineTo(l.knee.x, l.knee.y);
+      ctx.lineTo(hip[0], hip[1]);
+    }
     ctx.moveTo(hip[0], hip[1]);
     ctx.lineTo(neck[0], neck[1]);
     ctx.moveTo(sh.x, sh.y);
@@ -1977,7 +1988,7 @@ function drawSoldier(ctx: Ctx, c: Cat) {
   const o = 'rgba(0,0,0,0.8)';
   ctx.lineCap = 'round';
   ctx.lineJoin = 'round';
-  const sw = c.onGround && Math.abs(c.vx) > 20 ? Math.sin(c.walkPhase) * 12 : 0;
+  const walk = walkLegs(x, y, 1, c.walkPhase * d, c.onGround && Math.abs(c.vx) > 20 ? Math.abs(c.vx) / 300 : 0, d);
   const thrust = c.thrustT > 0;
   const stab = c.attackT > 0.5 || thrust;
   const hand: [number, number] = stab ? [x + d * 20, y - 58] : [x + d * 12, y - 50];
@@ -1985,10 +1996,12 @@ function drawSoldier(ctx: Ctx, c: Cat) {
     ctx.strokeStyle = cc;
     ctx.lineWidth = w;
     ctx.beginPath();
-    ctx.moveTo(x - 9 + sw, y);
-    ctx.lineTo(x, y - 34);
-    ctx.lineTo(x + 9 - sw, y);
-    ctx.moveTo(x, y - 34);
+    for (const l of walk.legs) {
+      ctx.moveTo(l.foot.x, l.foot.y);
+      ctx.lineTo(l.knee.x, l.knee.y);
+      ctx.lineTo(walk.hip.x, walk.hip.y);
+    }
+    ctx.moveTo(walk.hip.x, walk.hip.y);
     ctx.lineTo(x, y - 62);
     ctx.moveTo(x, y - 58);
     ctx.lineTo(...hand);
@@ -2061,7 +2074,7 @@ function drawSnowman(ctx: Ctx, m: Snowman) {
 }
 
 function drawProjectile(ctx: Ctx, p: Projectile, time: number) {
-  if (drawExtraProjectile(ctx, p, time) || drawCritterProjectile(ctx, p, time) || drawMonsterProjectile(ctx, p, time) || drawGadgetProjectile(ctx, p, time)) return;
+  if (drawExtraProjectile(ctx, p, time) || drawCritterProjectile(ctx, p, time) || drawMonsterProjectile(ctx, p, time) || drawGadgetProjectile(ctx, p, time) || drawToyProjectile(ctx, p, time)) return;
   switch (p.kind) {
     case 'nerf': {
       // Foam dart: blue body, orange tip
@@ -2432,7 +2445,8 @@ export function renderGame(g: Game, ctx: Ctx, vw: number, vh: number, dpr: numbe
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   drawBackground(ctx, g.map, vw, vh, g.cam.x, g.time);
 
-  const z = g.cam.zoom;
+  // Screen juice: the camera kicks in a little on a KO.
+  const z = g.cam.zoom * (1 + g.juice.kick);
   const sx = (Math.random() - 0.5) * g.shake;
   const sy = (Math.random() - 0.5) * g.shake;
   ctx.setTransform(dpr * z, 0, 0, dpr * z, dpr * (vw / 2 - g.cam.x * z + sx), dpr * (vh / 2 - g.cam.y * z + sy));
@@ -2446,6 +2460,9 @@ export function renderGame(g: Game, ctx: Ctx, vw: number, vh: number, dpr: numbe
     drawSnowball(ctx, gb.x, gb.y - 11, 12, gb.owner.color);
   }
   for (const m of g.snowmen) if (m.alive) drawSnowman(ctx, m);
+  // The Castle Gate: zombies climbing out of the ground stay hidden below it.
+  const castle = g.map.deco === 'castle';
+  if (castle) clipAboveGround(ctx, g.map.platforms[0].y);
   for (const c of g.cats) {
     // A frozen red guy stays on screen where it went down.
     if (c.variant === 'redguy') {
@@ -2453,7 +2470,7 @@ export function renderGame(g: Game, ctx: Ctx, vw: number, vh: number, dpr: numbe
       continue;
     }
     // Chicks, the Chicken, the little pigeon, skeletons (a pile of bones when beaten) and the dog (asleep).
-    if (drawCritter(ctx, c, g.time) || drawMonster(ctx, c, g.time) || drawGadget(ctx, c, g.time)) continue;
+    if (drawCritter(ctx, c, g.time) || drawMonster(ctx, c, g.time) || drawGadget(ctx, c, g.time) || drawToy(ctx, c, g.time)) continue;
     if (!c.alive) continue;
     if (c.variant === 'sbsnow' || c.variant === 'fireally') {
       drawSbAlly(ctx, c, g.time);
@@ -2463,6 +2480,7 @@ export function renderGame(g: Game, ctx: Ctx, vw: number, vh: number, dpr: numbe
     else if (c.variant === 'soldier') drawSoldier(ctx, c);
     else drawCat(ctx, c);
   }
+  if (castle) ctx.restore();
   for (const pe of g.peels) {
     if (pe.life < 1.5 && Math.floor(pe.life * 8) % 2 === 0) continue;
     drawBanana(ctx, pe.x, pe.y - 4, 9, 0.3);
@@ -2540,6 +2558,11 @@ export function renderGame(g: Game, ctx: Ctx, vw: number, vh: number, dpr: numbe
     rows.sort((a, b) => b.s - a.s);
     drawModeBoard(ctx, `👑 ${HILL.win}s`, rows.map((r) => ({ name: r.name, color: r.color, text: `${Math.floor(r.s)}`, frac: r.s / HILL.win })));
   }
+  if (g.mode === 'stock') {
+    const rows = g.fighters.filter((f) => !f.cloneOf && !f.boss).map((f) => ({ name: f.name, color: f.color, lives: f.lives }));
+    rows.sort((a, b) => b.lives - a.lives);
+    drawModeBoard(ctx, `❤️ ${STOCK_LIVES}`, rows.map((r) => ({ name: r.name, color: r.color, text: r.lives > 0 ? '❤️'.repeat(r.lives) : '💀', frac: r.lives / STOCK_LIVES })));
+  }
   if (g.race) {
     const rows = [...g.race].map(([f, lvl]) => ({ name: f.name, color: f.color, lvl }));
     rows.sort((a, b) => b.lvl - a.lvl);
@@ -2547,7 +2570,8 @@ export function renderGame(g: Game, ctx: Ctx, vw: number, vh: number, dpr: numbe
   }
   // (On the Beach, bosses on your side that went down in the cutscene drop off the list.)
   // The Pigeon has no bar: nobody gets to see how much of its 500,000 HP is left.
-  const bars = g.bosses.filter((b) => (b.alive || b.team === BOSS_TEAM) && !b.pigeon);
+  // Boss Rush only shows the boss that is up.
+  const bars = g.bosses.filter((b) => (b.alive || (b.team === BOSS_TEAM && !g.rush)) && !b.pigeon);
   for (const [k, boss] of bars.entries()) {
     const w = Math.min(520, vw * 0.5);
     const x = vw / 2 - w / 2;
@@ -2581,6 +2605,17 @@ export function renderGame(g: Game, ctx: Ctx, vw: number, vh: number, dpr: numbe
     ctx.strokeText(text, vw / 2, ty, vw - 32);
     ctx.fillStyle = '#ffffff';
     ctx.fillText(text, vw / 2, ty, vw - 32);
+    ctx.globalAlpha = 1;
+  }
+
+  // Screen juice: a quick flash (white on a KO, red when a player takes a big hit), brightest at the edges.
+  if (g.juice.flash > 0) {
+    const grad = ctx.createRadialGradient(vw / 2, vh / 2, Math.min(vw, vh) * 0.25, vw / 2, vh / 2, Math.max(vw, vh) * 0.7);
+    grad.addColorStop(0, 'rgba(255,255,255,0)');
+    grad.addColorStop(1, g.juice.flashColor);
+    ctx.globalAlpha = Math.min(0.6, g.juice.flash);
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, vw, vh);
     ctx.globalAlpha = 1;
   }
 }

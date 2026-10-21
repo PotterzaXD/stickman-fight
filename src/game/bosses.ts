@@ -4,7 +4,7 @@ import type { Game } from './game';
 
 /**
  * The October 20 bosses.
- * The Magical Elephant (25,000 HP) flies with its big ears and takes turns between five moves:
+ * The Magical Elephant (12,500 HP) flies with its big ears and takes turns between five moves:
  * Trunk Slam, Dive Stomp, Water Spray, Tusk Charge and Trumpet Blast.
  * The Giant Scarecrow and Robo Stick are giant stickmen whose weapon takes turns between three skills.
  */

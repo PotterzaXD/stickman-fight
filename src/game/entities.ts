@@ -16,7 +16,7 @@ export const BUFFALO_HP = 8000;
 export const FISH_HP = 9999;
 export const PIGEON_HP = 500000;
 /** The October 20 bosses. */
-export const XBOSS_HP: Record<XBossKind, number> = { elephant: 25000, scarecrow: 7000, robo: 9000 };
+export const XBOSS_HP: Record<XBossKind, number> = { elephant: 12500, scarecrow: 7000, robo: 9000 };
 /** The secret bosses. */
 export const SECRET_HP: Record<SecretKind, number> = { queen: 12000, tide: 15000, guardian: 18000 };
 
@@ -153,6 +153,8 @@ export class Fighter extends Body {
   lives = 5;
   /** The Summoner also calls a zombie ally (you beat wave 10 of The Outbreak). */
   zombieAlly = false;
+  /** Lollipop's Sugar Rush: seconds left of running faster. */
+  sugarT = 0;
   /** Pistol: shots left before it reloads. */
   ammo: number[];
   /** The Tide King's Water Jet: seconds left and where it points. */
@@ -355,7 +357,8 @@ export type CatVariant =
   | 'cat' | 'fish' | 'memory' | 'soldier' | 'sbsnow' | 'fireally' | 'redguy' | 'chick' | 'chicken' | 'lilpigeon' | 'skeleton' | 'dog'
   | 'retro' | 'zombie' | 'bee' | 'ninja'
   | ZombieKind
-  | 'babyele' | 'drone' | 'penguin';
+  | 'babyele' | 'drone' | 'penguin'
+  | 'knight' | 'frog' | 'ghost';
 /** The Outbreak's zombies (on the zombies' side). */
 export type ZombieKind = 'znormal' | 'zshooter' | 'zmini' | 'zbig' | 'zrunner' | 'zexploder' | 'zboss';
 export const ZOMBIE_KINDS: ZombieKind[] = ['znormal', 'zshooter', 'zmini', 'zbig', 'zrunner', 'zexploder', 'zboss'];
@@ -365,6 +368,7 @@ export const CAT_VARIANTS: CatVariant[] = [
   'cat', 'fish', 'memory', 'soldier', 'sbsnow', 'fireally', 'redguy', 'chick', 'chicken', 'lilpigeon', 'skeleton', 'dog',
   'retro', 'zombie', 'bee', 'ninja', 'znormal', 'zshooter', 'zmini', 'zbig', 'zrunner', 'zexploder', 'zboss',
   'babyele', 'drone', 'penguin',
+  'knight', 'frog', 'ghost',
 ];
 /** Helpers that don't vanish when beaten: they stay where they went down (the red guy frozen, skeletons as bones, the dog asleep) until their weapon or the Summoner brings them back. */
 export const REVIVES = (v: CatVariant) => v === 'redguy' || v === 'skeleton' || v === 'dog';
@@ -401,6 +405,20 @@ export const NINJAS = { count: 2, hp: 300, dmg: 25, max: 4 };
 export const BABY_ELE = { hp: 600, dmg: 25, spray: 8, drops: 4, every: 3 };
 export const DRONE = { hp: 150, dmg: 12, every: 1.3, max: 2 };
 export const PENGUIN = { hp: 120, dmg: 22, slideEvery: 3, slideS: 1.1 };
+/**
+ * The October 22 helpers: the Knight (a big armoured stickman with a sword and shield, it blocks half of every hit),
+ * the Frog (hops around and whips its long tongue) and the Ghost (floats through everything and spooks enemies so they slow down).
+ */
+export const KNIGHT = { hp: 700, dmg: 30, speed: 250, every: 1.1 };
+export const FROG = { hp: 160, dmg: 20, tongue: 70, every: 1.4, hop: 620 };
+export const GHOST = { hp: 220, dmg: 14, spookS: 2, every: 1 };
+/** The October 22 weapons. Booger: 30 a flick, 30 a throw. Racket: a tennis ball that bounces. Lollipop: Sugar Rush (faster and heals).
+ * Scythe: Reap, a big sweep that heals you for half of what it hits. Pillow: Pillow Fight, a burst of feathers that puts everyone close to sleep. */
+export const BOOGER = { dmg: 30, speed: 1000, g: 1300 };
+export const RACKET = { dmg: 22, speed: 1250, g: 900, bounces: 3 };
+export const LOLLIPOP = { heal: 25, s: 5, speed: 1.6 };
+export const SCYTHE = { dmg: 50, heal: 0.5 };
+export const PILLOW = { dmg: 15, R: 210, sleep: 2 };
 /** The Outbreak's zombies: HP, damage and speed. The Zombie Boss gets 1,000 more HP every 10 waves. */
 export const ZOMBIES: Record<ZombieKind, { hp: number; dmg: number; speed: number }> = {
   znormal: { hp: 100, dmg: 10, speed: 150 },
@@ -443,6 +461,9 @@ export class Cat extends Body {
   chargeT = 0;
   /** The Chicken: seconds until it calls more chicks. */
   callT = CHICKEN.every;
+  /** The Outbreak at the Castle Gate: seconds left climbing out of the ground, and the ground it climbs out onto. */
+  rise = 0;
+  riseTo = 0;
 
   constructor(owner: Fighter, x: number, y: number, hp: number, touchDmg: number, variant: CatVariant = 'cat') {
     // The boss ally is bigger than a stickman (80) but smaller than the bosses (208).
@@ -451,8 +472,8 @@ export class Cat extends Body {
     // Zombies and ninjas are stickmen too; the mini zombie is small, the big one and the Zombie Boss are huge.
     const stick = variant === 'soldier' || variant === 'sbsnow' || variant === 'fireally' || variant === 'skeleton' || variant === 'ninja' || variant === 'zombie' || variant === 'znormal' || variant === 'zshooter' || variant === 'zrunner' || variant === 'zexploder';
     const [w, h] =
-      variant === 'memory' ? [46, 128] : stick ? [30, 80] : variant === 'redguy' ? [16, 43] : variant === 'retro' ? [30, 60] : variant === 'bee' ? [16, 14] : variant === 'zmini' ? [20, 48] : variant === 'zbig' ? [52, 120] : variant === 'zboss' ? [80, 190] : variant === 'babyele' ? [56, 50] : variant === 'drone' ? [34, 18] : variant === 'penguin' ? [28, 40] : variant === 'chick' ? [16, 16] : variant === 'chicken' ? [38, 42] : variant === 'lilpigeon' ? [28, 32] : variant === 'dog' ? [46, 34] : [34, 30];
-    super(x, y, w, h, hp, owner.team, variant === 'sbsnow' ? '#bdeeff' : variant === 'fireally' ? '#ff7a1a' : variant === 'redguy' ? '#f66' : variant === 'skeleton' ? '#eeeeee' : variant === 'retro' ? '#111111' : variant === 'babyele' ? '#b0bec5' : variant === 'penguin' ? '#263238' : isZombie(variant) || variant === 'zombie' ? '#7cb342' : owner.color);
+      variant === 'memory' ? [46, 128] : stick ? [30, 80] : variant === 'redguy' ? [16, 43] : variant === 'retro' ? [30, 60] : variant === 'bee' ? [16, 14] : variant === 'zmini' ? [20, 48] : variant === 'zbig' ? [52, 120] : variant === 'zboss' ? [80, 190] : variant === 'babyele' ? [56, 50] : variant === 'drone' ? [34, 18] : variant === 'penguin' ? [28, 40] : variant === 'knight' ? [34, 86] : variant === 'frog' ? [34, 26] : variant === 'ghost' ? [34, 44] : variant === 'chick' ? [16, 16] : variant === 'chicken' ? [38, 42] : variant === 'lilpigeon' ? [28, 32] : variant === 'dog' ? [46, 34] : [34, 30];
+    super(x, y, w, h, hp, owner.team, variant === 'sbsnow' ? '#bdeeff' : variant === 'fireally' ? '#ff7a1a' : variant === 'redguy' ? '#f66' : variant === 'skeleton' ? '#eeeeee' : variant === 'retro' ? '#111111' : variant === 'babyele' ? '#b0bec5' : variant === 'penguin' ? '#263238' : variant === 'frog' ? '#66bb6a' : variant === 'ghost' ? '#eceff1' : isZombie(variant) || variant === 'zombie' ? '#7cb342' : owner.color);
     this.owner = owner;
     this.touchDmg = touchDmg;
     this.facing = owner.facing;
@@ -498,7 +519,9 @@ export type ProjKind =
   | 'goo'
   | 'sound'
   | 'pebble'
-  | 'flame';
+  | 'flame'
+  | 'booger'
+  | 'tennis';
 
 /** Thrown weapons that fly out and come back to the hand. */
 export const returns = (k: ProjKind) => k === 'boomerang' || k === 'axe' || k === 'six7' || k === 'yoyo';
@@ -528,6 +551,8 @@ export interface Projectile {
   /** It hit someone (a shot that hits nobody breaks a Perfect Aim streak). */
   hitAny?: boolean;
   settled?: boolean;
+  /** Tennis ball: bounces left. */
+  bounces?: number;
 }
 
 export interface GroundBall {

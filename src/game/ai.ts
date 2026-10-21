@@ -1,7 +1,8 @@
 import type { Game } from './game';
-import { BABY_ELE, Body, CHICKEN, Cat, DRONE, Fighter, PENGUIN, SB_ALLY, Snowman, ZOMBIES, isZombie } from './entities';
+import { BABY_ELE, BOOGER, Body, CHICKEN, Cat, DRONE, Fighter, PENGUIN, PILLOW, SB_ALLY, Snowman, ZOMBIES, isZombie } from './entities';
 import { zombieBoom } from './outbreak';
 import { inZone } from './hill';
+import { frogHop, oct22Reach, oct22Speed, updateGhost, wallDetour } from './oct22';
 import type { Difficulty, Intent, Platform } from './types';
 
 const rand = Math.random;
@@ -149,6 +150,9 @@ export class BotBrain {
         if (h.y < f.y - 40 && !f.onGround && f.airJumps > 0 && f.vy > -150) it.jump = true;
       }
     }
+
+    // Walls: find a way over (a bounce pad) or wait by the wall.
+    if (!f.boss) it.moveX = wallDetour(g, f, it.moveX);
 
     // Don't walk off edges (easy bots sometimes do).
     if (f.onGround && it.moveX !== 0 && this.careEdge) {
@@ -361,6 +365,21 @@ export class BotBrain {
         case 'flamethrower':
           if (dist < 420) angle = Math.atan2(dy, dx);
           break;
+        case 'booger':
+          if (dist < 800) angle = ballisticAngle(dx, dy, BOOGER.speed, BOOGER.g);
+          break;
+        case 'racket':
+          if (dist < 900) angle = Math.atan2(dy, dx);
+          break;
+        case 'lollipop':
+          if (f.hp < f.maxHp * 0.8 || dist > 500) angle = -Math.PI / 2;
+          break;
+        case 'scythe':
+          if (dist < f.reach(i) + 70) angle = Math.atan2(dy, dx);
+          break;
+        case 'pillow':
+          if (dist < PILLOW.R * s) angle = Math.atan2(dy, dx);
+          break;
         case 'watergun':
           if (dist < 520) angle = ballisticAngle(dx, dy, 1250, 700);
           break;
@@ -435,6 +454,7 @@ export function updateCat(c: Cat, dt: number, g: Game) {
   if (c.variant === 'redguy') return updateRedGuy(c, dt, g);
   if (c.variant === 'bee') return updateBee(c, dt, g);
   if (c.variant === 'drone') return updateDrone(c, dt, g);
+  if (c.variant === 'ghost') return updateGhost(c, dt, g);
   // Ninjas blink next to whoever they are after.
   if (c.variant === 'ninja') ninjaBlink(c, dt, g);
   // The Chicken calls 3 more chicks every 3 seconds.
@@ -482,11 +502,12 @@ export function updateCat(c: Cat, dt: number, g: Game) {
     }
   }
   // The boss ally walks a bit slower; fish flop about quickly.
-  const speed = isZombie(c.variant) ? ZOMBIES[c.variant].speed : c.variant === 'zombie' ? 300 : c.variant === 'babyele' ? 240 : c.variant === 'penguin' ? 190 : c.variant === 'ninja' ? 380 : c.variant === 'retro' ? 290 :
-    c.variant === 'memory' ? 280 : c.variant === 'fish' ? 360 : c.variant === 'soldier' || c.variant === 'sbsnow' || c.variant === 'fireally' || c.variant === 'skeleton' ? 300 : c.variant === 'dog' ? 380 : c.variant === 'chick' ? 300 : 330;
+  const speed = oct22Speed(c) ?? (isZombie(c.variant) ? ZOMBIES[c.variant].speed : c.variant === 'zombie' ? 300 : c.variant === 'babyele' ? 240 : c.variant === 'penguin' ? 190 : c.variant === 'ninja' ? 380 : c.variant === 'retro' ? 290 :
+    c.variant === 'memory' ? 280 : c.variant === 'fish' ? 360 : c.variant === 'soldier' || c.variant === 'sbsnow' || c.variant === 'fireally' || c.variant === 'skeleton' ? 300 : c.variant === 'dog' ? 380 : c.variant === 'chick' ? 300 : 330);
   if (c.stun > 0) c.vx *= Math.max(0, 1 - 2 * dt);
   else c.vx += (c.moveX * speed - c.vx) * Math.min(1, (c.onGround ? 10 : 4) * dt);
   if (c.moveX) c.facing = sign(c.moveX);
+  frogHop(c, g);
   const t = c.target && c.target.alive ? c.target : null;
   const tall = c.variant === 'memory' || c.variant === 'soldier' || c.variant === 'sbsnow' || c.variant === 'fireally' || c.variant === 'skeleton' || c.h >= 60;
   if (t && c.onGround && t.cy < c.y - 90 && rand() < dt * 2.5) {
@@ -587,7 +608,8 @@ export function updateCat(c: Cat, dt: number, g: Game) {
     // The Stick Brawl Snowman punches from an arm's length.
     // Skeletons swing a bone, the Chicken and the little pigeon peck, the dog bites.
     const reach =
-      c.variant === 'soldier' ? c.w / 2 + (thrust ? SOLDIER_THRUST.reach : 55) : c.variant === 'sbsnow' || c.variant === 'skeleton' ? c.w / 2 + 24 : c.variant === 'chicken' || c.variant === 'lilpigeon' || c.variant === 'dog' ? c.w / 2 + 8 : c.w / 2;
+      oct22Reach(c) ??
+      (c.variant === 'soldier' ? c.w / 2 + (thrust ? SOLDIER_THRUST.reach : 55) : c.variant === 'sbsnow' || c.variant === 'skeleton' ? c.w / 2 + 24 : c.variant === 'chicken' || c.variant === 'lilpigeon' || c.variant === 'dog' ? c.w / 2 + 8 : c.w / 2);
     if (!e.alive || e.team === c.team || !e.contains(c.x, c.cy, reach)) continue;
     if (thrust) {
       c.thrustT = 0;

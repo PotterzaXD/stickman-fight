@@ -138,6 +138,13 @@ register('settings', (root) => {
           seg(s.killFeed !== false ? 'on' : 'off', [['on', t('on')], ['off', t('off')]], (v) => (save.data.settings.killFeed = v === 'on')),
           h('p', { class: 'muted small' }, t('killFeedDesc')),
         ),
+        h(
+          'section',
+          {},
+          h('h3', {}, `💥 ${t('juice')}`),
+          seg(s.juice !== false ? 'on' : 'off', [['on', t('on')], ['off', t('off')]], (v) => (save.data.settings.juice = v === 'on')),
+          h('p', { class: 'muted small' }, t('juiceDesc')),
+        ),
         volumeRow('🎵', t('music'), 'musicVol', 'musicMute'),
         volumeRow('🔊', t('sfxLabel'), 'sfxVol', 'sfxMute'),
         h('section', {}, h('h3', {}, `☁️ ${t('account')}`), accountBox()),

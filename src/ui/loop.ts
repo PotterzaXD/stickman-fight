@@ -49,7 +49,8 @@ export function startLoop(
     g.view.h = h;
     if (opts.step) opts.step(dt);
     else if (!opts.paused?.()) {
-      acc += dt;
+      // Screen juice: hit-stop and slow motion.
+      acc += dt * g.juice.timeScale(dt);
       while (acc >= STEP) {
         g.update(STEP);
         acc -= STEP;

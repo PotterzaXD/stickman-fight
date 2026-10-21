@@ -31,11 +31,13 @@ export interface Snapshot {
   ob?: [number, number, number, number];
   /** King of the Hill: the zone (x, y, width), who holds it (-1 = nobody), and each team's seconds. */
   hl?: [number, number, number, number, [number, number][]];
+  /** 3 Lives: lives left for each fighter. */
+  lv?: number[];
   /** Summoner's Clones (extra fighters after the ones from the start): [fighter index, owner index, weapon id]. */
   cl?: [number, number, string][];
 }
 
-const KINDS: ProjKind[] = ['arrow', 'snowball', 'minisnow', 'boomerang', 'bomb', 'axe', 'shuriken', 'laser', 'fireball', 'six7', 'poop', 'soup', 'icebolt', 'banana', 'fireslash', 'dart', 'memorybox', 'rocket', 'wave', 'shard', 'crash', 'vine', 'nerf', 'bullet67', 'water', 'bubble', 'yoyo', 'fishthrow', 'allyfire', 'egg', 'gum', 'crow', 'hay', 'goo', 'sound', 'pebble', 'flame'];
+const KINDS: ProjKind[] = ['arrow', 'snowball', 'minisnow', 'boomerang', 'bomb', 'axe', 'shuriken', 'laser', 'fireball', 'six7', 'poop', 'soup', 'icebolt', 'banana', 'fireslash', 'dart', 'memorybox', 'rocket', 'wave', 'shard', 'crash', 'vine', 'nerf', 'bullet67', 'water', 'bubble', 'yoyo', 'fishthrow', 'allyfire', 'egg', 'gum', 'crow', 'hay', 'goo', 'sound', 'pebble', 'flame', 'booger', 'tennis'];
 const r1 = (v: number) => Math.round(v);
 const r2 = (v: number) => Math.round(v * 100) / 100;
 
@@ -106,6 +108,7 @@ export function encodeSnapshot(g: Game): Snapshot {
   if (clones.length) snap.cl = clones;
   if (g.caption) snap.cap = [g.caption.key, g.caption.who, r2(g.caption.t)];
   if (g.blizzard) snap.bz = [r2(g.blizzard.warn), r2(g.blizzard.t)];
+  if (g.mode === 'stock') snap.lv = g.fighters.map((f) => f.lives);
   if (g.ob) snap.ob = [g.ob.wave, r2(g.ob.night), OB_PHASES.indexOf(g.ob.phase), g.ob.left];
   if (g.hill) snap.hl = [r1(g.hill.x), r1(g.hill.y), r1(g.hill.w), g.hill.holder ?? -1, [...g.hill.score].map(([team, sc]) => [team, r1(sc)])];
   g.events = [];
@@ -271,6 +274,7 @@ export class Mirror {
       g.ob.phase = OB_PHASES[s.ob[2]] ?? 'night';
       g.ob.left = s.ob[3];
     }
+    if (s.lv) s.lv.forEach((n, i) => g.fighters[i] && (g.fighters[i].lives = n));
     if (g.hill && s.hl) {
       g.hill.x = s.hl[0];
       g.hill.y = s.hl[1];

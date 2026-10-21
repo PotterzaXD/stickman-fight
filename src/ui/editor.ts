@@ -91,7 +91,12 @@ register('maps', (root) => {
 });
 
 type Tool = 'platform' | BlockKind | 'mover' | 'lift' | 'spawn' | 'erase';
-const BLOCKS: BlockKind[] = ['concrete', 'lava', 'glass', 'sandbag', 'bounce', 'ice', 'spikes'];
+const BLOCKS: BlockKind[] = ['concrete', 'lava', 'glass', 'sandbag', 'bounce', 'ice', 'spikes', 'wall'];
+/** A wall is always taller than a double jump (about 350), so nobody can hop over it. */
+const WALL_H = 400;
+const WALL_W = 40;
+/** Make a wall tall enough, growing it upward from its bottom. */
+const tallWall = (r: Platform): Platform => (r.h >= WALL_H ? r : { ...r, y: r.y + r.h - WALL_H, h: WALL_H });
 /** Moving platforms: side to side, or up and down (a lift). */
 const MOVES = { mover: { dx: 240, dy: 0, period: 5 }, lift: { dx: 0, dy: -220, period: 4 } };
 const isMove = (t: Tool): t is 'mover' | 'lift' => t === 'mover' || t === 'lift';
@@ -199,7 +204,7 @@ register('editor', (root, { map }) => {
       r.h = Math.min(r.h, 40);
       r.move = { ...MOVES[tool] };
     }
-    return r;
+    return tool === 'wall' ? tallWall(r) : r;
   };
 
   const resize = () => {
@@ -248,7 +253,9 @@ register('editor', (root, { map }) => {
     const tap: Platform = { x: snap(drag.x0 - 120), y: snap(drag.y0), w: 240, h: 24 };
     if (isBlock(tool)) tap.kind = tool;
     if (isMove(tool)) tap.move = { ...MOVES[tool] };
-    m.platforms.push(tiny ? tap : dragRect(drag));
+    // A tapped wall stands up from where you tapped.
+    const wall: Platform = { x: snap(drag.x0 - WALL_W / 2), y: snap(drag.y0) - WALL_H, w: WALL_W, h: WALL_H, kind: 'wall' };
+    m.platforms.push(tiny ? (tool === 'wall' ? wall : tap) : dragRect(drag));
     drag = null;
     draw();
   };
@@ -274,6 +281,7 @@ register('editor', (root, { map }) => {
           ['bounce', `🟥 ${t('toolBounce')}`],
           ['ice', `🧊 ${t('toolIce')}`],
           ['spikes', `🔺 ${t('toolSpikes')}`],
+          ['wall', `🚧 ${t('toolWall')}`],
           ['mover', `↔️ ${t('toolMover')}`],
           ['lift', `↕️ ${t('toolLift')}`],
           ['spawn', `🧍 ${t('toolSpawn')}`],
