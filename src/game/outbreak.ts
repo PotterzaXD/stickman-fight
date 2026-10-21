@@ -1,6 +1,7 @@
 import { Cat, Fighter, ZOMBIES, ZOMBIE_ALLY, isZombie, type Body, type ZombieKind } from './entities';
 import type { Game } from './game';
 import type { OutbreakInfo } from './types';
+import { OB_ZOMBIE_FROM } from './maps';
 import { weapon } from './weapons';
 
 /** The Outbreak: zombie waves at night. Clear a wave and the morning brings everyone with lives left back. */
@@ -82,8 +83,13 @@ export function startOutbreak(g: Game, info: OutbreakInfo, name: string) {
   }
 }
 
+/** Seconds a zombie takes to climb out of the ground at the Castle Gate. */
+export const RISE_S = 1;
+
 function spawnZombie(g: Game, kind: ZombieKind) {
   const ob = g.ob!;
+  // The Castle Gate: they climb out of the ground on the right.
+  if (g.map.deco === 'castle') return riseZombie(g, kind);
   const plats = g.map.platforms.filter((p) => p.kind !== 'lava' && p.kind !== 'spikes' && p.w >= 60);
   // From the sides of the map or dropping in from the sky.
   let x: number;
@@ -107,6 +113,40 @@ function spawnZombie(g: Game, kind: ZombieKind) {
     g.text(x, y - 60, '🧟‍♂️ ZOMBIE BOSS!', '#c5e1a5', 40);
     g.play('heavy');
   }
+}
+
+function riseZombie(g: Game, kind: ZombieKind) {
+  const ob = g.ob!;
+  const ground = g.map.platforms[0];
+  const x = g.map.w * OB_ZOMBIE_FROM + Math.random() * (g.map.w * (1 - OB_ZOMBIE_FROM) - 80);
+  const z = ZOMBIES[kind];
+  const c = new Cat(ob.horde, x, ground.y, kind === 'zboss' ? zbossHp(ob.wave) : z.hp, z.dmg * zombieMult(ob.wave), kind);
+  c.rise = RISE_S;
+  c.riseTo = ground.y;
+  c.y = ground.y + c.h;
+  c.facing = -1;
+  g.cats.push(c);
+  g.burst(x, ground.y - 4, '#5d4037', 10, 220);
+  if (kind === 'zboss') {
+    g.text(x, ground.y - 260, '🧟‍♂️ ZOMBIE BOSS!', '#c5e1a5', 40);
+    g.play('heavy');
+  }
+}
+
+/** A zombie climbing out of the ground: it can't do anything until it's out. Returns true while it is still climbing. */
+export function updateRise(g: Game, c: Cat, dt: number): boolean {
+  if (c.rise <= 0) return false;
+  c.rise -= dt;
+  c.vx = 0;
+  c.vy = 0;
+  c.y = c.riseTo + c.h * Math.max(0, c.rise / RISE_S);
+  // Dirt flies as it digs out.
+  if (Math.random() < dt * 12) g.burst(c.x + (Math.random() - 0.5) * c.w, c.riseTo - 2, '#6d4c41', 2, 160, false);
+  if (c.rise <= 0) {
+    c.y = c.riseTo;
+    c.onGround = true;
+  }
+  return true;
 }
 
 const zombiesUp = (g: Game) => g.cats.filter((c) => c.alive && isZombie(c.variant));
@@ -177,12 +217,14 @@ export function updateOutbreak(g: Game, dt: number) {
 }
 
 function revive(g: Game, f: Fighter) {
-  const plats = g.map.platforms.filter((p) => p.kind !== 'lava' && p.kind !== 'spikes' && p.w >= 60);
+  const plats = g.map.platforms.filter((p) => p.kind !== 'lava' && p.kind !== 'spikes' && p.kind !== 'wall' && p.w >= 60);
   const p = plats.length ? plats.reduce((a, b) => (b.w > a.w ? b : a)) : null;
+  // The Castle Gate: back up in front of the castle.
+  const spot = g.map.spawns.length ? g.map.spawns[Math.floor(Math.random() * g.map.spawns.length)] : null;
   f.alive = true;
   f.hp = f.maxHp;
-  f.x = p ? p.x + 30 + Math.random() * Math.max(1, p.w - 60) : g.map.w / 2;
-  f.y = (p?.y ?? g.map.h / 2) - 4;
+  f.x = spot ? spot.x : p ? p.x + 30 + Math.random() * Math.max(1, p.w - 60) : g.map.w / 2;
+  f.y = (spot?.y ?? p?.y ?? g.map.h / 2) - 4;
   f.vx = 0;
   f.vy = -200;
   f.burnT = f.poisonT = f.frozenT = f.slowT = 0;

@@ -1,6 +1,6 @@
 import type { Game, MatchResult } from '../game/game';
 import type { Fighter } from '../game/entities';
-import { allMaps } from '../game/maps';
+import { OUTBREAK_MAP } from '../game/maps';
 import { OUTBREAK } from '../game/outbreak';
 import { PIGEON_MAX, type Difficulty, type MatchConfig, type OutbreakInfo, type SlotConfig } from '../game/types';
 import { WEAPONS } from '../game/weapons';
@@ -10,7 +10,7 @@ import { OB_SLOTS, save, type OutbreakSave } from '../save';
 import { sfx } from '../sfx';
 import { confirmBox, h, toast } from './dom';
 import { mapThumb } from './icons';
-import { MAX_PLAYERS, hatSelect, keepScroll, mapLabel, nameInput, slotLooks } from './lobby';
+import { MAX_PLAYERS, hatSelect, keepScroll, nameInput, slotLooks } from './lobby';
 import { coinChip } from './menu';
 import { go, register } from './router';
 
@@ -32,7 +32,7 @@ function newSlot(endless: boolean): OutbreakSave {
 }
 
 function defaultSetup(): MatchConfig {
-  return { mode: 'outbreak', mapId: 'graveyard', slots: [{ kind: 'human', weapon: 'sword', team: 0, difficulty: 'medium' }] };
+  return { mode: 'outbreak', mapId: OUTBREAK_MAP.id, slots: [{ kind: 'human', weapon: 'sword', team: 0, difficulty: 'medium' }] };
 }
 
 /** Lives left for each fighter in a save (new fighters start with all 5). */
@@ -171,12 +171,11 @@ register('outbreakLobby', (root, { slot: idx }) => {
   const slot = save.data.outbreak[idx];
   if (!slot) return go('outbreak');
   const owned = save.data.owned;
-  const maps = allMaps(save.data.customMaps);
   const m: MatchConfig = structuredClone(slot.setup ?? defaultSetup());
   m.mode = 'outbreak';
   m.obSlot = idx;
   for (const s of m.slots) if (s.weapon !== 'random' && !owned.includes(s.weapon)) s.weapon = 'sword';
-  if (!maps.some((x) => x.id === m.mapId)) m.mapId = 'graveyard';
+  m.mapId = OUTBREAK_MAP.id;
   const lives = [...slot.lives];
 
   const body = h('div', { class: 'page-body' });
@@ -231,20 +230,6 @@ register('outbreakLobby', (root, { slot: idx }) => {
         ),
       );
     });
-    const mapCards = maps.map((mp) =>
-      h(
-        'button',
-        {
-          class: `map-card ${m.mapId === mp.id ? 'on' : ''}`,
-          onclick: () => {
-            m.mapId = mp.id;
-            render();
-          },
-        },
-        mapThumb(mp),
-        h('span', {}, mapLabel(mp)),
-      ),
-    );
     const add = (kind: 'human' | 'bot') => {
       m.slots.push({ kind, weapon: kind === 'bot' ? 'random' : 'sword', team: 0, difficulty: 'medium' });
       lives[m.slots.length - 1] = OUTBREAK.lives;
@@ -262,7 +247,8 @@ register('outbreakLobby', (root, { slot: idx }) => {
         h('p', { class: 'muted' }, t('outbreakDesc')),
         allies ? h('p', { class: 'muted' }, t('obAllies', { n: allies })) : null,
       ),
-      h('section', {}, h('h3', {}, t('map')), h('div', { class: 'map-row' }, ...mapCards)),
+      // The Outbreak has its own map: the Castle Gate.
+      h('section', {}, h('h3', {}, `${t('map')}: ${t('m.castle')}`), h('div', { class: 'row gap' }, mapThumb(OUTBREAK_MAP), h('p', { class: 'muted small' }, t('obMapNote')))),
       h(
         'section',
         {},

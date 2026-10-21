@@ -5,7 +5,8 @@ export type WeaponId = 'sword' | 'spear' | 'hammer' | 'bow' | 'boomerang' | 'bom
   | 'chainsaw' | 'yoyo' | 'crossbow' | 'whip' | 'fryfish'
   | 'chicklord' | 'lilpigeon' | 'bone' | 'egg' | 'gum' | 'drumstick'
   | 'trunk' | 'pitchfork' | 'robocannon' | 'beehive' | 'ninjascroll' | 'trumpet' | 'plasma'
-  | 'guitar' | 'bat' | 'slingshot' | 'flamethrower';
+  | 'guitar' | 'bat' | 'slingshot' | 'flamethrower'
+  | 'booger' | 'racket' | 'lollipop' | 'scythe' | 'pillow';
 
 export interface WeaponDef {
   id: WeaponId;
@@ -102,6 +103,12 @@ export const WEAPONS: WeaponDef[] = [
   { id: 'bat', price: 400, length: 80, damage: 30, turn: 15, cooldown: 4, ranged: false },
   { id: 'slingshot', price: 200, length: 30, damage: 8, turn: 15, cooldown: 0.8, ranged: true },
   { id: 'flamethrower', price: 950, length: 52, damage: 10, turn: 12, cooldown: 6, ranged: true },
+  // October 22 update. The Booger is free for everyone: a flick does 30, and so does throwing it (a new one is ready a second later).
+  { id: 'booger', price: 0, length: 26, damage: 30, turn: 15, cooldown: 1, ranged: true },
+  { id: 'racket', price: 450, length: 62, damage: 22, turn: 15, cooldown: 1.5, ranged: true },
+  { id: 'lollipop', price: 550, length: 68, damage: 26, turn: 13, cooldown: 12, ranged: false },
+  { id: 'scythe', price: 900, length: 96, damage: 34, turn: 11, cooldown: 6, ranged: false },
+  { id: 'pillow', price: 300, length: 48, damage: 14, turn: 14, cooldown: 7, ranged: false },
 ];
 
 /** Weapons drawn as guns (flipped so they stay the right way up when you aim left). */

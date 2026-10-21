@@ -31,6 +31,8 @@ export const ACHIEVEMENTS = [
   'raceWinner',
   'rockOn',
   'halfway',
+  'rushDone',
+  'lastLife',
 ] as const;
 export type AchievementId = (typeof ACHIEVEMENTS)[number];
 

@@ -143,6 +143,8 @@ register('netplay', (root) => {
       bosses: start.bosses,
       bossWeapons: start.bossWeapons,
       outbreak: start.outbreak,
+      // Screen juice would make the host's match wait; online keeps the normal screen shake.
+      juice: false,
     });
     mirror = host ? null : new Mirror(game);
     startCoins = save.data.coins;

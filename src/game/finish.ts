@@ -65,6 +65,11 @@ export const MELEE_FINISH: Partial<Record<WeaponId, Finish>> = {
   bat: 'sky',
   slingshot: 'ragdoll',
   flamethrower: 'ashes',
+  booger: 'trip',
+  racket: 'fling',
+  lollipop: 'fling',
+  scythe: 'half',
+  pillow: 'trip',
 };
 
 /** Finisher for a skill shot. */
@@ -96,6 +101,8 @@ export const PROJ_FINISH: Partial<Record<ProjKind, Finish>> = {
   gum: 'ragdoll',
   pebble: 'ragdoll',
   flame: 'ashes',
+  booger: 'trip',
+  tennis: 'fling',
 };
 
 /** One flying body part (shotgun point blank: blown to pieces). */
@@ -326,10 +333,13 @@ export function helperCorpse(c: Cat): Corpse | null {
     // The Baby Elephant and the Penguin fade away like the Recall Memory boss; a Robo Drone falls apart.
     case 'babyele':
     case 'penguin':
+    case 'frog':
+    case 'ghost':
       return propCorpse('fade', c.x, c.y, c.color, c.facing, 1.4);
     case 'drone':
       return propCorpse('scrap', c.x, c.y, '#90a4ae', c.facing, 1.4);
     case 'soldier':
+    case 'knight':
     case 'sbsnow':
     case 'fireally':
     case 'ninja':

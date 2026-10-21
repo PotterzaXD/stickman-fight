@@ -1,6 +1,6 @@
 import { SB_ROCK_AT, TEAM_COLORS } from '../game/game';
 import { playMusic } from '../music';
-import { BABY_ELE, BEES, CHICK, CHICKEN, DOG, DRONE, LIL_PIGEON, MEMORY_ALLY, NINJAS, PENGUIN, PIGEON_HP, RED_GUY, RETRO, SB_ALLY, SECRET_HP, SKELETON, SNOWMAN_HP, SOLDIER_HP, XBOSS_HP, ZOMBIES, ZOMBIE_ALLY } from '../game/entities';
+import { BABY_ELE, BEES, FROG, GHOST, KNIGHT, CHICK, CHICKEN, DOG, DRONE, LIL_PIGEON, MEMORY_ALLY, NINJAS, PENGUIN, PIGEON_HP, RED_GUY, RETRO, SB_ALLY, SECRET_HP, SKELETON, SNOWMAN_HP, SOLDIER_HP, XBOSS_HP, ZOMBIES, ZOMBIE_ALLY } from '../game/entities';
 import { HELPER_KINDS, SB_CHICKS, SB_ZOMBIE_KINDS, SECRET_KINDS, XBOSS_KINDS, isSbZombie, type HelperKind, type SandboxHelper, type SbZombieKind } from '../game/types';
 import { hasAch } from '../achievements';
 import { allMaps } from '../game/maps';
@@ -30,13 +30,13 @@ const BOSS_HP: Record<BossKind, number> = { boss: 5000, cat: 10000, mascot: 5000
 export const BOSS_ICON: Record<BossKind, string> = { boss: '👹', cat: '🐱', mascot: '⚪', buffalo: '🐃', fish: '🐟', pigeon: '🐦', queen: '❄️', tide: '🌊', guardian: '🌲', elephant: '🐘', scarecrow: '🌾', robo: '🤖' };
 const HELPER_ICON: Record<HelperKind | SbZombieKind, string> = {
   cat: '🐱', fish: '🐟', memory: '💭', soldier: '💂', snowman: '☃️', sbsnow: '⛄', fireally: '🔥', redguy: '🟥', chicken: '🐔', chick: '🐥', lilpigeon: '🐦', skeleton: '💀', dog: '🐕', retro: '👾', bee: '🐝', ninja: '🥷', zombie: '🧟',
-  babyele: '🐘', drone: '🛸', penguin: '🐧',
+  babyele: '🐘', drone: '🛸', penguin: '🐧', knight: '🛡️', frog: '🐸', ghost: '👻',
   znormal: '🧟', zshooter: '🤢', zmini: '🧒', zbig: '🦍', zrunner: '🏃', zexploder: '💥', zboss: '👑',
 };
 const HELPER_HP: Record<HelperKind | SbZombieKind, number> = {
   cat: 100, fish: 50, memory: MEMORY_ALLY.hp, soldier: SOLDIER_HP, snowman: SNOWMAN_HP, sbsnow: SB_ALLY.hp, fireally: SB_ALLY.hp, redguy: RED_GUY.hp,
   chicken: CHICKEN.hp, chick: CHICK.hp, lilpigeon: LIL_PIGEON.hp, skeleton: SKELETON.hp, dog: DOG.hp, retro: RETRO.hp, bee: BEES.hp, ninja: NINJAS.hp, zombie: ZOMBIE_ALLY.hp,
-  babyele: BABY_ELE.hp, drone: DRONE.hp, penguin: PENGUIN.hp,
+  babyele: BABY_ELE.hp, drone: DRONE.hp, penguin: PENGUIN.hp, knight: KNIGHT.hp, frog: FROG.hp, ghost: GHOST.hp,
   znormal: ZOMBIES.znormal.hp, zshooter: ZOMBIES.zshooter.hp, zmini: ZOMBIES.zmini.hp, zbig: ZOMBIES.zbig.hp, zrunner: ZOMBIES.zrunner.hp, zexploder: ZOMBIES.zexploder.hp, zboss: ZOMBIES.zboss.hp,
 };
 /** Helpers that count toward the helper limit (chicks don't, zombies have their own). */
@@ -142,7 +142,7 @@ register('sandbox', (root) => {
       ...(['easy', 'medium', 'hard'] as Difficulty[]).map((d) => h('option', { value: d }, t(d))),
     );
     sel.value = s.difficulty;
-    return h('label', { class: 'field' }, h('small', {}, '⚙'), sel);
+    return h('label', { class: 'field' }, h('small', {}, `⚙ ${t('level')}`), sel);
   };
 
   const removeBtn = (fn: () => void) =>
@@ -173,7 +173,8 @@ register('sandbox', (root) => {
         { class: 'slot' },
         h('span', { class: 'slot-name', style: `--c:${TEAM_COLORS[s.team]}` }, human ? `🎮 ${localName(n)}` : `🤖 ${t('bot', { n: n + 1 })}`),
         weaponSel(s),
-        human ? null : diffSel(s),
+        // Players get an empty spot where bots pick their level, so the columns line up.
+        human ? h('span', { class: 'field ghost' }) : diffSel(s),
         hpBox(s, 500),
         powerSel(s),
         hatSelect(s, !human),
@@ -328,7 +329,7 @@ register('sandbox', (root) => {
       h(
         'section',
         {},
-        h('h3', {}, `${t('fighters')} (${m.slots.length + m.extraBosses!.length})`),
+        h('h3', {}, `${t('fighters')} (${m.slots.length}/${MAX_SB_FIGHTERS})`),
         h(
           'div',
           { class: 'row gap wrap' },
@@ -356,6 +357,17 @@ register('sandbox', (root) => {
             },
             `${t('addBot')} ${bots}/${MAX_SB_FIGHTERS - humans}`,
           ),
+        ),
+        h('div', { class: `slots tidy ${m.ffa ? 'cols-sb-ffa' : 'cols-sb'}` }, ...fighterRows),
+      ),
+      // Bosses get their own box, so the fighters' rows and the bosses' rows each line up.
+      h(
+        'section',
+        {},
+        h('h3', {}, `👹 ${t('sbBosses')} (${m.extraBosses!.length}/${MAX_SB_BOSSES})`),
+        h(
+          'div',
+          { class: 'row gap wrap' },
           addBoss('boss'),
           addBoss('cat'),
           addBoss('mascot'),
@@ -366,8 +378,7 @@ register('sandbox', (root) => {
           ...SECRET_KINDS.filter((k) => save.data.secrets.includes(k)).map(addBoss),
           ...XBOSS_KINDS.map(addBoss),
         ),
-        h('small', { class: 'muted' }, `👹 ${m.extraBosses!.length}/${MAX_SB_BOSSES}`),
-        h('div', { class: 'slots' }, ...fighterRows, ...bossRows),
+        h('div', { class: `slots tidy ${m.ffa ? 'cols-boss-ffa' : 'cols-boss'}` }, ...bossRows),
       ),
       h(
         'section',

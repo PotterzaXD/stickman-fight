@@ -8,7 +8,7 @@ export interface SaveData {
   hats: string[];
   customMaps: MapDef[];
   /** potions: healing potions drop in matches (on by default). Music and sound volumes are 0-100. */
-  settings: { lang: Lang; fallMode: FallMode; potions: boolean; musicVol: number; sfxVol: number; musicMute: boolean; sfxMute: boolean; killFeed: boolean };
+  settings: { lang: Lang; fallMode: FallMode; potions: boolean; musicVol: number; sfxVol: number; musicMute: boolean; sfxMute: boolean; killFeed: boolean; juice: boolean };
   lastMatch?: MatchConfig;
   /** The last Sandbox setup. */
   lastSandbox?: MatchConfig;
@@ -59,7 +59,7 @@ export interface Stats {
 }
 
 const KEY = 'stickman-fight-save-v1';
-export const FREE_WEAPONS = ['sword', 'spear'];
+export const FREE_WEAPONS = ['sword', 'spear', 'booger'];
 export const NAME_MAX = 12;
 
 /** Tidy a typed name: single spaces, no ends, at most NAME_MAX characters. */
@@ -77,7 +77,7 @@ function defaults(): SaveData {
     achievements: [],
     secrets: [],
     stats: { catSnowWins: 0, mapsWon: [], usedWeapons: [] },
-    settings: { lang: thai ? 'th' : 'en', fallMode: 'ko', potions: true, musicVol: 70, sfxVol: 80, musicMute: false, sfxMute: false, killFeed: true },
+    settings: { lang: thai ? 'th' : 'en', fallMode: 'ko', potions: true, musicVol: 70, sfxVol: 80, musicMute: false, sfxMute: false, killFeed: true, juice: true },
     name: '',
     localNames: [],
     outbreak: [null, null, null],
@@ -110,6 +110,7 @@ export function normalize(raw: unknown): SaveData {
       musicMute: typeof r.settings?.musicMute === 'boolean' ? r.settings.musicMute : !oldSound,
       sfxMute: typeof r.settings?.sfxMute === 'boolean' ? r.settings.sfxMute : !oldSound,
       killFeed: r.settings?.killFeed !== false,
+      juice: r.settings?.juice !== false,
     },
     lastMatch: r.lastMatch,
     lastSandbox: r.lastSandbox,
