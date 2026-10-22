@@ -23,6 +23,9 @@ export interface Routes {
   versions: undefined;
   outbreak: undefined;
   outbreakLobby: { slot: number };
+  funModes: undefined;
+  td: undefined;
+  tdPlay: { mapId: string };
 }
 
 export type Screen<K extends keyof Routes> = (root: HTMLElement, arg: Routes[K]) => (() => void) | void;

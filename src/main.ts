@@ -25,6 +25,8 @@ import './ui/worst';
 import './ui/worst2';
 import './ui/outbreak';
 import './ui/versions';
+import './ui/funmodes';
+import './ui/td';
 import { session, setSession } from './net/room';
 
 const app = document.getElementById('app')!;
