@@ -63,6 +63,12 @@ function merge(local: SaveData, remote: SaveData): SaveData {
     name: newer.name || local.name || remote.name,
     zombieAlly: local.zombieAlly || remote.zombieAlly,
     pendingZombie: (local.pendingZombie || remote.pendingZombie) && !(local.zombieAlly || remote.zombieAlly),
+    // Tower Defense units: the bigger count of each, so a hatch on either device is kept.
+    td: {
+      units: Object.fromEntries([...new Set([...Object.keys(local.td.units), ...Object.keys(remote.td.units)])].map((k) => [k, Math.max(local.td.units[k] ?? 0, remote.td.units[k] ?? 0)])),
+      equip: newer.td.equip,
+      cleared: Array.from(new Set([...local.td.cleared, ...remote.td.cleared])),
+    },
     updatedAt: Date.now(),
   };
 }

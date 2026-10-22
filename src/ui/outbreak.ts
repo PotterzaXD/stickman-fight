@@ -159,7 +159,7 @@ register('outbreak', (root) => {
     h(
       'div',
       { class: 'page outbreak-page' },
-      h('header', { class: 'page-head' }, h('button', { class: 'btn ghost', onclick: () => go('menu') }, `← ${t('back')}`), h('h2', {}, `🧟 ${t('outbreak')}`), coinChip()),
+      h('header', { class: 'page-head' }, h('button', { class: 'btn ghost', onclick: () => go('funModes') }, `← ${t('back')}`), h('h2', {}, `🧟 ${t('outbreak')}`), coinChip()),
       body,
     ),
   );

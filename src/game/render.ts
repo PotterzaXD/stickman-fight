@@ -1704,9 +1704,9 @@ function drawFighter(ctx: Ctx, f: Fighter, time: number) {
   const head = [x, y - 73 * s];
   const sh = f.shoulder();
   const hands = f.weapons.map((_, i) => f.hand(i));
-  // The free arm swings with the walk (and breathes a little when standing).
+  // The free arm swings with the walk (and hangs straight down when standing).
   const arm = swingArm(sh, s, f.walkPhase * d, pace, d);
-  const back: [number, number] = f.weapons.length > 1 ? [hands[1].x, hands[1].y] : pace > 0 ? [arm.x, arm.y] : [x - f.facing * 10 * s + Math.sin(time * 5) * 2 * s, y - 38 * s];
+  const back: [number, number] = f.weapons.length > 1 ? [hands[1].x, hands[1].y] : pace > 0 ? [arm.x, arm.y] : [x - f.facing * 3 * s, y - 36 * s];
 
   const strokes = (w: number, c: string) => {
     ctx.strokeStyle = c;

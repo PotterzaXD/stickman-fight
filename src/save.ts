@@ -28,7 +28,16 @@ export interface SaveData {
   zombieAlly: boolean;
   /** Beat wave 10 but still in The Outbreak: the zombie ally unlocks back at the menu. */
   pendingZombie: boolean;
+  /** Tower Defense: units you own, the 5 you take into a game, and maps you have beaten. */
+  td: TDSave;
   updatedAt: number;
+}
+
+export interface TDSave {
+  /** How many of each unit you have. */
+  units: Record<string, number>;
+  equip: string[];
+  cleared: string[];
 }
 
 /** One Outbreak save slot. */
@@ -83,6 +92,7 @@ function defaults(): SaveData {
     outbreak: [null, null, null],
     zombieAlly: false,
     pendingZombie: false,
+    td: tdSave(null),
     updatedAt: 0,
   };
 }
@@ -126,7 +136,23 @@ export function normalize(raw: unknown): SaveData {
     outbreak: Array.from({ length: OB_SLOTS }, (_, i) => obSlot(Array.isArray(r.outbreak) ? r.outbreak[i] : null)),
     zombieAlly: r.zombieAlly === true,
     pendingZombie: r.pendingZombie === true,
+    td: tdSave(r.td),
     updatedAt: Number.isFinite(r.updatedAt) ? (r.updatedAt as number) : 0,
+  };
+}
+
+/** Tower Defense starts with one free Swordman, equipped. */
+export function tdSave(v: unknown): TDSave {
+  const o = (v && typeof v === 'object' ? v : {}) as Partial<TDSave>;
+  const units: Record<string, number> = {};
+  if (o.units && typeof o.units === 'object')
+    for (const [k, n] of Object.entries(o.units)) if (Number.isFinite(n) && n > 0) units[k] = Math.min(999, Math.floor(n));
+  units.swordman = Math.max(1, units.swordman ?? 0);
+  const equip = Array.isArray(o.equip) ? Array.from(new Set(o.equip.filter((x) => typeof x === 'string' && units[x] > 0))).slice(0, 5) : [];
+  return {
+    units,
+    equip: equip.length ? equip : ['swordman'],
+    cleared: Array.isArray(o.cleared) ? Array.from(new Set(o.cleared.filter((x) => typeof x === 'string'))) : [],
   };
 }
 

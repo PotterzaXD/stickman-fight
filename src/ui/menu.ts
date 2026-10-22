@@ -102,7 +102,8 @@ register('menu', (root) => {
           h('button', { class: 'btn big primary', onclick: () => go('lobby') }, `⚔️ ${t('play')}`),
           h('button', { class: 'btn big online', onclick: () => go('online') }, `🌐 ${t('online')}`),
           h('button', { class: 'btn big friends', onclick: () => go('friends') }, `👥 ${t('friends')}`),
-          h('button', { class: 'btn big outbreak', onclick: () => go('outbreak') }, `🧟 ${t('outbreak')}`),
+          // The Outbreak and Tower Defense live in Other fun modes.
+          h('button', { class: 'btn big outbreak fun', onclick: () => go('funModes') }, `🎉 ${t('funModes')}`),
           // Stick Brawl, WORST Stickman Fighter (v.1 and v.2) and Stick Arena all live in Other Versions.
           h('button', { class: 'btn big versions', onclick: () => go('versions') }, `🕹️ ${t('otherVersions')}`),
         ),

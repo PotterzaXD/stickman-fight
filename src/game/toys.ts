@@ -46,11 +46,16 @@ export function walkLegs(x: number, y: number, s: number, walked: number, speed:
   // Hips are highest when a leg is straight under the body.
   const bob = -Math.abs(Math.cos(phase)) * 2.5 * s * k;
   const hip = { x: x + d * 1.5 * s * k, y: y - 34 * s + bob };
-  const legs = [0, Math.PI].map((off) => {
+  // Standing still: feet a little apart and the legs straight (no bent knees).
+  const spread = 7 * s * (1 - k);
+  const legs = [0, Math.PI].map((off, i) => {
     const p = phase + off;
-    const fx = x + d * stride * Math.cos(p);
+    const fx = x + d * stride * Math.cos(p) + (i ? -spread : spread);
     const fy = y - Math.max(0, -Math.sin(p)) * lift;
-    return { foot: { x: fx, y: fy }, knee: knee(hip, { x: fx, y: fy }, 19 * s, 19 * s, d) };
+    const bent = knee(hip, { x: fx, y: fy }, 19 * s, 19 * s, d);
+    const mx = (hip.x + fx) / 2;
+    const my = (hip.y + fy) / 2;
+    return { foot: { x: fx, y: fy }, knee: { x: mx + (bent.x - mx) * k, y: my + (bent.y - my) * k } };
   });
   return { hip, legs };
 }
