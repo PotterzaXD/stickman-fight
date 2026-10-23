@@ -268,40 +268,59 @@ register('editor', (root, { map }) => {
   const nameInput = h('input', { class: 'name-input', value: m.name, maxlength: 30, 'aria-label': t('mapName') });
   nameInput.addEventListener('input', () => (m.name = nameInput.value));
 
-  const toolBar = h('div', { class: 'segs tools' });
+  // Parts: everything you can build, in one panel. Erase, Undo, Save and the rest stay apart in the bar.
+  const PARTS: [Tool, string][] = [
+    ['platform', `▭ ${t('toolPlatform')}`],
+    ['concrete', `🧱 ${t('toolConcrete')}`],
+    ['lava', `🌋 ${t('toolLava')}`],
+    ['glass', `🪟 ${t('toolGlass')}`],
+    ['sandbag', `🟫 ${t('toolSandbag')}`],
+    ['bounce', `🟥 ${t('toolBounce')}`],
+    ['ice', `🧊 ${t('toolIce')}`],
+    ['spikes', `🔺 ${t('toolSpikes')}`],
+    ['wall', `🚧 ${t('toolWall')}`],
+    ['mover', `↔️ ${t('toolMover')}`],
+    ['lift', `↕️ ${t('toolLift')}`],
+    ['spawn', `🧍 ${t('toolSpawn')}`],
+  ];
+  /** The last part picked (Erase switches back to it). */
+  let part: Tool = 'platform';
+  const partsBtn = h('button', { class: 'btn small parts-btn' });
+  const eraseBtn = h('button', { class: 'btn small erase-btn' }, `🧽 ${t('toolErase')}`);
+  const partsPanel = h('div', { class: 'parts-panel hidden' });
   const paintTools = () => {
-    toolBar.replaceChildren(
-      ...(
-        [
-          ['platform', `▭ ${t('toolPlatform')}`],
-          ['concrete', `🧱 ${t('toolConcrete')}`],
-          ['lava', `🌋 ${t('toolLava')}`],
-          ['glass', `🪟 ${t('toolGlass')}`],
-          ['sandbag', `🟫 ${t('toolSandbag')}`],
-          ['bounce', `🟥 ${t('toolBounce')}`],
-          ['ice', `🧊 ${t('toolIce')}`],
-          ['spikes', `🔺 ${t('toolSpikes')}`],
-          ['wall', `🚧 ${t('toolWall')}`],
-          ['mover', `↔️ ${t('toolMover')}`],
-          ['lift', `↕️ ${t('toolLift')}`],
-          ['spawn', `🧍 ${t('toolSpawn')}`],
-          ['erase', `🧽 ${t('toolErase')}`],
-        ] as [Tool, string][]
-      ).map(([id, label]) =>
+    const label = PARTS.find(([id]) => id === part)?.[1] ?? '';
+    partsBtn.textContent = `🧩 ${t('parts')}: ${label}`;
+    partsBtn.classList.toggle('on', tool !== 'erase');
+    eraseBtn.classList.toggle('on', tool === 'erase');
+    partsPanel.replaceChildren(
+      ...PARTS.map(([id, text]) =>
         h(
           'button',
           {
-            class: `seg ${tool === id ? 'on' : ''}`,
+            class: `part ${tool === id ? 'on' : ''}`,
             onclick: () => {
-              tool = id;
+              tool = part = id;
+              partsPanel.classList.add('hidden');
               paintTools();
             },
           },
-          label,
+          text,
         ),
       ),
     );
   };
+  partsBtn.addEventListener('click', () => {
+    // Opening Parts also stops erasing.
+    tool = part;
+    partsPanel.classList.toggle('hidden');
+    paintTools();
+  });
+  eraseBtn.addEventListener('click', () => {
+    tool = tool === 'erase' ? part : 'erase';
+    partsPanel.classList.add('hidden');
+    paintTools();
+  });
   paintTools();
 
   const sizeSel = h(
@@ -358,7 +377,8 @@ register('editor', (root, { map }) => {
         { class: 'editor-bar' },
         h('button', { class: 'btn ghost small', onclick: () => go('maps') }, '←'),
         nameInput,
-        toolBar,
+        partsBtn,
+        eraseBtn,
         h(
           'button',
           {
@@ -425,7 +445,7 @@ register('editor', (root, { map }) => {
           `▶ ${t('testMap')}`,
         ),
       ),
-      h('p', { class: 'editor-hint' }, t('editorHint'), h('br', {}), t('blocksHint')),
+      partsPanel,
       canvas,
     ),
   );

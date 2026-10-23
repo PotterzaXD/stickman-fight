@@ -3,6 +3,7 @@ import { BABY_ELE, BOOGER, Body, CHICKEN, Cat, DRONE, Fighter, PENGUIN, PILLOW, 
 import { zombieBoom } from './outbreak';
 import { inZone } from './hill';
 import { frogHop, oct22Reach, oct22Speed, updateGhost, wallDetour } from './oct22';
+import { ICE_SPIKE, PIE, oct23Helper, oct23Reach, oct23Speed } from './oct23';
 import type { Difficulty, Intent, Platform } from './types';
 
 const rand = Math.random;
@@ -371,6 +372,22 @@ export class BotBrain {
         case 'racket':
           if (dist < 900) angle = Math.atan2(dy, dx);
           break;
+        case 'pie':
+          if (dist < 800) angle = ballisticAngle(dx, dy, PIE.speed, PIE.g);
+          break;
+        case 'icecream':
+          if (dist < ICE_SPIKE.range * 0.9) angle = Math.atan2(dy, dx);
+          break;
+        case 'rollingpin':
+        case 'spatula':
+          if (dist < f.reach(i) + 60) angle = Math.atan2(dy, dx);
+          break;
+        case 'ketchup':
+          if (dist < 600) angle = ballisticAngle(dx, dy, 1000, 900);
+          break;
+        case 'popcorn':
+          if (dist < 650) angle = ballisticAngle(dx, dy, 850, 1300);
+          break;
         case 'lollipop':
           if (f.hp < f.maxHp * 0.8 || dist > 500) angle = -Math.PI / 2;
           break;
@@ -502,13 +519,14 @@ export function updateCat(c: Cat, dt: number, g: Game) {
     }
   }
   // The boss ally walks a bit slower; fish flop about quickly.
-  const speed = oct22Speed(c) ?? (isZombie(c.variant) ? ZOMBIES[c.variant].speed : c.variant === 'zombie' ? 300 : c.variant === 'babyele' ? 240 : c.variant === 'penguin' ? 190 : c.variant === 'ninja' ? 380 : c.variant === 'retro' ? 290 :
+  const speed = oct22Speed(c) ?? oct23Speed(c) ?? (isZombie(c.variant) ? ZOMBIES[c.variant].speed : c.variant === 'zombie' ? 300 : c.variant === 'babyele' ? 240 : c.variant === 'penguin' ? 190 : c.variant === 'ninja' ? 380 : c.variant === 'retro' ? 290 :
     c.variant === 'memory' ? 280 : c.variant === 'fish' ? 360 : c.variant === 'soldier' || c.variant === 'sbsnow' || c.variant === 'fireally' || c.variant === 'skeleton' ? 300 : c.variant === 'dog' ? 380 : c.variant === 'chick' ? 300 : 330);
   if (c.stun > 0) c.vx *= Math.max(0, 1 - 2 * dt);
   else c.vx += (c.moveX * speed - c.vx) * Math.min(1, (c.onGround ? 10 : 4) * dt);
   if (c.moveX) c.facing = sign(c.moveX);
   frogHop(c, g);
   const t = c.target && c.target.alive ? c.target : null;
+  oct23Helper(c, dt, g, t);
   const tall = c.variant === 'memory' || c.variant === 'soldier' || c.variant === 'sbsnow' || c.variant === 'fireally' || c.variant === 'skeleton' || c.h >= 60;
   if (t && c.onGround && t.cy < c.y - 90 && rand() < dt * 2.5) {
     c.vy = tall ? -1000 : -900;
@@ -609,6 +627,7 @@ export function updateCat(c: Cat, dt: number, g: Game) {
     // Skeletons swing a bone, the Chicken and the little pigeon peck, the dog bites.
     const reach =
       oct22Reach(c) ??
+      oct23Reach(c) ??
       (c.variant === 'soldier' ? c.w / 2 + (thrust ? SOLDIER_THRUST.reach : 55) : c.variant === 'sbsnow' || c.variant === 'skeleton' ? c.w / 2 + 24 : c.variant === 'chicken' || c.variant === 'lilpigeon' || c.variant === 'dog' ? c.w / 2 + 8 : c.w / 2);
     if (!e.alive || e.team === c.team || !e.contains(c.x, c.cy, reach)) continue;
     if (thrust) {

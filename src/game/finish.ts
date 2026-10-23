@@ -70,6 +70,12 @@ export const MELEE_FINISH: Partial<Record<WeaponId, Finish>> = {
   lollipop: 'fling',
   scythe: 'half',
   pillow: 'trip',
+  pie: 'trip',
+  icecream: 'shatter',
+  rollingpin: 'fling',
+  spatula: 'sky',
+  ketchup: 'ragdoll',
+  popcorn: 'pop',
 };
 
 /** Finisher for a skill shot. */
@@ -103,6 +109,9 @@ export const PROJ_FINISH: Partial<Record<ProjKind, Finish>> = {
   flame: 'ashes',
   booger: 'trip',
   tennis: 'fling',
+  pie: 'trip',
+  ketchup: 'ragdoll',
+  popcorn: 'pop',
 };
 
 /** One flying body part (shotgun point blank: blown to pieces). */
@@ -169,6 +178,8 @@ export interface Corpse {
   rot: number;
   vr: number;
   done?: boolean;
+  /** The fighter who went down (the Portal map takes them through if their body is flung into the portal). */
+  who?: Fighter;
   /** Not a stickman: a cat's grave, a cooked fish, the fried Pigeon, or the Recall Memory boss fading away. */
   prop?: Prop;
   facing?: number;
@@ -335,11 +346,14 @@ export function helperCorpse(c: Cat): Corpse | null {
     case 'penguin':
     case 'frog':
     case 'ghost':
+    case 'ginger':
+    case 'cupcake':
       return propCorpse('fade', c.x, c.y, c.color, c.facing, 1.4);
     case 'drone':
       return propCorpse('scrap', c.x, c.y, '#90a4ae', c.facing, 1.4);
     case 'soldier':
     case 'knight':
+    case 'chef':
     case 'sbsnow':
     case 'fireally':
     case 'ninja':

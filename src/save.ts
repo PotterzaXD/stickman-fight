@@ -30,6 +30,8 @@ export interface SaveData {
   pendingZombie: boolean;
   /** Tower Defense: units you own, the 5 you take into a game, and maps you have beaten. */
   td: TDSave;
+  /** Went through the Portal map's portal: Stickman Fight 2 shows up in Other versions. */
+  sf2: boolean;
   updatedAt: number;
 }
 
@@ -68,7 +70,7 @@ export interface Stats {
 }
 
 const KEY = 'stickman-fight-save-v1';
-export const FREE_WEAPONS = ['sword', 'spear', 'booger'];
+export const FREE_WEAPONS = ['sword', 'spear', 'booger', 'pie'];
 export const NAME_MAX = 12;
 
 /** Tidy a typed name: single spaces, no ends, at most NAME_MAX characters. */
@@ -91,6 +93,7 @@ function defaults(): SaveData {
     localNames: [],
     outbreak: [null, null, null],
     zombieAlly: false,
+    sf2: false,
     pendingZombie: false,
     td: tdSave(null),
     updatedAt: 0,
@@ -135,6 +138,7 @@ export function normalize(raw: unknown): SaveData {
     localNames: Array.isArray(r.localNames) ? r.localNames.slice(0, 6).map(cleanName) : [],
     outbreak: Array.from({ length: OB_SLOTS }, (_, i) => obSlot(Array.isArray(r.outbreak) ? r.outbreak[i] : null)),
     zombieAlly: r.zombieAlly === true,
+    sf2: r.sf2 === true,
     pendingZombie: r.pendingZombie === true,
     td: tdSave(r.td),
     updatedAt: Number.isFinite(r.updatedAt) ? (r.updatedAt as number) : 0,

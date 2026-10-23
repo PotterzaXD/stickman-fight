@@ -6,7 +6,8 @@ export type WeaponId = 'sword' | 'spear' | 'hammer' | 'bow' | 'boomerang' | 'bom
   | 'chicklord' | 'lilpigeon' | 'bone' | 'egg' | 'gum' | 'drumstick'
   | 'trunk' | 'pitchfork' | 'robocannon' | 'beehive' | 'ninjascroll' | 'trumpet' | 'plasma'
   | 'guitar' | 'bat' | 'slingshot' | 'flamethrower'
-  | 'booger' | 'racket' | 'lollipop' | 'scythe' | 'pillow';
+  | 'booger' | 'racket' | 'lollipop' | 'scythe' | 'pillow'
+  | 'pie' | 'icecream' | 'rollingpin' | 'spatula' | 'ketchup' | 'popcorn';
 
 export interface WeaponDef {
   id: WeaponId;
@@ -28,6 +29,11 @@ export interface WeaponDef {
 export const WEAPONS: WeaponDef[] = [
   { id: 'sword', price: 0, length: 72, damage: 30, turn: 16, cooldown: 2.5, ranged: false },
   { id: 'spear', price: 0, length: 110, damage: 24, turn: 12, cooldown: 2.5, ranged: false },
+  // The free weapons stay at the front of every list.
+  // The Booger (October 22): a flick does 30, and so does throwing it (a new one is ready a second later).
+  { id: 'booger', price: 0, length: 26, damage: 30, turn: 15, cooldown: 1, ranged: true },
+  // The Pie (October 23): 20 a hit. Throw it (50): whoever it lands on falls flat for 3 seconds. Same cooldown as the sword.
+  { id: 'pie', price: 0, length: 34, damage: 20, turn: 15, cooldown: 2.5, ranged: true },
   { id: 'hammer', price: 200, length: 84, damage: 42, turn: 9, cooldown: 3.5, ranged: false },
   { id: 'bow', price: 250, length: 40, damage: 10, turn: 14, cooldown: 0.9, ranged: true },
   { id: 'boomerang', price: 300, length: 40, damage: 14, turn: 14, cooldown: 0.4, ranged: true },
@@ -103,12 +109,17 @@ export const WEAPONS: WeaponDef[] = [
   { id: 'bat', price: 400, length: 80, damage: 30, turn: 15, cooldown: 4, ranged: false },
   { id: 'slingshot', price: 200, length: 30, damage: 8, turn: 15, cooldown: 0.8, ranged: true },
   { id: 'flamethrower', price: 950, length: 52, damage: 10, turn: 12, cooldown: 6, ranged: true },
-  // October 22 update. The Booger is free for everyone: a flick does 30, and so does throwing it (a new one is ready a second later).
-  { id: 'booger', price: 0, length: 26, damage: 30, turn: 15, cooldown: 1, ranged: true },
+  // October 22 update.
   { id: 'racket', price: 450, length: 62, damage: 22, turn: 15, cooldown: 1.5, ranged: true },
   { id: 'lollipop', price: 550, length: 68, damage: 26, turn: 13, cooldown: 12, ranged: false },
   { id: 'scythe', price: 900, length: 96, damage: 34, turn: 11, cooldown: 6, ranged: false },
   { id: 'pillow', price: 300, length: 48, damage: 14, turn: 14, cooldown: 7, ranged: false },
+  // October 23 update: food weapons. Ice Cream: 15 a hit, Ice Spike (59) pops out on top of or beside an enemy and melts after 5 s.
+  { id: 'icecream', price: 150, length: 44, damage: 15, turn: 15, cooldown: 4, ranged: true },
+  { id: 'rollingpin', price: 350, length: 66, damage: 28, turn: 13, cooldown: 4, ranged: false },
+  { id: 'spatula', price: 400, length: 64, damage: 24, turn: 15, cooldown: 3.5, ranged: false },
+  { id: 'ketchup', price: 300, length: 38, damage: 10, turn: 14, cooldown: 3, ranged: true },
+  { id: 'popcorn', price: 600, length: 36, damage: 12, turn: 14, cooldown: 5, ranged: true },
 ];
 
 /** Weapons drawn as guns (flipped so they stay the right way up when you aim left). */

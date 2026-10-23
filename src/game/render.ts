@@ -15,6 +15,7 @@ import { drawHat } from './hats';
 import { drawElephant, drawMonster, drawMonsterProp, drawMonsterBlock, drawMonsterDeco, drawMonsterProjectile, drawMonsterWeapon, drawOutbreakSky, drawPirateShip, drawXBossHead } from './monsters';
 import { save } from '../save';
 import { STOCK_LIVES } from './oct22';
+import { drawIceSpike, drawPortal, drawTreatDeco, drawTreat, drawTreatProjectile, drawTreatWeapon } from './treats';
 import { clipAboveGround, drawCastle, drawToy, drawToyProjectile, drawToyWeapon, drawWall, swingArm, walkLegs } from './toys';
 
 type Ctx = CanvasRenderingContext2D;
@@ -165,7 +166,7 @@ export function drawBackground(ctx: Ctx, map: MapDef, vw: number, vh: number, ca
       ctx.arc(fx, fy, 8 + ph * 60, 0, Math.PI * 2);
       ctx.fill();
     }
-  } else if (!drawExtraDeco(ctx, th.deco, vw, vh, par, time) && !drawCritterDeco(ctx, th.deco, vw, vh, par, time) && !drawMonsterDeco(ctx, th.deco, vw, vh, par, time) && !drawGadgetDeco(ctx, th.deco, vw, vh, par, time)) {
+  } else if (!drawExtraDeco(ctx, th.deco, vw, vh, par, time) && !drawCritterDeco(ctx, th.deco, vw, vh, par, time) && !drawMonsterDeco(ctx, th.deco, vw, vh, par, time) && !drawGadgetDeco(ctx, th.deco, vw, vh, par, time) && !drawTreatDeco(ctx, th.deco, vw, vh, par, time)) {
     for (let i = 0; i < 40; i++) {
       const x = ((hash(i) * vw - par) % vw + vw) % vw;
       const y = vh - (((hash(i + 7) * vh + time * (40 + hash(i) * 60)) % vh) + vh) % vh;
@@ -393,7 +394,11 @@ export function drawPlatforms(ctx: Ctx, map: MapDef, time = 0, glassT?: number[]
     ctx.fillStyle = g;
     ctx.fillRect(-3000, map.h + 160, map.w + 6000, 3000);
   }
+  // The Portal map's portal, behind everyone.
+  if (map.portal) drawPortal(ctx, map.portal, time);
   for (const [i, p] of map.platforms.entries()) {
+    // Ice Cream's ice spikes are drawn on their own (see renderGame).
+    if (p.temp) continue;
     if (p.kind) {
       drawBlock(ctx, p, time, glassT?.[i] ?? 0);
       continue;
@@ -948,7 +953,7 @@ export function drawWeaponShape(ctx: Ctx, id: WeaponId, len: number, s: number, 
       ctx.fill();
       break;
     default:
-      if (!drawExtraWeapon(ctx, id, len, s, ready, performance.now() / 1000) && !drawCritterWeapon(ctx, id, len, s, ready, performance.now() / 1000) && !drawMonsterWeapon(ctx, id, len, s, ready, performance.now() / 1000) && !drawGadgetWeapon(ctx, id, len, s, ready, performance.now() / 1000)) drawToyWeapon(ctx, id, len, s, ready, performance.now() / 1000);
+      if (!drawExtraWeapon(ctx, id, len, s, ready, performance.now() / 1000) && !drawCritterWeapon(ctx, id, len, s, ready, performance.now() / 1000) && !drawMonsterWeapon(ctx, id, len, s, ready, performance.now() / 1000) && !drawGadgetWeapon(ctx, id, len, s, ready, performance.now() / 1000) && !drawToyWeapon(ctx, id, len, s, ready, performance.now() / 1000)) drawTreatWeapon(ctx, id, len, s, ready, performance.now() / 1000);
   }
 }
 
@@ -1677,6 +1682,22 @@ function drawPoison(ctx: Ctx, b: Body, time: number) {
 }
 
 function drawFighter(ctx: Ctx, f: Fighter, time: number) {
+  // Knocked flat by a pie (or the Rolling Pin): the whole stickman lies on the ground, head first.
+  if (f.downT > 0 && !f.boss) {
+    ctx.save();
+    ctx.translate(f.x, f.y - 4 * f.scale);
+    ctx.rotate(-(f.facing || 1) * Math.PI / 2);
+    ctx.translate(-f.x, -f.y);
+    drawStanding(ctx, f, time, false);
+    ctx.restore();
+    // The name stays upright, just above the body lying on the ground.
+    drawLabel(ctx, f, f.y - 50 * f.scale);
+    return;
+  }
+  drawStanding(ctx, f, time);
+}
+
+function drawStanding(ctx: Ctx, f: Fighter, time: number, label = true) {
   if (f.buffalo) return drawBuffalo(ctx, f);
   if (f.pigeon) return drawPigeon(ctx, f, time);
   if (f.xboss === 'elephant') return drawElephant(ctx, f, time);
@@ -1847,8 +1868,13 @@ function drawFighter(ctx: Ctx, f: Fighter, time: number) {
     }
   }
 
-  if (!f.boss) {
-    const top = y - f.h - 22;
+  if (!f.boss && label) drawLabel(ctx, f, y - f.h - 22);
+}
+
+/** A stickman's name, HP bar and skill-ready dot above its head. */
+function drawLabel(ctx: Ctx, f: Fighter, top: number) {
+  const x = f.x;
+  {
     hpBar(ctx, x, top, 52, f.hp / f.maxHp, f.color);
     ctx.font = 'bold 13px "Baloo 2", system-ui, sans-serif';
     ctx.textAlign = 'center';
@@ -2074,7 +2100,7 @@ function drawSnowman(ctx: Ctx, m: Snowman) {
 }
 
 function drawProjectile(ctx: Ctx, p: Projectile, time: number) {
-  if (drawExtraProjectile(ctx, p, time) || drawCritterProjectile(ctx, p, time) || drawMonsterProjectile(ctx, p, time) || drawGadgetProjectile(ctx, p, time) || drawToyProjectile(ctx, p, time)) return;
+  if (drawExtraProjectile(ctx, p, time) || drawCritterProjectile(ctx, p, time) || drawMonsterProjectile(ctx, p, time) || drawGadgetProjectile(ctx, p, time) || drawToyProjectile(ctx, p, time) || drawTreatProjectile(ctx, p)) return;
   switch (p.kind) {
     case 'nerf': {
       // Foam dart: blue body, orange tip
@@ -2452,6 +2478,7 @@ export function renderGame(g: Game, ctx: Ctx, vw: number, vh: number, dpr: numbe
   ctx.setTransform(dpr * z, 0, 0, dpr * z, dpr * (vw / 2 - g.cam.x * z + sx), dpr * (vh / 2 - g.cam.y * z + sy));
 
   drawPlatforms(ctx, g.map, g.time, g.glassT);
+  for (const s of g.iceSpikes) drawIceSpike(ctx, s);
   // King of the Hill: the zone, in the colour of whoever holds it alone.
   if (g.hill) drawHill(ctx, g.hill.x, g.hill.y, g.hill.w, g.hill.holder === null ? null : g.fighters.find((f) => f.team === g.hill!.holder)?.color ?? null, g.time);
 
@@ -2470,7 +2497,7 @@ export function renderGame(g: Game, ctx: Ctx, vw: number, vh: number, dpr: numbe
       continue;
     }
     // Chicks, the Chicken, the little pigeon, skeletons (a pile of bones when beaten) and the dog (asleep).
-    if (drawCritter(ctx, c, g.time) || drawMonster(ctx, c, g.time) || drawGadget(ctx, c, g.time) || drawToy(ctx, c, g.time)) continue;
+    if (drawCritter(ctx, c, g.time) || drawMonster(ctx, c, g.time) || drawGadget(ctx, c, g.time) || drawToy(ctx, c, g.time) || drawTreat(ctx, c, g.time)) continue;
     if (!c.alive) continue;
     if (c.variant === 'sbsnow' || c.variant === 'fireally') {
       drawSbAlly(ctx, c, g.time);

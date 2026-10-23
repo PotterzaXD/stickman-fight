@@ -5,7 +5,7 @@ import { save } from '../save';
  * 'kill' = knocked out by someone. The others are the map's fault (nobody hit them first).
  * 'water'/'void'/'lava' with a killer = someone knocked them in.
  */
-export type FeedKind = 'kill' | 'water' | 'void' | 'lava' | 'burn' | 'peck' | 'meow' | 'chick' | 'chicken' | 'fish' | 'memory' | 'dog' | 'skeleton' | 'lilpigeon' | 'retro' | 'zombie' | 'bee' | 'spikes';
+export type FeedKind = 'kill' | 'water' | 'void' | 'lava' | 'burn' | 'peck' | 'meow' | 'chick' | 'chicken' | 'fish' | 'memory' | 'dog' | 'skeleton' | 'lilpigeon' | 'retro' | 'zombie' | 'bee' | 'spikes' | 'portal';
 
 const EN: Record<FeedKind, { solo: string[]; by: string[] }> = {
   kill: {
@@ -104,6 +104,10 @@ const EN: Record<FeedKind, { solo: string[]; by: string[] }> = {
     solo: ['{v} sat on the spikes. Ouch 🌵', '{v} found out spikes are pointy', '{v} became a pincushion 📌'],
     by: ['{k} pushed {v} onto the spikes 🌵', '{k} turned {v} into a pincushion 📌', '{v} got kebabbed thanks to {k} 🍢'],
   },
+  portal: {
+    solo: ['🌀 {v} went through the portal and never came back', '🌀 {v} took the portal to somewhere else', '🌀 {v} got sucked into the purple swirl', '🌀 {v} found the exit to another game'],
+    by: ['🌀 {k} pushed {v} through the portal', '🌀 {k} sent {v} to another dimension', '🌀 {v} got portalled by {k}'],
+  },
 };
 
 const TH: Record<FeedKind, { solo: string[]; by: string[] }> = {
@@ -194,6 +198,10 @@ const TH: Record<FeedKind, { solo: string[]; by: string[] }> = {
     solo: ['{v} นั่งทับหนาม โอ๊ย 🌵', '{v} เพิ่งรู้ว่าหนามมันแหลม', '{v} กลายเป็นหมอนปักเข็ม 📌'],
     by: ['{k} ผลัก {v} ลงหนาม 🌵', '{k} ทำให้ {v} กลายเป็นหมอนปักเข็ม 📌', '{v} กลายเป็นไม้เสียบเพราะ {k} 🍢'],
   },
+  portal: {
+    solo: ['🌀 {v} เดินเข้าประตูมิติแล้วไม่กลับมาอีกเลย', '🌀 {v} ไปที่อื่นผ่านประตูมิติ', '🌀 {v} โดนวังวนสีม่วงดูดเข้าไป', '🌀 {v} เจอทางออกไปอีกเกมหนึ่ง'],
+    by: ['🌀 {k} ผลัก {v} เข้าประตูมิติ', '🌀 {k} ส่ง {v} ไปอีกมิติหนึ่ง', '🌀 {v} โดน {k} ส่งเข้าประตูมิติ'],
+  },
 };
 
 /** How many lines each kind has (the same in every language). */
@@ -220,8 +228,8 @@ export function helperName(kind: string, owner: string): string {
   return th ? `${name}ของ ${owner}` : `${owner}’s ${name}`;
 }
 
-const HELPER_EN: Record<string, string> = { snowman: 'Snowman', cat: 'Cat', fish: 'Fish', memory: 'Recall Memory', soldier: 'Soldier', sbsnow: 'Snowman', fireally: 'Fire Ally', redguy: 'Red Guy', chick: 'Chick', chicken: 'Chicken', lilpigeon: 'Little Pigeon', skeleton: 'Skeleton', dog: 'Dog', retro: 'Retro Stickguy', zombie: 'Zombie Ally', bee: 'Bee', ninja: 'Ninja', znormal: 'Zombie', zshooter: 'Shooter Zombie', zmini: 'Mini Zombie', zbig: 'Big Zombie', zrunner: 'Runner Zombie', zexploder: 'Exploder Zombie', zboss: 'Zombie Boss', babyele: 'Baby Elephant', drone: 'Robo Drone', penguin: 'Penguin', knight: 'Knight', frog: 'Frog', ghost: 'Ghost' };
-const HELPER_TH: Record<string, string> = { snowman: 'สโนว์แมน', cat: 'แมว', fish: 'ปลา', memory: 'Recall Memory', soldier: 'ทหาร', sbsnow: 'สโนว์แมน', fireally: 'สหายไฟ', redguy: 'เจ้าตัวแดง', chick: 'ลูกเจี๊ยบ', chicken: 'แม่ไก่', lilpigeon: 'นกพิราบน้อย', skeleton: 'โครงกระดูก', dog: 'หมา', retro: 'Retro Stickguy', zombie: 'ซอมบี้พวกเรา', bee: 'ผึ้ง', ninja: 'นินจา', znormal: 'ซอมบี้', zshooter: 'ซอมบี้นักยิง', zmini: 'ซอมบี้จิ๋ว', zbig: 'ซอมบี้ยักษ์', zrunner: 'ซอมบี้วิ่งไว', zexploder: 'ซอมบี้ระเบิด', zboss: 'บอสซอมบี้', babyele: 'ลูกช้าง', drone: 'โดรนหุ่นยนต์', penguin: 'เพนกวิน', knight: 'อัศวิน', frog: 'กบ', ghost: 'ผี' };
+const HELPER_EN: Record<string, string> = { ginger: 'Gingerbread Man', cupcake: 'Cupcake', chef: 'Chef', snowman: 'Snowman', cat: 'Cat', fish: 'Fish', memory: 'Recall Memory', soldier: 'Soldier', sbsnow: 'Snowman', fireally: 'Fire Ally', redguy: 'Red Guy', chick: 'Chick', chicken: 'Chicken', lilpigeon: 'Little Pigeon', skeleton: 'Skeleton', dog: 'Dog', retro: 'Retro Stickguy', zombie: 'Zombie Ally', bee: 'Bee', ninja: 'Ninja', znormal: 'Zombie', zshooter: 'Shooter Zombie', zmini: 'Mini Zombie', zbig: 'Big Zombie', zrunner: 'Runner Zombie', zexploder: 'Exploder Zombie', zboss: 'Zombie Boss', babyele: 'Baby Elephant', drone: 'Robo Drone', penguin: 'Penguin', knight: 'Knight', frog: 'Frog', ghost: 'Ghost' };
+const HELPER_TH: Record<string, string> = { ginger: 'มนุษย์ขนมปังขิง', cupcake: 'คัพเค้ก', chef: 'เชฟ', snowman: 'สโนว์แมน', cat: 'แมว', fish: 'ปลา', memory: 'Recall Memory', soldier: 'ทหาร', sbsnow: 'สโนว์แมน', fireally: 'สหายไฟ', redguy: 'เจ้าตัวแดง', chick: 'ลูกเจี๊ยบ', chicken: 'แม่ไก่', lilpigeon: 'นกพิราบน้อย', skeleton: 'โครงกระดูก', dog: 'หมา', retro: 'Retro Stickguy', zombie: 'ซอมบี้พวกเรา', bee: 'ผึ้ง', ninja: 'นินจา', znormal: 'ซอมบี้', zshooter: 'ซอมบี้นักยิง', zmini: 'ซอมบี้จิ๋ว', zbig: 'ซอมบี้ยักษ์', zrunner: 'ซอมบี้วิ่งไว', zexploder: 'ซอมบี้ระเบิด', zboss: 'บอสซอมบี้', babyele: 'ลูกช้าง', drone: 'โดรนหุ่นยนต์', penguin: 'เพนกวิน', knight: 'อัศวิน', frog: 'กบ', ghost: 'ผี' };
 
 /**
  * Kill feed line colours for helpers with their own lines: background, text, and border.
@@ -240,4 +248,5 @@ export const FEED_STYLE: Partial<Record<FeedKind, { bg: string; text: string; bo
   retro: { bg: 'rgba(17,17,17,0.95)', text: '#ffffff', border: 'rgba(255,255,255,0.95)' },
   zombie: { bg: 'rgba(104,159,56,0.92)', text: '#ffffff' },
   bee: { bg: 'rgba(253,216,53,0.95)', text: '#212121', border: 'rgba(33,33,33,0.9)' },
+  portal: { bg: 'rgba(124,77,255,0.92)', text: '#ffffff', border: 'rgba(234,128,252,0.95)' },
 };

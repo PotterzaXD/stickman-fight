@@ -515,6 +515,45 @@ select {
   color: #cfe3ff;
   font-size: 13px;
 }
+/* Parts: the panel of things you can build, over the top of the map. */
+.parts-btn.on,
+.erase-btn.on {
+  background: #1e88e5;
+  color: #fff;
+}
+.parts-panel {
+  position: absolute;
+  z-index: 5;
+  left: 10px;
+  right: 10px;
+  top: 64px;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  gap: 8px;
+  padding: 12px;
+  background: #fff;
+  border-radius: 14px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+  max-height: 70%;
+  overflow-y: auto;
+}
+.parts-panel.hidden {
+  display: none;
+}
+.parts-panel .part {
+  font: inherit;
+  font-weight: 700;
+  padding: 12px 8px;
+  border: 2px solid var(--line);
+  border-radius: 12px;
+  background: #f5f8ff;
+  color: var(--ink);
+  cursor: pointer;
+}
+.parts-panel .part.on {
+  border-color: #1e88e5;
+  background: #e3f2fd;
+}
 .editor-canvas {
   flex: 1;
   width: 100%;
@@ -1079,6 +1118,23 @@ select {
   background: linear-gradient(90deg, #d9a521, #c9463c);
   color: #1a0e00;
 }
+.version-card.sf2 {
+  background: linear-gradient(90deg, #4a148c, #aa00ff);
+  color: #fff;
+}
+/* The Portal: the whole screen goes black before Stickman Fight 2 opens. */
+.portal-fade {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  background: #000;
+  opacity: 0;
+  transition: opacity 0.9s ease-in;
+  pointer-events: all;
+}
+.portal-fade.on {
+  opacity: 1;
+}
 
 /* ---------- October 22 update: tidier menu, Play setup and Sandbox ---------- */
 /* Main menu: big buttons two by two, the small ones in one row, then How to play and Credits side by side. */
@@ -1328,6 +1384,44 @@ select {
 }
 .td-count {
   font-weight: 800;
+}
+.td-unit-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.td-unit-wrap > .td-unit {
+  flex: 1;
+}
+/* The card's own Equip button is only for phones. */
+.td-card-equip {
+  display: none;
+}
+/* Phones (touch and small): Equip is big and easy to hit. The popup scrolls and keeps its buttons in view. Tablets and PCs stay the same. */
+@media (pointer: coarse) and (max-height: 500px), (pointer: coarse) and (max-width: 600px) {
+  .td-card-equip {
+    display: block;
+    width: 100%;
+    min-height: 52px;
+    font-size: 18px;
+  }
+  .modal.td-info {
+    max-height: calc(100dvh - 32px);
+    overflow-y: auto;
+  }
+  .td-info-btns {
+    position: sticky;
+    bottom: -20px;
+    background: var(--card);
+    padding: 8px 0;
+    width: 100%;
+  }
+  .td-info-btns .td-equip {
+    width: 100%;
+    min-height: 60px;
+    font-size: 20px;
+    order: -1;
+  }
 }
 .td-info,
 .td-hatch {
