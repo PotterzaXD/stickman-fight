@@ -1644,3 +1644,269 @@ select {
     right: 80px;
   }
 }
+
+/* ---------- October 23 update: Stick Chef ---------- */
+.version-card.fun-chef {
+  background: linear-gradient(90deg, #e65100, #ffb74d);
+  color: #fff;
+}
+.chef-page {
+  background: linear-gradient(160deg, #ff8a65, #8d4a2b);
+}
+.chef-tabs {
+  padding: 0 16px 10px;
+  flex-wrap: wrap;
+}
+.chef-body {
+  max-width: 900px;
+}
+.chef-body > p.muted {
+  color: #fff3e0;
+  margin: 0;
+  text-align: center;
+}
+.chef-card {
+  align-items: center;
+  text-align: center;
+}
+.chef-card h3 {
+  margin: 0;
+}
+.chef-drive {
+  background: #fff8e1 !important;
+}
+.chef-warn {
+  color: var(--danger);
+  font-weight: 700;
+}
+canvas.chef-build {
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  max-height: 62vh;
+  border-radius: var(--radius);
+  box-shadow: 0 4px 0 rgba(0, 0, 0, 0.2);
+  touch-action: manipulation;
+  cursor: pointer;
+}
+.chef-sheet {
+  max-height: 86vh;
+  overflow-y: auto;
+}
+.chef-items {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(118px, 1fr));
+  gap: 8px;
+}
+.chef-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 8px 6px;
+  border: 3px solid var(--line);
+  border-radius: 14px;
+  background: #fffdf8;
+  font: inherit;
+  color: var(--ink);
+  text-align: center;
+}
+button.chef-item {
+  cursor: pointer;
+}
+.chef-item.on {
+  border-color: #43a047;
+  background: #e8f5e9;
+  transform: scale(1.04);
+}
+.chef-item.locked {
+  opacity: 0.6;
+  background: #eceff1;
+}
+.chef-item small {
+  font-size: 12px;
+}
+.chef-item-icon {
+  font-size: 34px;
+  line-height: 1.1;
+}
+.chef-reviews {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 8px;
+}
+.chef-review {
+  background: var(--card);
+  border-radius: 14px;
+  padding: 10px 12px;
+  box-shadow: 0 3px 0 rgba(0, 0, 0, 0.15);
+}
+.chef-review p {
+  margin: 4px 0;
+}
+
+/* A day in the restaurant */
+.chef-hud {
+  position: absolute;
+  top: calc(8px + env(safe-area-inset-top));
+  right: calc(8px + env(safe-area-inset-right));
+  display: flex;
+  flex-direction: row-reverse;
+  gap: 10px;
+  align-items: center;
+  pointer-events: none;
+}
+.chef-hud > * {
+  pointer-events: auto;
+}
+.chef-hud .btn {
+  background: rgba(0, 0, 0, 0.55);
+  color: #fff;
+}
+.chef-timer,
+.chef-earned {
+  background: rgba(0, 0, 0, 0.55);
+  color: #fff;
+  padding: 4px 12px;
+  border-radius: 999px;
+  font-size: 18px;
+}
+.chef-earned {
+  color: #c5e1a5;
+}
+.chef-hint {
+  position: absolute;
+  bottom: calc(14px + env(safe-area-inset-bottom));
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(0, 0, 0, 0.65);
+  color: #fff;
+  padding: 6px 16px;
+  border-radius: 999px;
+  font-weight: 700;
+  pointer-events: none;
+  transition: opacity 1s;
+  white-space: nowrap;
+}
+.chef-hint:empty,
+.chef-hint.fade {
+  opacity: 0;
+}
+.chef-overlay {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  background: rgba(30, 12, 0, 0.45);
+  padding: 12px;
+  overflow-y: auto;
+}
+.chef-overlay.hidden {
+  display: none;
+}
+.chef-mg {
+  background: var(--card);
+  border-radius: 20px;
+  padding: 16px 18px;
+  width: min(440px, 100%);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  text-align: center;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.4);
+}
+.chef-mg h2,
+.chef-mg h3,
+.chef-mg p {
+  margin: 0;
+}
+.chef-result h2 {
+  font-size: 34px;
+}
+.chef-end {
+  width: min(560px, 100%);
+}
+.chef-order {
+  display: flex;
+  justify-content: center;
+  gap: 6px;
+  font-size: 28px;
+}
+.chef-order span {
+  opacity: 0.35;
+  transition: opacity 0.15s, transform 0.15s;
+}
+.chef-order span.ok {
+  opacity: 1;
+  transform: scale(1.2);
+}
+.chef-pick {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+}
+.chef-ing {
+  font-size: 32px;
+  width: 64px;
+  height: 64px;
+  border-radius: 16px;
+  border: 3px solid var(--line);
+  background: #fffdf8;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+.chef-ing.bad {
+  border-color: var(--danger);
+  background: #ffebee;
+  animation: chef-shake 0.25s;
+}
+@keyframes chef-shake {
+  25% {
+    transform: translateX(-4px);
+  }
+  75% {
+    transform: translateX(4px);
+  }
+}
+.chef-bar {
+  position: relative;
+  height: 34px;
+  border-radius: 10px;
+  background: #ffe0b2;
+  overflow: hidden;
+  border: 3px solid #8d6e63;
+}
+.chef-zone {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  background: #66bb6a;
+}
+.chef-needle {
+  position: absolute;
+  top: -2px;
+  bottom: -2px;
+  width: 6px;
+  margin-left: -3px;
+  background: #d32f2f;
+  border-radius: 3px;
+}
+.chef-fill {
+  position: absolute;
+  left: 0;
+  top: 8px;
+  bottom: 8px;
+  width: 0;
+  background: rgba(66, 165, 245, 0.85);
+  border-radius: 0 6px 6px 0;
+}
+.chef-go {
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+.chef-lines {
+  text-align: left;
+  margin: 0;
+  padding-left: 18px;
+}
