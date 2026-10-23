@@ -27,6 +27,8 @@ export interface Routes {
   funModes: undefined;
   td: undefined;
   tdPlay: { mapId: string };
+  chef: { tab?: 'home' | 'build' | 'staff' | 'menu' | 'reviews' } | undefined;
+  chefDay: undefined;
 }
 
 export type Screen<K extends keyof Routes> = (root: HTMLElement, arg: Routes[K]) => (() => void) | void;

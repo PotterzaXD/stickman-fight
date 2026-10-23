@@ -3,10 +3,11 @@ import { h } from './dom';
 import { coinChip } from './menu';
 import { go, register } from './router';
 
-/** Other fun modes: The Outbreak and Tower Defense. Both pay out in your Stickman Fight coins. */
-const MODES: { route: 'outbreak' | 'td'; icon: string; name: Key; desc: Key; cls: string }[] = [
+/** Other fun modes: The Outbreak and Tower Defense (they pay out in your Stickman Fight coins), and Stick Chef (its own Chef cash). */
+const MODES: { route: 'outbreak' | 'td' | 'chef'; icon: string; name: Key; desc: Key; cls: string }[] = [
   { route: 'outbreak', icon: '🧟', name: 'outbreak', desc: 'outbreakShort', cls: 'fun-outbreak' },
   { route: 'td', icon: '🏰', name: 'towerDefense', desc: 'towerDefenseDesc', cls: 'fun-td' },
+  { route: 'chef', icon: '👨‍🍳', name: 'stickChef', desc: 'stickChefDesc', cls: 'fun-chef' },
 ];
 
 register('funModes', (root) => {

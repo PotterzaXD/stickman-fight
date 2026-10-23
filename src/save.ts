@@ -1,5 +1,6 @@
 import type { FallMode, MapDef, MatchConfig } from './game/types';
 import type { Lang } from './i18n';
+import { loadChef, newChefSave, type ChefSave } from './chef/data';
 
 export interface SaveData {
   coins: number;
@@ -32,6 +33,8 @@ export interface SaveData {
   td: TDSave;
   /** Went through the Portal map's portal: Stickman Fight 2 shows up in Other versions. */
   sf2: boolean;
+  /** Stick Chef: its own save and its own money (Chef cash), separate from the coins. */
+  chef: ChefSave;
   updatedAt: number;
 }
 
@@ -94,6 +97,7 @@ function defaults(): SaveData {
     outbreak: [null, null, null],
     zombieAlly: false,
     sf2: false,
+    chef: newChefSave(),
     pendingZombie: false,
     td: tdSave(null),
     updatedAt: 0,
@@ -139,6 +143,7 @@ export function normalize(raw: unknown): SaveData {
     outbreak: Array.from({ length: OB_SLOTS }, (_, i) => obSlot(Array.isArray(r.outbreak) ? r.outbreak[i] : null)),
     zombieAlly: r.zombieAlly === true,
     sf2: r.sf2 === true,
+    chef: loadChef(r.chef),
     pendingZombie: r.pendingZombie === true,
     td: tdSave(r.td),
     updatedAt: Number.isFinite(r.updatedAt) ? (r.updatedAt as number) : 0,
