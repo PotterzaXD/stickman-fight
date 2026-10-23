@@ -35,9 +35,11 @@ export interface Snapshot {
   lv?: number[];
   /** Summoner's Clones (extra fighters after the ones from the start): [fighter index, owner index, weapon id]. */
   cl?: [number, number, string][];
+  /** Ice Cream's ice spikes: [x, y, w, h, seconds left, on a head (1) or beside someone (0)]. */
+  ic?: number[][];
 }
 
-const KINDS: ProjKind[] = ['arrow', 'snowball', 'minisnow', 'boomerang', 'bomb', 'axe', 'shuriken', 'laser', 'fireball', 'six7', 'poop', 'soup', 'icebolt', 'banana', 'fireslash', 'dart', 'memorybox', 'rocket', 'wave', 'shard', 'crash', 'vine', 'nerf', 'bullet67', 'water', 'bubble', 'yoyo', 'fishthrow', 'allyfire', 'egg', 'gum', 'crow', 'hay', 'goo', 'sound', 'pebble', 'flame', 'booger', 'tennis'];
+const KINDS: ProjKind[] = ['arrow', 'snowball', 'minisnow', 'boomerang', 'bomb', 'axe', 'shuriken', 'laser', 'fireball', 'six7', 'poop', 'soup', 'icebolt', 'banana', 'fireslash', 'dart', 'memorybox', 'rocket', 'wave', 'shard', 'crash', 'vine', 'nerf', 'bullet67', 'water', 'bubble', 'yoyo', 'fishthrow', 'allyfire', 'egg', 'gum', 'crow', 'hay', 'goo', 'sound', 'pebble', 'flame', 'booger', 'tennis', 'pie', 'ketchup', 'popcorn'];
 const r1 = (v: number) => Math.round(v);
 const r2 = (v: number) => Math.round(v * 100) / 100;
 
@@ -60,7 +62,8 @@ const SHIELD = 1,
   JET = 32768,
   LEAF = 65536,
   SLOW = 131072,
-  DIVE = 262144;
+  DIVE = 262144,
+  DOWN = 524288;
 
 function ownerIndex(g: Game, o: unknown): number {
   const f = o instanceof Snowman || o instanceof Cat ? o.owner : o;
@@ -93,6 +96,7 @@ export function encodeSnapshot(g: Game): Snapshot {
       if (f.leafT > 0) fl |= LEAF;
       if (f.slowT > 0) fl |= SLOW;
       if (f.pigeonState === 'dive') fl |= DIVE;
+      if (f.downT > 0) fl |= DOWN;
       return [f.alive ? 1 : 0, r1(f.x), r1(f.y), r1(f.vx), r1(f.vy), r1(f.hp), f.facing, f.onGround ? 1 : 0, fl, r1(f.shieldHp), r2(f.angles[0]), r2(f.angVel[0]), r2(f.angles[1] ?? 0), FINISHES.indexOf(f.finish)];
     }),
     m: g.snowmen.map((s) => [s.id, ownerIndex(g, s.owner), r1(s.x), r1(s.y), r1(s.hp), s.facing, s.hurtFlash > 0 ? 1 : 0]),
@@ -106,6 +110,7 @@ export function encodeSnapshot(g: Game): Snapshot {
   };
   const clones = g.fighters.flatMap((f, i): [number, number, string][] => (f.cloneOf ? [[i, g.fighters.indexOf(f.cloneOf), f.weapons[0].id]] : []));
   if (clones.length) snap.cl = clones;
+  if (g.iceSpikes.length) snap.ic = g.iceSpikes.map((s) => [r1(s.x), r1(s.y), r1(s.w), r1(s.h), r2(s.life), s.head ? 1 : 0]);
   if (g.caption) snap.cap = [g.caption.key, g.caption.who, r2(g.caption.t)];
   if (g.blizzard) snap.bz = [r2(g.blizzard.warn), r2(g.blizzard.t)];
   if (g.mode === 'stock') snap.lv = g.fighters.map((f) => f.lives);
@@ -134,6 +139,7 @@ export class Mirror {
       const c = g.addClone(g.fighters[oi], wid as WeaponId);
       c.alive = false;
     }
+    g.iceSpikes = (s.ic ?? []).map(([x, y, w, h, life, head]) => ({ x, y, w, h, life, max: 5, head: head === 1, plat: null }));
     s.f.forEach((a, i) => {
       const f = g.fighters[i];
       if (!f) return;
@@ -174,6 +180,7 @@ export class Mirror {
       f.jetT = fl & JET ? 1 : 0;
       f.leafT = fl & LEAF ? 1 : 0;
       f.slowT = fl & SLOW ? 1 : 0;
+      f.downT = fl & DOWN ? 1 : 0;
       if (f.pigeon) f.pigeonState = fl & DIVE ? 'dive' : 'hover';
       f.shieldHp = shieldHp;
       f.angVel[0] = av0;

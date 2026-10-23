@@ -19,6 +19,7 @@ export interface Routes {
   stickbrawl: undefined;
   worst: undefined;
   worst2: undefined;
+  sf2: undefined;
   arena: undefined;
   versions: undefined;
   outbreak: undefined;
@@ -49,7 +50,7 @@ export function go<K extends keyof Routes>(name: K, ...arg: undefined extends Ro
   root.scrollTop = 0;
   const s = screens[name] as Screen<K>;
   // Menus play the title theme; Sandbox has its own. Matches pick their own music, and Stick Brawl has none.
-  if (name !== 'play' && name !== 'netplay' && name !== 'stickbrawl' && name !== 'worst2' && name !== 'arena') playMusic(name === 'sandbox' ? 'sandbox' : 'menu');
+  if (name !== 'play' && name !== 'netplay' && name !== 'stickbrawl' && name !== 'worst2' && name !== 'arena' && name !== 'sf2') playMusic(name === 'sandbox' ? 'sandbox' : 'menu');
   sfx.transition();
   cleanup = s(root, arg[0] as Routes[K]);
 }

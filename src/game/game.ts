@@ -45,10 +45,11 @@ import { updateElephant, scarecrowSkill, roboSkill, steerCrow } from './bosses';
 import { OutbreakState, startOutbreak, outbreakWinner, updateOutbreak, updateRise, updateZombieBosses, zombieBoom } from './outbreak';
 import { feedCount, type FeedKind } from './killfeed';
 import { HillState, hillWinner, raceKo, raceWinner, startHill, startRace, updateHill, updateRespawns } from './hill';
-import { BOOGER, FROG, GHOST, KNIGHT, LOLLIPOP } from './entities';
+import { BOOGER, CHEF, CUPCAKE, FROG, GHOST, GINGER, KNIGHT, LOLLIPOP } from './entities';
+import { oct23AttackGap, oct23Bit, oct23Hit, oct23Skill, oct23Splat, summonOct23, updateOct23 } from './oct23';
 import { helperArmour, oct22AttackGap, oct22Hit, oct22Skill, rushWinner, startRush, startStock, stockWinner, tennisBounce, updateRush, type RushState } from './oct22';
 import { Juice, wallPush } from './juice';
-import { BEACH_MAP, BEACH_MODES, isBossMode, isSecret, type BossKind, type Difficulty, type FallMode, type MapDef, type Mode, type SandboxBoss } from './types';
+import { BEACH_MAP, BEACH_MODES, isBossMode, isSecret, type BossKind, type Difficulty, type FallMode, type MapDef, type Mode, type Platform, type SandboxBoss } from './types';
 import { SHOP_WEAPONS, weapon, type WeaponId } from './weapons';
 import type { Key } from '../i18n';
 import { sfx } from '../sfx';
@@ -282,7 +283,21 @@ export type NetEvent =
   | ['s', string]
   | ['z', number, number, number, number]
   | ['l', number, number, number, number, string, number]
-  | ['k', number, number, FeedKind, number, string?, string?];
+  | ['k', number, number, FeedKind, number, string?, string?]
+  /** This fighter went through the Portal. */
+  | ['p', number];
+
+/** Ice Cream's ice spike: where it is, seconds until it melts, and its platform (host only). */
+export interface IceSpike {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+  life: number;
+  max: number;
+  head: boolean;
+  plat: Platform | null;
+}
 
 /** One line in the kill feed: fighter indexes (killer -1 = nobody), what happened, which joke. */
 export interface FeedItem {
@@ -329,6 +344,11 @@ export class Game {
   maxSnowmen: number;
   record: boolean;
   events: NetEvent[] = [];
+  /** Ice Cream's ice spikes (online, the joining devices get them from the host to draw). */
+  iceSpikes: IceSpike[] = [];
+  /** The Portal map: fighters (by index) who went through the portal, and what to do when one does. */
+  portalGone = new Set<number>();
+  onPortal?: (fighter: number) => void;
   cats: Cat[] = [];
   /** Bodies left behind by death finishers. */
   corpses: Corpse[] = [];
@@ -610,6 +630,9 @@ export class Game {
         : hp.kind === 'knight' ? KNIGHT
         : hp.kind === 'frog' ? FROG
         : hp.kind === 'ghost' ? GHOST
+        : hp.kind === 'ginger' ? GINGER
+        : hp.kind === 'cupcake' ? CUPCAKE
+        : hp.kind === 'chef' ? CHEF
         : hp.kind === 'cat' ? BOSS_CATS
         : hp.kind === 'fish' ? FISHY.fish
         : hp.kind === 'memory' ? MEMORY_ALLY
@@ -831,6 +854,7 @@ export class Game {
       else if (e[0] === 's' && e[1] in sfx) (sfx as unknown as Record<string, () => void>)[e[1]]();
       else if (e[0] === 'z') this.bolts.push({ x1: e[1], y1: e[2], x2: e[3], y2: e[4], life: 0.3 });
       else if (e[0] === 'l') this.tracers.push({ x1: e[1], y1: e[2], x2: e[3], y2: e[4], life: 0.18, color: e[5], w: e[6] });
+      else if (e[0] === 'p') this.onPortal?.(e[1]);
       else if (e[0] === 'k') {
         this.pushFeed({ victim: e[1], killer: e[2], kind: e[3], n: e[4], vh: e[5] || undefined, kh: e[6] || undefined, t: FEED_LIFE });
         // Get Tricked: somebody else knocked out a Clone.
@@ -844,6 +868,22 @@ export class Game {
   ring(x: number, y: number, maxR: number, life: number, color: string) {
     this.rings.push({ x, y, r: 10, maxR, life, max: life, color });
     if (this.record) this.events.push(['r', Math.round(x), Math.round(y), Math.round(maxR), life, color]);
+  }
+
+  /** Ice Cream's ice spikes: a solid block (an extra platform at the end of the map's list) until it melts. */
+  addIceSpike(plat: Platform, life: number) {
+    this.map.platforms.push(plat);
+    this.glassT.push(0);
+    this.iceSpikes.push({ x: plat.x, y: plat.y, w: plat.w, h: plat.h, life, max: life, head: plat.temp === 'head', plat });
+  }
+
+  /** Somebody went through the Portal (the screen they play on goes to Stickman Fight 2). */
+  portalled(f: Fighter) {
+    const i = this.fighters.indexOf(f);
+    if (i < 0 || this.portalGone.has(i)) return;
+    this.portalGone.add(i);
+    if (this.record) this.events.push(['p', i]);
+    this.onPortal?.(i);
   }
 
   /** A player left the room mid-match: a bot takes over their stickman. */
@@ -894,6 +934,7 @@ export class Game {
       if (b.onGround) b.vx *= 0.8;
     }
     for (const b of this.bodies()) if (b.slowT > 0) b.slowT -= dt;
+    updateOct23(this, dt);
     this.updateBubbles(dt);
     this.markSurvivors();
     if (this.cut) this.updateCutscene(dt);
@@ -1311,7 +1352,11 @@ export class Game {
       this.burst(b.x, b.cy, '#ffffff', 10, 380);
     } else if (how !== 'void') {
       const c = makeCorpse(b, how);
-      if (c) this.corpses.push(c);
+      if (c) {
+        // The Portal map: a knocked-out player flung into the portal goes through it.
+        c.who = b as Fighter;
+        this.corpses.push(c);
+      }
       if (how === 'pieces') {
         // Blown to pieces: confetti and a big KABOOM.
         for (const col of ['#ff5252', '#ffeb3b', '#69f0ae', '#40c4ff', '#e040fb']) this.burst(b.x, b.cy, col, 7, 560);
@@ -1350,11 +1395,11 @@ export class Game {
   /** Add a goofy line to the kill feed (and send it to the other devices). */
   private feedKill(v: Fighter, killer: Fighter | null, how: Finish, env?: FeedKind, vh?: string, kh?: string) {
     let kind: FeedKind = env ?? (killer?.pigeon ? 'peck' : 'kill');
-    if (how === 'void') kind = this.map.theme === 'beach' || this.map.theme === 'pirate' ? 'water' : this.map.theme === 'lava' || this.map.theme === 'inferno' ? 'lava' : 'void';
+    if (how === 'void' && env !== 'portal') kind = this.map.theme === 'beach' || this.map.theme === 'pirate' ? 'water' : this.map.theme === 'lava' || this.map.theme === 'inferno' ? 'lava' : 'void';
     // A cat going down gets its own cute line, and so do the chicks, the Chicken, fish, the Recall Memory boss,
     // the dog, skeletons and the little pigeon (each in its own colour).
     const own = vh ? HELPER_FEED[vh] : undefined;
-    if (own) kind = own;
+    if (own && env !== 'portal') kind = own;
     // Knocked off the map (or into lava) by someone a moment ago: they get the credit.
     if (!vh && !killer && v.lastHitBy && v.lastHitBy !== v && this.time - v.lastHitT < BLAME_S) killer = v.lastHitBy;
     const by = !!killer;
@@ -1756,7 +1801,7 @@ export class Game {
         this.text(f.x, f.y - f.h - 30, '🔥 FWOOSH!', '#ff9100', 24);
         break;
       default:
-        oct22Skill(this, f, i, angle);
+        if (!oct22Skill(this, f, i, angle)) oct23Skill(this, f, i, angle);
         break;
       case 'stick':
       case 'mascotstick': {
@@ -1880,6 +1925,8 @@ export class Game {
     this.summonOne(f, 'knight', KNIGHT.hp, KNIGHT.dmg, inward * 130);
     this.summonOne(f, 'frog', FROG.hp, FROG.dmg, inward * 180);
     this.summonOne(f, 'ghost', GHOST.hp, GHOST.dmg, inward * 40);
+    // October 23: the Gingerbread Man, the Cupcake and the Chef.
+    summonOct23(this, f, inward);
     for (let k = 0; k < SUMMONER.snowmen; k++) {
       if (this.snowmen.filter((m) => m.alive && m.owner === f).length >= this.maxSnowmen) break;
       const m = new Snowman(f, f.x + (k - 1) * 56, f.y - 6);
@@ -2221,7 +2268,7 @@ export class Game {
   }
 
   /** Summoner: one Stick Brawl ally of this kind per owner (the Snowman or the Fire Ally), until it's beaten. */
-  private summonOne(f: Fighter, variant: CatVariant, hp: number, dmg: number, dx: number) {
+  summonOne(f: Fighter, variant: CatVariant, hp: number, dmg: number, dx: number) {
     if (this.cats.some((c) => c.alive && c.owner === f && c.variant === variant)) return;
     const x = clamp(f.x + dx, 0, this.map.w);
     const c = new Cat(f, x, f.y - 6, hp, dmg, variant);
@@ -2671,13 +2718,14 @@ export class Game {
   /** A cat touched an enemy. */
   catBite(c: Cat, e: Body, dmg = c.touchDmg) {
     // The dog waits 8 seconds between bites; the little pigeon pecks about once a second; the Retro Stickguy's knife every 1.5 s.
-    c.attackT = oct22AttackGap(c) ?? (c.variant === 'dog' ? DOG.every : c.variant === 'lilpigeon' ? LIL_PIGEON.every : c.variant === 'retro' ? RETRO.every : c.variant === 'zboss' || c.variant === 'zbig' || c.variant === 'babyele' ? 1.2 : 0.8);
+    c.attackT = oct22AttackGap(c) ?? oct23AttackGap(c) ?? (c.variant === 'dog' ? DOG.every : c.variant === 'lilpigeon' ? LIL_PIGEON.every : c.variant === 'retro' ? RETRO.every : c.variant === 'zboss' || c.variant === 'zbig' || c.variant === 'babyele' ? 1.2 : 0.8);
     const dir = sign(e.x - c.x) || c.facing;
     c.facing = dir;
     const big =
       c.variant === 'memory' || c.variant === 'soldier' || c.variant === 'sbsnow' || c.variant === 'skeleton' || c.variant === 'dog' || c.variant === 'chicken' ||
       c.variant === 'retro' || c.variant === 'ninja' || c.variant === 'zbig' || c.variant === 'zboss' || c.variant === 'babyele' || c.variant === 'knight';
     this.damage(e, dmg, c, dir * (big ? 480 : 260), big ? -380 : -220, big ? 'ragdoll' : 'trip');
+    oct23Bit(c, e);
   }
 
   /** Soup lands: a yellow splash that hurts and burns every enemy close by. */
@@ -2706,9 +2754,9 @@ export class Game {
     const scale = owner instanceof Fighter ? owner.scale : 1;
     const big = kind === 'boomerang' || kind === 'bomb' || kind === 'axe' || kind === 'fireball' || kind === 'six7' || kind === 'soup' || kind === 'hay';
     const r =
-      { arrow: 5, snowball: 11, minisnow: 8, boomerang: 16, bomb: 11, axe: 22, shuriken: 8, laser: 6, fireball: 14, six7: 24, poop: 10, soup: 14, icebolt: 9, banana: 10, fireslash: 34, dart: 6, memorybox: 12, rocket: 10, wave: 60, shard: 10, crash: 80, vine: 14, nerf: 6, bullet67: 7, water: 7, bubble: 18, yoyo: 13, fishthrow: 14, allyfire: 12, egg: 10, gum: 11, crow: 14, hay: 34, goo: 10, sound: 40, pebble: 6, flame: 14, booger: 9, tennis: 9 }[kind] *
+      { arrow: 5, snowball: 11, minisnow: 8, boomerang: 16, bomb: 11, axe: 22, shuriken: 8, laser: 6, fireball: 14, six7: 24, poop: 10, soup: 14, icebolt: 9, banana: 10, fireslash: 34, dart: 6, memorybox: 12, rocket: 10, wave: 60, shard: 10, crash: 80, vine: 14, nerf: 6, bullet67: 7, water: 7, bubble: 18, yoyo: 13, fishthrow: 14, allyfire: 12, egg: 10, gum: 11, crow: 14, hay: 34, goo: 10, sound: 40, pebble: 6, flame: 14, booger: 9, tennis: 9, pie: 13, ketchup: 7, popcorn: 7 }[kind] *
       (big || kind === 'fireslash' ? scale : 1);
-    const life = { arrow: 2, snowball: 3, minisnow: 3, boomerang: 3.5, bomb: 1.5, axe: 3.5, shuriken: 2, laser: 0.7, fireball: 2, six7: 3.5, poop: 3, soup: 3, icebolt: 2, banana: 3, fireslash: 0.7, dart: 2, memorybox: 0.35, rocket: 2, wave: 1.7, shard: 1.6, crash: 1.9, vine: 0.42, nerf: 2, bullet67: 1.2, water: 0.9, bubble: 2.6, yoyo: 3.5, fishthrow: 3, allyfire: 2, egg: 2.5, gum: 2.5, crow: 3.5, hay: 2.4, goo: 2.5, sound: 0.45, pebble: 2, flame: 0.5, booger: 2.5, tennis: 3.5 }[kind];
+    const life = { arrow: 2, snowball: 3, minisnow: 3, boomerang: 3.5, bomb: 1.5, axe: 3.5, shuriken: 2, laser: 0.7, fireball: 2, six7: 3.5, poop: 3, soup: 3, icebolt: 2, banana: 3, fireslash: 0.7, dart: 2, memorybox: 0.35, rocket: 2, wave: 1.7, shard: 1.6, crash: 1.9, vine: 0.42, nerf: 2, bullet67: 1.2, water: 0.9, bubble: 2.6, yoyo: 3.5, fishthrow: 3, allyfire: 2, egg: 2.5, gum: 2.5, crow: 3.5, hay: 2.4, goo: 2.5, sound: 0.45, pebble: 2, flame: 0.5, booger: 2.5, tennis: 3.5, pie: 2.5, ketchup: 1.2, popcorn: 1.5 }[kind];
     this.projectiles.push({
       kind,
       x,
@@ -2860,8 +2908,8 @@ export class Game {
           this.burst(p.x, p.y, '#ff1744', 6, 220);
           continue;
         }
-        if (oct22Hit(this, p, e, dir)) {
-          // Booger or tennis ball (see oct22.ts).
+        if (oct22Hit(this, p, e, dir) || oct23Hit(this, p, e, dir)) {
+          // Booger, tennis ball, pie, ketchup or popcorn (see oct22.ts and oct23.ts).
         } else if (p.kind === 'fireball') this.explode(p, 120 * p.scale, true);
         else if (p.kind === 'bomb') this.explode(p);
         else if (p.kind === 'soup') this.splash(p);
@@ -2959,7 +3007,7 @@ export class Game {
             p.dead = true;
             break;
           }
-          if (tennisBounce(p, pl)) break;
+          if (tennisBounce(p, pl) || oct23Splat(this, p, pl)) break;
           if (p.kind === 'booger') {
             this.burst(p.x, Math.min(p.y, pl.y), '#9ccc65', 6, 160);
             p.dead = true;
@@ -3171,6 +3219,17 @@ export class Game {
     return { decided: false, team: null };
   }
 
+  /** One Little Pigeon never keeps its side in the match: once the match is decided, the ones on a losing side fly off. */
+  private pigeonsFlyAway(winner: number | null) {
+    for (const c of this.cats) {
+      if (!c.alive || c.variant !== 'lilpigeon' || c.team === winner) continue;
+      c.alive = false;
+      c.hp = 0;
+      this.burst(c.x, c.cy, '#cfd8dc', 12, 300);
+      this.text(c.x, c.y - c.h - 20, '🐦💨', '#ffffff', 22);
+    }
+  }
+
   private checkWin() {
     if (this.over) return;
     const w = this.winnerTeam();
@@ -3178,6 +3237,8 @@ export class Game {
       this.endT = -1;
       return;
     }
+    // The battle is decided: a One Little Pigeon left on a losing side flies away, so it never looks like it is still fighting.
+    this.pigeonsFlyAway(w.team);
     // The Outbreak ends right after its morning cutscene.
     if (this.endT < 0) {
       this.endT = this.time + (this.ob ? 0.2 : 1.6);

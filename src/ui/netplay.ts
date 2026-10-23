@@ -13,6 +13,7 @@ import { onRoomClosed } from './roomScreen';
 import { afterWave, outbreakTitle } from './outbreak';
 import { grant } from '../achievements';
 import { go, register } from './router';
+import { goThroughPortal } from './portal';
 
 const STEP = 1 / 120;
 
@@ -147,6 +148,10 @@ register('netplay', (root) => {
       juice: false,
     });
     mirror = host ? null : new Mirror(game);
+    // The Portal map: a player on this device went through the portal. They leave the room (the host closing it ends it for everyone).
+    game.onPortal = (i) => {
+      if (localIdx.includes(i)) goThroughPortal(() => setSession(null));
+    };
     startCoins = save.data.coins;
     playMusic(matchTrack(game));
     if (import.meta.env.DEV) (window as unknown as { __ng: Game }).__ng = game;

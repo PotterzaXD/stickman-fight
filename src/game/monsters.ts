@@ -405,7 +405,7 @@ function drawBee(ctx: Ctx, c: Cat, time: number) {
 }
 
 /** A stickman pose for ninjas and zombies (feet at c.x, c.y). */
-function stickBody(ctx: Ctx, c: Cat, time: number, col: string, lw: number, lean: number, armsOut: boolean) {
+export function stickBody(ctx: Ctx, c: Cat, time: number, col: string, lw: number, lean: number, armsOut: boolean) {
   const h = c.h;
   const d = c.facing || 1;
   const moving = c.onGround && Math.abs(c.vx) > 20;

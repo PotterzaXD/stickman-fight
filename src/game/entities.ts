@@ -58,6 +58,8 @@ export abstract class Body {
   poisonSrc: Body | null = null;
   /** Seconds left slowed down (Ice Shard, Root Trap). */
   slowT = 0;
+  /** Pie: seconds left knocked flat on the ground (can't move). */
+  downT = 0;
   /** Bubble Wand: seconds left floating in a bubble (pops for damage at the end). */
   bubbleT = 0;
   bubbleSrc: Body | null = null;
@@ -358,7 +360,8 @@ export type CatVariant =
   | 'retro' | 'zombie' | 'bee' | 'ninja'
   | ZombieKind
   | 'babyele' | 'drone' | 'penguin'
-  | 'knight' | 'frog' | 'ghost';
+  | 'knight' | 'frog' | 'ghost'
+  | 'ginger' | 'cupcake' | 'chef';
 /** The Outbreak's zombies (on the zombies' side). */
 export type ZombieKind = 'znormal' | 'zshooter' | 'zmini' | 'zbig' | 'zrunner' | 'zexploder' | 'zboss';
 export const ZOMBIE_KINDS: ZombieKind[] = ['znormal', 'zshooter', 'zmini', 'zbig', 'zrunner', 'zexploder', 'zboss'];
@@ -369,6 +372,7 @@ export const CAT_VARIANTS: CatVariant[] = [
   'retro', 'zombie', 'bee', 'ninja', 'znormal', 'zshooter', 'zmini', 'zbig', 'zrunner', 'zexploder', 'zboss',
   'babyele', 'drone', 'penguin',
   'knight', 'frog', 'ghost',
+  'ginger', 'cupcake', 'chef',
 ];
 /** Helpers that don't vanish when beaten: they stay where they went down (the red guy frozen, skeletons as bones, the dog asleep) until their weapon or the Summoner brings them back. */
 export const REVIVES = (v: CatVariant) => v === 'redguy' || v === 'skeleton' || v === 'dog';
@@ -412,6 +416,13 @@ export const PENGUIN = { hp: 120, dmg: 22, slideEvery: 3, slideS: 1.1 };
 export const KNIGHT = { hp: 700, dmg: 30, speed: 250, every: 1.1 };
 export const FROG = { hp: 160, dmg: 20, tongue: 70, every: 1.4, hop: 620 };
 export const GHOST = { hp: 220, dmg: 14, spookS: 2, every: 1 };
+/**
+ * The October 23 helpers (Summoner and Sandbox): the Gingerbread Man (very fast, punches), the Cupcake (hops onto enemies,
+ * and its frosting slows them down) and the Chef (a stickman in a chef's hat who keeps away and throws pies).
+ */
+export const GINGER = { hp: 180, dmg: 18, speed: 430, every: 0.6 };
+export const CUPCAKE = { hp: 90, dmg: 12, slowS: 1.5, every: 0.9, hop: 560 };
+export const CHEF = { hp: 350, dmg: 15, pie: 22, every: 1.8 };
 /** The October 22 weapons. Booger: 30 a flick, 30 a throw. Racket: a tennis ball that bounces. Lollipop: Sugar Rush (faster and heals).
  * Scythe: Reap, a big sweep that heals you for half of what it hits. Pillow: Pillow Fight, a burst of feathers that puts everyone close to sleep. */
 export const BOOGER = { dmg: 30, speed: 1000, g: 1300 };
@@ -472,8 +483,8 @@ export class Cat extends Body {
     // Zombies and ninjas are stickmen too; the mini zombie is small, the big one and the Zombie Boss are huge.
     const stick = variant === 'soldier' || variant === 'sbsnow' || variant === 'fireally' || variant === 'skeleton' || variant === 'ninja' || variant === 'zombie' || variant === 'znormal' || variant === 'zshooter' || variant === 'zrunner' || variant === 'zexploder';
     const [w, h] =
-      variant === 'memory' ? [46, 128] : stick ? [30, 80] : variant === 'redguy' ? [16, 43] : variant === 'retro' ? [30, 60] : variant === 'bee' ? [16, 14] : variant === 'zmini' ? [20, 48] : variant === 'zbig' ? [52, 120] : variant === 'zboss' ? [80, 190] : variant === 'babyele' ? [56, 50] : variant === 'drone' ? [34, 18] : variant === 'penguin' ? [28, 40] : variant === 'knight' ? [34, 86] : variant === 'frog' ? [34, 26] : variant === 'ghost' ? [34, 44] : variant === 'chick' ? [16, 16] : variant === 'chicken' ? [38, 42] : variant === 'lilpigeon' ? [28, 32] : variant === 'dog' ? [46, 34] : [34, 30];
-    super(x, y, w, h, hp, owner.team, variant === 'sbsnow' ? '#bdeeff' : variant === 'fireally' ? '#ff7a1a' : variant === 'redguy' ? '#f66' : variant === 'skeleton' ? '#eeeeee' : variant === 'retro' ? '#111111' : variant === 'babyele' ? '#b0bec5' : variant === 'penguin' ? '#263238' : variant === 'frog' ? '#66bb6a' : variant === 'ghost' ? '#eceff1' : isZombie(variant) || variant === 'zombie' ? '#7cb342' : owner.color);
+      variant === 'memory' ? [46, 128] : stick ? [30, 80] : variant === 'redguy' ? [16, 43] : variant === 'retro' ? [30, 60] : variant === 'bee' ? [16, 14] : variant === 'zmini' ? [20, 48] : variant === 'zbig' ? [52, 120] : variant === 'zboss' ? [80, 190] : variant === 'babyele' ? [56, 50] : variant === 'drone' ? [34, 18] : variant === 'penguin' ? [28, 40] : variant === 'knight' ? [34, 86] : variant === 'frog' ? [34, 26] : variant === 'ghost' ? [34, 44] : variant === 'ginger' ? [30, 56] : variant === 'cupcake' ? [28, 28] : variant === 'chef' ? [30, 80] : variant === 'chick' ? [16, 16] : variant === 'chicken' ? [38, 42] : variant === 'lilpigeon' ? [28, 32] : variant === 'dog' ? [46, 34] : [34, 30];
+    super(x, y, w, h, hp, owner.team, variant === 'sbsnow' ? '#bdeeff' : variant === 'fireally' ? '#ff7a1a' : variant === 'redguy' ? '#f66' : variant === 'skeleton' ? '#eeeeee' : variant === 'retro' ? '#111111' : variant === 'babyele' ? '#b0bec5' : variant === 'penguin' ? '#263238' : variant === 'frog' ? '#66bb6a' : variant === 'ghost' ? '#eceff1' : variant === 'ginger' ? '#b9773a' : variant === 'cupcake' ? '#f48fb1' : isZombie(variant) || variant === 'zombie' ? '#7cb342' : owner.color);
     this.owner = owner;
     this.touchDmg = touchDmg;
     this.facing = owner.facing;
@@ -521,7 +532,10 @@ export type ProjKind =
   | 'pebble'
   | 'flame'
   | 'booger'
-  | 'tennis';
+  | 'tennis'
+  | 'pie'
+  | 'ketchup'
+  | 'popcorn';
 
 /** Thrown weapons that fly out and come back to the hand. */
 export const returns = (k: ProjKind) => k === 'boomerang' || k === 'axe' || k === 'six7' || k === 'yoyo';

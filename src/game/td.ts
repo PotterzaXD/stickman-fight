@@ -231,6 +231,13 @@ export const ROAD_W = 44;
 
 // ---------- waves ----------
 
+/** Losing still pays: half the win reward for the share of waves you cleared (the wave you lost on doesn't count). */
+export function lossReward(diff: TDDifficulty, wave: number): number {
+  const info = DIFF_INFO[diff];
+  const cleared = Math.max(0, Math.min(info.waves, wave - 1));
+  return Math.floor((info.reward / 2) * (cleared / info.waves));
+}
+
 /** The enemies in a wave, in the order they come out. The wave after the last one is the boss. */
 export function waveList(diff: TDDifficulty, wave: number): EnemyId[] {
   const n = DIFF_INFO[diff].waves;

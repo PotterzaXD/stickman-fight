@@ -18,6 +18,7 @@ import { startLoop } from './loop';
 import { go, register } from './router';
 import { afterWave, livesOf, outbreakInfo, outbreakTitle } from './outbreak';
 import { RUSH } from '../game/oct22';
+import { goThroughPortal } from './portal';
 
 function buildSpecs(match: MatchConfig): FighterSpec[] {
   const owned = save.data.owned;
@@ -416,6 +417,12 @@ register('play', (root, { match, fromEditor }) => {
       juice: save.data.settings.juice,
     });
     game.onOver = showResult;
+    // The Portal map: a player who goes through the portal leaves for Stickman Fight 2.
+    game.onPortal = (i) => {
+      if (!game.fighters[i]?.human) return;
+      paused = true;
+      goThroughPortal();
+    };
     startCoins = save.data.coins;
     playMusic(matchTrack(game));
     if (import.meta.env.DEV) (window as unknown as { __game: Game }).__game = game;

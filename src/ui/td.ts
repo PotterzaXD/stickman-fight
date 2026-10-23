@@ -13,6 +13,7 @@ import {
   UNITS,
   UNIT_BY_ID,
   hatch,
+  lossReward,
   type EggDef,
   type TDUnit,
   type UnitDef,
@@ -159,13 +160,19 @@ function unitsTab(repaint: () => void): HTMLElement[] {
           );
         const on = td.equip.includes(u.id);
         return h(
-          'button',
-          { class: `td-unit ${on ? 'on' : ''}`, style: `--rar:${RARITY_COLOR[u.rarity]}`, onclick: () => unitInfo(u, repaint) },
-          unitCanvas(u, 70),
-          h('b', {}, `${u.icon} ${unitName(u)}`),
-          h('small', { class: 'td-rar' }, rarityName(u)),
-          h('small', {}, statsLine(u)),
-          h('small', { class: 'td-count' }, `×${n}${on ? ' ✅' : ''}`),
+          'div',
+          { class: 'td-unit-wrap' },
+          h(
+            'button',
+            { class: `td-unit ${on ? 'on' : ''}`, style: `--rar:${RARITY_COLOR[u.rarity]}`, onclick: () => unitInfo(u, repaint) },
+            unitCanvas(u, 70),
+            h('b', {}, `${u.icon} ${unitName(u)}`),
+            h('small', { class: 'td-rar' }, rarityName(u)),
+            h('small', {}, statsLine(u)),
+            h('small', { class: 'td-count' }, `×${n}${on ? ' ✅' : ''}`),
+          ),
+          // Phones only (see style.css): a big Equip button right on the card.
+          h('button', { class: `btn td-card-equip ${on ? '' : 'primary'}`, disabled: on && td.equip.length <= 1, onclick: () => toggleEquip(u.id, repaint) }, on ? t('tdUnequip') : t('tdEquip')),
         );
       }),
     ),
@@ -215,8 +222,8 @@ function unitInfo(u: UnitDef, repaint: () => void) {
       h('p', {}, t('tdOwned', { n })),
       h(
         'div',
-        { class: 'row gap wrap' },
-        h('button', { class: 'btn primary', disabled: on && td.equip.length <= 1, onclick: () => (close(), toggleEquip(u.id, repaint)) }, on ? t('tdUnequip') : t('tdEquip')),
+        { class: 'row gap wrap td-info-btns' },
+        h('button', { class: 'btn primary td-equip', disabled: on && td.equip.length <= 1, onclick: () => (close(), toggleEquip(u.id, repaint)) }, on ? t('tdUnequip') : t('tdEquip')),
         h('button', { class: 'btn', disabled: keepOne, onclick: () => void sell() }, t('tdSell', { n: SELL_PRICE[u.rarity] })),
         h('button', { class: 'btn ghost', onclick: close }, t('close')),
       ),
@@ -408,12 +415,11 @@ register('tdPlay', (root, { mapId }) => {
   function showOver() {
     shownOver = true;
     const win = g.over === 'win';
-    const reward = win ? DIFF_INFO[map!.diff].reward : 0;
-    if (win)
-      save.update((d) => {
-        d.coins += reward;
-        if (!d.td.cleared.includes(map!.id)) d.td.cleared.push(map!.id);
-      });
+    const reward = win ? DIFF_INFO[map!.diff].reward : lossReward(map!.diff, g.wave);
+    save.update((d) => {
+      d.coins += reward;
+      if (win && !d.td.cleared.includes(map!.id)) d.td.cleared.push(map!.id);
+    });
     jingle(win ? 'victory' : 'defeat');
     const close = () => wrap.remove();
     const wrap = h(
@@ -423,7 +429,7 @@ register('tdPlay', (root, { mapId }) => {
         'div',
         { class: 'modal' },
         h('h2', {}, win ? `🏆 ${t('tdWin')}` : `💀 ${t('tdLose', { n: g.wave })}`),
-        win ? h('p', { class: 'coins-earned' }, `🪙 ${t('coinsEarned', { n: reward })}`) : null,
+        reward ? h('p', { class: 'coins-earned' }, `🪙 ${t('coinsEarned', { n: reward })}`) : null,
         h(
           'div',
           { class: 'row gap wrap' },

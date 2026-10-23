@@ -4,7 +4,7 @@ export interface Theme {
   sky: [string, string];
   plat: string;
   top: string;
-  deco: 'clouds' | 'stars' | 'snow' | 'embers' | 'space' | 'beach' | 'war' | 'jungle' | 'haunted' | 'candy' | 'farm' | 'graveyard' | 'inferno' | 'pirate' | 'desert' | 'stage';
+  deco: 'clouds' | 'stars' | 'snow' | 'embers' | 'space' | 'beach' | 'war' | 'jungle' | 'haunted' | 'candy' | 'farm' | 'graveyard' | 'inferno' | 'pirate' | 'desert' | 'stage' | 'portal' | 'kitchen' | 'dessert';
   /** Gravity multiplier (space: low gravity, you jump higher and fall slower). */
   gravity?: number;
 }
@@ -27,10 +27,13 @@ export const THEMES: Record<ThemeId, Theme> = {
   pirate: { sky: ['#4fc3f7', '#e1f5fe'], plat: '#6d4c41', top: '#a1887f', deco: 'pirate' },
   desert: { sky: ['#ffb74d', '#fff8e1'], plat: '#c68b4e', top: '#ffd180', deco: 'desert' },
   stage: { sky: ['#12001f', '#3d0a4f'], plat: '#212121', top: '#ff4081', deco: 'stage' },
+  portal: { sky: ['#0b0020', '#3a0f6b'], plat: '#311b92', top: '#b388ff', deco: 'portal' },
+  kitchen: { sky: ['#fffaf0', '#ffe0b2'], plat: '#8d6e63', top: '#eceff1', deco: 'kitchen' },
+  dessert: { sky: ['#fce4ec', '#e1f5fe'], plat: '#a1662f', top: '#f8bbd0', deco: 'dessert' },
 };
 
 /** Append only (shared map links send the index). */
-export const THEME_IDS: ThemeId[] = ['day', 'sunset', 'night', 'snow', 'lava', 'space', 'beach', 'war', 'jungle', 'haunted', 'candy', 'farm', 'graveyard', 'inferno', 'pirate', 'desert', 'stage'];
+export const THEME_IDS: ThemeId[] = ['day', 'sunset', 'night', 'snow', 'lava', 'space', 'beach', 'war', 'jungle', 'haunted', 'candy', 'farm', 'graveyard', 'inferno', 'pirate', 'desert', 'stage', 'portal', 'kitchen', 'dessert'];
 
 const P = (x: number, y: number, w: number, h = 24): Platform => ({ x, y, w, h });
 /** Special block: concrete, lava or glass. */
@@ -555,6 +558,80 @@ export const BUILTIN_MAPS: MapDef[] = [
       P(560, 380, 160, 18),
       P(1280, 380, 160, 18),
       B('ice', 900, 240, 200, 20),
+    ],
+    spawns: [],
+  },
+  {
+    // October 23: a purple portal on the right. Walk in (or get flung in) and you leave for Stickman Fight 2.
+    id: 'portal',
+    name: 'm.portal',
+    w: 2200,
+    h: 1000,
+    theme: 'portal',
+    builtin: true,
+    portal: { x: 1990, y: 715, r: 105 },
+    platforms: [
+      P(100, 820, 1960, 70),
+      P(280, 620, 260),
+      P(780, 560, 300),
+      P(1300, 620, 260),
+      B('bounce', 1520, 800, 80, 20),
+      M(980, 360, 220, 280, 0, 6),
+      B('concrete', 1660, 420, 180, 30),
+      B('glass', 520, 400, 200, 20),
+    ],
+    spawns: [
+      { x: 220, y: 820 },
+      { x: 420, y: 620 },
+      { x: 930, y: 560 },
+      { x: 620, y: 820 },
+      { x: 1080, y: 820 },
+      { x: 1430, y: 620 },
+      { x: 1400, y: 820 },
+      { x: 780, y: 820 },
+    ],
+  },
+  {
+    // October 23: a big kitchen. Counters, shelves, a hot stove (lava), a freezer with slippery ice and a dumbwaiter lift.
+    id: 'kitchen',
+    name: 'm.kitchen',
+    w: 2100,
+    h: 1000,
+    theme: 'kitchen',
+    builtin: true,
+    platforms: [
+      P(100, 820, 1900, 70),
+      B('concrete', 200, 640, 320, 40),
+      B('lava', 880, 800, 160, 20),
+      B('concrete', 1560, 600, 340, 40),
+      B('ice', 1600, 380, 260, 24),
+      P(620, 520, 220, 18),
+      P(1140, 520, 220, 18),
+      M(900, 620, 120, 0, -260, 5),
+      P(300, 360, 200, 18),
+      P(860, 220, 380, 18),
+    ],
+    spawns: [],
+  },
+  {
+    // October 23: a dessert bar. Jelly bounce pads, slippery ice cream, a sliding wafer and sprinkles in the sky.
+    id: 'dessert',
+    name: 'm.dessert',
+    w: 2000,
+    h: 1000,
+    theme: 'dessert',
+    builtin: true,
+    platforms: [
+      P(80, 820, 760, 70),
+      P(1160, 820, 760, 70),
+      B('bounce', 900, 940, 200, 20),
+      B('ice', 250, 600, 300, 24),
+      B('ice', 1450, 600, 300, 24),
+      M(820, 560, 360, 0, 120, 4),
+      M(700, 400, 200, 400, 0, 6, 0.5),
+      P(880, 220, 240, 18),
+      B('bounce', 120, 800, 70, 20),
+      B('bounce', 1810, 800, 70, 20),
     ],
     spawns: [],
   },
