@@ -4,7 +4,7 @@ export interface Theme {
   sky: [string, string];
   plat: string;
   top: string;
-  deco: 'clouds' | 'stars' | 'snow' | 'embers' | 'space' | 'beach' | 'war' | 'jungle' | 'haunted' | 'candy' | 'farm' | 'graveyard' | 'inferno' | 'pirate' | 'desert' | 'stage' | 'portal' | 'kitchen' | 'dessert';
+  deco: 'clouds' | 'stars' | 'snow' | 'embers' | 'space' | 'beach' | 'war' | 'jungle' | 'haunted' | 'candy' | 'farm' | 'graveyard' | 'inferno' | 'pirate' | 'desert' | 'stage' | 'portal' | 'kitchen' | 'dessert' | 'infect';
   /** Gravity multiplier (space: low gravity, you jump higher and fall slower). */
   gravity?: number;
 }
@@ -30,10 +30,11 @@ export const THEMES: Record<ThemeId, Theme> = {
   portal: { sky: ['#0b0020', '#3a0f6b'], plat: '#311b92', top: '#b388ff', deco: 'portal' },
   kitchen: { sky: ['#fffaf0', '#ffe0b2'], plat: '#8d6e63', top: '#eceff1', deco: 'kitchen' },
   dessert: { sky: ['#fce4ec', '#e1f5fe'], plat: '#a1662f', top: '#f8bbd0', deco: 'dessert' },
+  infect: { sky: ['#2a2244', '#e0876a'], plat: '#5d5d63', top: '#7cb342', deco: 'infect' },
 };
 
 /** Append only (shared map links send the index). */
-export const THEME_IDS: ThemeId[] = ['day', 'sunset', 'night', 'snow', 'lava', 'space', 'beach', 'war', 'jungle', 'haunted', 'candy', 'farm', 'graveyard', 'inferno', 'pirate', 'desert', 'stage', 'portal', 'kitchen', 'dessert'];
+export const THEME_IDS: ThemeId[] = ['day', 'sunset', 'night', 'snow', 'lava', 'space', 'beach', 'war', 'jungle', 'haunted', 'candy', 'farm', 'graveyard', 'inferno', 'pirate', 'desert', 'stage', 'portal', 'kitchen', 'dessert', 'infect'];
 
 const P = (x: number, y: number, w: number, h = 24): Platform => ({ x, y, w, h });
 /** Special block: concrete, lava or glass. */
@@ -734,6 +735,7 @@ export function encodeMap(m: MapDef): string {
       return k > 0 ? [...a, k] : a;
     }),
     s: m.spawns.map((s) => [Math.round(s.x), Math.round(s.y)]),
+    q: m.warps?.length ? m.warps.map((w) => [Math.round(w.x), Math.round(w.y)]) : undefined,
   };
   const bytes = new TextEncoder().encode(JSON.stringify(compact));
   let bin = '';
@@ -759,9 +761,10 @@ export function decodeMap(code: string): MapDef | null {
         return q;
       });
     const spawns: Vec[] = (Array.isArray(c.s) ? c.s : []).slice(0, 24).map((a: number[]) => ({ x: num(a[0], 0, w), y: num(a[1], 0, h) }));
+    const warps: Vec[] = (Array.isArray(c.q) ? c.q : []).slice(0, 12).map((a: number[]) => ({ x: num(a[0], 0, w), y: num(a[1], 0, h) }));
     if (!platforms.length) return null;
     const theme = (THEME_IDS as string[]).includes(c.t) ? (c.t as ThemeId) : 'day';
-    return { id: 'c' + Date.now().toString(36), name: String(c.n || 'Map').slice(0, 30), w, h, theme, platforms, spawns };
+    return { id: 'c' + Date.now().toString(36), name: String(c.n || 'Map').slice(0, 30), w, h, theme, platforms, spawns, ...(warps.length ? { warps } : {}) };
   } catch {
     return null;
   }

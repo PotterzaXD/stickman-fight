@@ -4,15 +4,17 @@ import { TEAM_COLORS, randomBossWeapons, type FighterSpec, type MatchResult } fr
 import { BEACH_MAP, BEACH_MODES, isBossMode, isSecret, type Controller, type Difficulty, type FallMode, type MapDef, type Mode, type OutbreakInfo } from '../game/types';
 import { OUTBREAK } from '../game/outbreak';
 import { OUTBREAK_MAP } from '../game/maps';
+import { INFECTION_MAP } from '../game/infection';
 import { cleanName, save } from '../save';
 import { MASCOT_WEAPONS } from '../game/weapons';
 import { HATS, hatExists, resolveHat } from '../game/hats';
 import type { Snapshot } from './snapshot';
 
-export const PROTO = 13;
+export const PROTO = 14;
 export const MIN_ROOM = 2;
 export const MAX_ROOM = 30;
 export const MAX_LOCAL = 6;
+export const INFECTION_ROOM = 8;
 export const ONLINE_SNOWMEN = 5;
 
 const ICE: RTCIceServer[] = [{ urls: ['stun:stun.l.google.com:19302', 'stun:stun1.l.google.com:19302'] }];
@@ -489,6 +491,8 @@ export class RoomHost extends Emitter<RoomEvents> {
     if (p.mode === 'buffalo' && !this.state.hostBuffalo) this.state.mode = 'boss';
     if (p.mode && isSecret(p.mode) && !this.state.hostSecrets?.includes(p.mode)) this.state.mode = 'boss';
     if (p.size) this.state.size = Math.max(Math.max(MIN_ROOM, this.state.members.length), Math.min(MAX_ROOM, p.size));
+    // Stickman Infection is for up to 8.
+    if (this.state.mode === 'infection') this.state.size = Math.max(this.state.members.length, Math.min(INFECTION_ROOM, this.state.size));
     if (p.map) {
       this.state.map = p.map;
       this.state.mapId = p.map.id;
@@ -589,7 +593,7 @@ export class RoomHost extends Emitter<RoomEvents> {
     st.phase = 'playing';
     const bosses = st.mode === 'boss' ? st.bosses : 0;
     // The Outbreak is always at the Castle Gate.
-    this.lastStart = { map: ob ? OUTBREAK_MAP : st.map, mode: st.mode, fallMode: st.fallMode, specs, bosses, potions: st.potions !== false, bossWeapons: Array.from({ length: bosses }, randomBossWeapons) };
+    this.lastStart = { map: ob ? OUTBREAK_MAP : st.mode === 'infection' ? INFECTION_MAP : st.map, mode: st.mode, fallMode: st.fallMode, specs, bosses, potions: st.potions !== false, bossWeapons: Array.from({ length: bosses }, randomBossWeapons) };
     if (ob) this.lastStart.outbreak = { wave: ob.wave, endless: ob.endless, allies: Math.floor(ob.wave / 10) };
     for (const p of this.peers.values()) sendJson(p.rel, { t: 'start', start: this.lastStart });
     this.changed();

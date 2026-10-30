@@ -157,6 +157,7 @@ register('netplay', (root) => {
     if (import.meta.env.DEV) (window as unknown as { __ng: Game }).__ng = game;
     // Joysticks for the players on this device, in joystick order.
     localIdx = start.specs.map((sp, i) => (sp.device === s.device && sp.human ? i : -1)).filter((i) => i >= 0).sort((a, b) => start.specs[a].local - start.specs[b].local);
+    game.focus = localIdx;
     sticks = new JoystickManager(
       canvas,
       localIdx.map((i) => ({ color: game.fighters[i].color, label: `P${start.specs[i].local + 1}`, name: game.fighters[i].name, hp: () => game.fighters[i].hp / game.fighters[i].maxHp })),

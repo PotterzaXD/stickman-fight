@@ -73,7 +73,7 @@ export interface Stats {
 }
 
 const KEY = 'stickman-fight-save-v1';
-export const FREE_WEAPONS = ['sword', 'spear', 'booger', 'pie'];
+export const FREE_WEAPONS = ['sword', 'spear', 'booger', 'pie', 'broom', 'paperplane', 'slipper'];
 export const NAME_MAX = 12;
 
 /** Tidy a typed name: single spaces, no ends, at most NAME_MAX characters. */

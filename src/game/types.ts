@@ -23,7 +23,7 @@ export interface Intent {
 }
 
 export type Difficulty = 'easy' | 'medium' | 'hard';
-export type Mode = 'ffa' | 'team' | 'boss' | 'cat' | 'mascot' | 'buffalo' | 'pigeon' | 'sandbox' | 'outbreak' | 'hill' | 'race' | 'stock' | 'rush' | XBossKind | SecretKind;
+export type Mode = 'ffa' | 'team' | 'boss' | 'cat' | 'mascot' | 'buffalo' | 'pigeon' | 'sandbox' | 'outbreak' | 'hill' | 'race' | 'stock' | 'rush' | 'infection' | 'events' | XBossKind | SecretKind;
 
 /** The October 20 bosses: the Magical Elephant (flies with its big ears), the Giant Scarecrow and Robo Stick. */
 export type XBossKind = 'elephant' | 'scarecrow' | 'robo';
@@ -44,7 +44,7 @@ export const PIGEON_WEAPON = 'shotgun';
 export const BEACH_MODES: Mode[] = ['ffa', 'team', 'boss'];
 export const BEACH_MAP = 'beach';
 export type FallMode = 'ko' | 'bounce';
-export type ThemeId = 'day' | 'sunset' | 'night' | 'snow' | 'lava' | 'space' | 'beach' | 'war' | 'jungle' | 'haunted' | 'candy' | 'farm' | 'graveyard' | 'inferno' | 'pirate' | 'desert' | 'stage' | 'portal' | 'kitchen' | 'dessert';
+export type ThemeId = 'day' | 'sunset' | 'night' | 'snow' | 'lava' | 'space' | 'beach' | 'war' | 'jungle' | 'haunted' | 'candy' | 'farm' | 'graveyard' | 'inferno' | 'pirate' | 'desert' | 'stage' | 'portal' | 'kitchen' | 'dessert' | 'infect';
 
 /** Special blocks from the map editor. No kind = a normal platform. Sandbags stop bullets. Bounce pads launch you, ice is slippery, spikes hurt.
  * Walls are solid from every side: you can stand on top, but you can't walk through, jump up through, or hop over them. */
@@ -75,6 +75,22 @@ export interface MapDef {
   deco?: 'spaceship' | 'palms' | 'ship' | 'castle';
   /** The Portal map: the purple portal (center and height). Whoever goes in disappears; a player leaves for Stickman Fight 2. */
   portal?: { x: number; y: number; r: number };
+  /** Map editor portals: they link up in pairs (1 with 2, 3 with 4...). Walk into one and you come out of the other. */
+  warps?: Vec[];
+  /** Things to look at that you can't stand on (Stickman Infection's town: trees, lamps, cars, houses...). */
+  props?: MapProp[];
+}
+
+export interface MapProp {
+  k: 'tree' | 'lamp' | 'car' | 'house' | 'bench' | 'sign' | 'crate' | 'bush' | 'fence' | 'tower' | 'building';
+  x: number;
+  /** The ground it stands on. */
+  y: number;
+  /** Size (1 = normal). */
+  s?: number;
+  /** A building's width and height (it starts at x). */
+  w?: number;
+  h?: number;
 }
 
 export interface SlotConfig {
@@ -103,9 +119,10 @@ export interface SandboxBoss {
 
 /** Helpers you can drop into Sandbox: every helper any weapon or the Summoner can call. A chick slot is 10 chicks. */
 export type HelperKind = 'cat' | 'fish' | 'memory' | 'soldier' | 'snowman' | 'sbsnow' | 'fireally' | 'redguy' | 'chicken' | 'chick' | 'lilpigeon' | 'skeleton' | 'dog' | 'retro' | 'bee' | 'ninja' | 'zombie'
-  | 'babyele' | 'drone' | 'penguin' | 'knight' | 'frog' | 'ghost' | 'ginger' | 'cupcake' | 'chef';
+  | 'babyele' | 'drone' | 'penguin' | 'knight' | 'frog' | 'ghost' | 'ginger' | 'cupcake' | 'chef'
+  | 'unicorn' | 'dino' | 'wizard' | 'panda';
 /** The zombie ally is only here once you have beaten wave 10 of The Outbreak (see `zombieAlly` in the save). */
-export const HELPER_KINDS: HelperKind[] = ['cat', 'fish', 'memory', 'soldier', 'snowman', 'sbsnow', 'fireally', 'redguy', 'chicken', 'chick', 'lilpigeon', 'skeleton', 'dog', 'retro', 'bee', 'ninja', 'zombie', 'babyele', 'drone', 'penguin', 'knight', 'frog', 'ghost', 'ginger', 'cupcake', 'chef'];
+export const HELPER_KINDS: HelperKind[] = ['cat', 'fish', 'memory', 'soldier', 'snowman', 'sbsnow', 'fireally', 'redguy', 'chicken', 'chick', 'lilpigeon', 'skeleton', 'dog', 'retro', 'bee', 'ninja', 'zombie', 'babyele', 'drone', 'penguin', 'knight', 'frog', 'ghost', 'ginger', 'cupcake', 'chef', 'unicorn', 'dino', 'wizard', 'panda'];
 /** The Outbreak's zombies and the Zombie Boss, for Sandbox (they fight for whichever team you put them on). */
 export type SbZombieKind = 'znormal' | 'zshooter' | 'zmini' | 'zbig' | 'zrunner' | 'zexploder' | 'zboss';
 export const SB_ZOMBIE_KINDS: SbZombieKind[] = ['znormal', 'zshooter', 'zmini', 'zbig', 'zrunner', 'zexploder', 'zboss'];

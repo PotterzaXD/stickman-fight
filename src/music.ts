@@ -29,6 +29,7 @@ export type TrackId =
   | 'portal'
   | 'kitchen'
   | 'dessert'
+  | 'infect'
   | 'outbreak'
   | 'elephant'
   | 'boss'
@@ -110,6 +111,7 @@ const TRACKS: Record<TrackId, TrackDef> = {
   // October 23: the Portal (floaty and strange), the Kitchen (busy and bouncy) and the Dessert Bar (sweet and light)
   portal: { bpm: 112, root: 57, scale: LYDIAN, chords: [0, 1, 4, 5], lead: 'sine', bass: 'sawtooth', arp: 'triangle', drums: [HALF, 'k...t...s...t.t.'], busy: 0.45, bassRhythm: 'x.......x.x.....', seed: 181, leadOct: 1 },
   kitchen: { bpm: 138, root: 64, scale: MAJOR, chords: [0, 3, 4, 3], lead: 'square', bass: 'triangle', arp: 'square', drums: ['k.h.s.h.k.h.s.h.', 'k.hhs.h.k.hks.hh'], busy: 0.7, bassRhythm: 'x.x.x.x.x.x.x.x.', seed: 191, swing: 0.12 },
+  infect: { bpm: 132, root: 50, scale: HARM, chords: [0, 5, 3, 4], lead: 'square', bass: 'sawtooth', arp: 'triangle', drums: ['k.h.s.hkk.h.s.h.', 'k.hhs.h.k.hks.hs'], busy: 0.65, bassRhythm: 'x.x.x.xxx.x.x.x.', seed: 197 },
   dessert: { bpm: 124, root: 67, scale: MAJOR, chords: [0, 5, 3, 4], lead: 'triangle', bass: 'triangle', arp: 'sine', drums: ['k...s...k.k.s...', 'k.h.s.h.k.h.s.hh'], busy: 0.55, bassRhythm: 'x...x...x...x.x.', seed: 193, leadOct: 1 },
   desert: { bpm: 116, root: 62, scale: HARM, chords: [0, 1, 0, 6], lead: 'triangle', bass: 'square', arp: 'sine', drums: ['k..t..t.s..t.tt.', 'k.tt..t.s..t..t.'], busy: 0.5, bassRhythm: 'x..x....x..x....', seed: 149 },
   outbreak: { bpm: 104, root: 52, scale: HARM, chords: [0, 1, 5, 4], lead: 'sawtooth', bass: 'sawtooth', arp: 'square', drums: [HALF, 'k..k..s.k.k...s.'], busy: 0.5, bassRhythm: 'x.xx..x.x.xx..x.', seed: 151, leadOct: -1 },

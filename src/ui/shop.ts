@@ -98,6 +98,9 @@ register('shop', (root) => {
             ? h('span', { class: 'badge' }, have ? `🏆 ${t('owned')}` : `🔒 ${t(w.id === 'mascotstick' ? 'rewardMascot' : w.id === 'trident' ? 'rewardFish' : 'rewardOnly')}`)
             : have
             ? h('span', { class: 'badge' }, w.price === 0 ? t('free') : `✔ ${t('owned')}`)
+            : // The Zombie Card is for sale once you have beaten wave 10 of The Outbreak.
+              w.id === 'sum_zombie' && !save.data.zombieAlly
+            ? h('span', { class: 'badge' }, `🔒 ${t('zombieCardLocked')}`)
             : h('button', { class: `btn ${afford ? 'primary' : ''}`, onclick: buy }, `🪙 ${w.price}`),
         );
       }),

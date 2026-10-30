@@ -4,6 +4,7 @@ import { zombieBoom } from './outbreak';
 import { inZone } from './hill';
 import { frogHop, oct22Reach, oct22Speed, updateGhost, wallDetour } from './oct22';
 import { ICE_SPIKE, PIE, oct23Helper, oct23Reach, oct23Speed } from './oct23';
+import { oct30BotSkill, oct30Helper, oct30Reach, oct30Speed } from './oct30';
 import type { Difficulty, Intent, Platform } from './types';
 
 const rand = Math.random;
@@ -127,6 +128,8 @@ export class BotBrain {
       if (f.boss) it.moveX = Math.abs(dx) > reach * 0.5 ? sign(dx) : 0;
       else if (w0.ranged) it.moveX = Math.abs(dx) > 520 ? sign(dx) : Math.abs(dx) < 240 ? -sign(dx) : 0;
       else it.moveX = Math.abs(dx) > reach * 0.7 ? sign(dx) : Math.abs(dx) < reach * 0.25 ? -sign(dx) * 0.5 : 0;
+      // Stickman Infection: humans run from zombies unless one is right on them (then they hit back).
+      if (g.inf && !f.zombie && t instanceof Fighter && t.zombie && dist > reach * 1.3) it.moveX = Math.abs(dx) < 900 ? -sign(dx) : 0;
 
       // Target is up on another platform: jump to it.
       if (dy < -110 * f.scale && f.onGround && rand() < dt * 3) it.jump = true;
@@ -416,6 +419,7 @@ export class BotBrain {
           if ((f.fishNext === 0 && dist < 820) || (f.fishNext === 1 && dist < 950) || (f.fishNext === 2 && dist < 420)) angle = Math.atan2(dy, dx);
           break;
       }
+      if (angle === null) angle = oct30BotSkill(f, i, dx, dy, dist) ?? null;
       if (angle !== null) {
         it.skill = angle + err;
         it.skillSlot = i;
@@ -519,7 +523,7 @@ export function updateCat(c: Cat, dt: number, g: Game) {
     }
   }
   // The boss ally walks a bit slower; fish flop about quickly.
-  const speed = oct22Speed(c) ?? oct23Speed(c) ?? (isZombie(c.variant) ? ZOMBIES[c.variant].speed : c.variant === 'zombie' ? 300 : c.variant === 'babyele' ? 240 : c.variant === 'penguin' ? 190 : c.variant === 'ninja' ? 380 : c.variant === 'retro' ? 290 :
+  const speed = oct22Speed(c) ?? oct23Speed(c) ?? oct30Speed(c) ?? (isZombie(c.variant) ? ZOMBIES[c.variant].speed : c.variant === 'zombie' ? 300 : c.variant === 'babyele' ? 240 : c.variant === 'penguin' ? 190 : c.variant === 'ninja' ? 380 : c.variant === 'retro' ? 290 :
     c.variant === 'memory' ? 280 : c.variant === 'fish' ? 360 : c.variant === 'soldier' || c.variant === 'sbsnow' || c.variant === 'fireally' || c.variant === 'skeleton' ? 300 : c.variant === 'dog' ? 380 : c.variant === 'chick' ? 300 : 330);
   if (c.stun > 0) c.vx *= Math.max(0, 1 - 2 * dt);
   else c.vx += (c.moveX * speed - c.vx) * Math.min(1, (c.onGround ? 10 : 4) * dt);
@@ -527,6 +531,7 @@ export function updateCat(c: Cat, dt: number, g: Game) {
   frogHop(c, g);
   const t = c.target && c.target.alive ? c.target : null;
   oct23Helper(c, dt, g, t);
+  oct30Helper(c, dt, g, t);
   const tall = c.variant === 'memory' || c.variant === 'soldier' || c.variant === 'sbsnow' || c.variant === 'fireally' || c.variant === 'skeleton' || c.h >= 60;
   if (t && c.onGround && t.cy < c.y - 90 && rand() < dt * 2.5) {
     c.vy = tall ? -1000 : -900;
@@ -628,6 +633,7 @@ export function updateCat(c: Cat, dt: number, g: Game) {
     const reach =
       oct22Reach(c) ??
       oct23Reach(c) ??
+      oct30Reach(c) ??
       (c.variant === 'soldier' ? c.w / 2 + (thrust ? SOLDIER_THRUST.reach : 55) : c.variant === 'sbsnow' || c.variant === 'skeleton' ? c.w / 2 + 24 : c.variant === 'chicken' || c.variant === 'lilpigeon' || c.variant === 'dog' ? c.w / 2 + 8 : c.w / 2);
     if (!e.alive || e.team === c.team || !e.contains(c.x, c.cy, reach)) continue;
     if (thrust) {

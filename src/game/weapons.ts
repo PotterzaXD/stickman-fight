@@ -7,7 +7,38 @@ export type WeaponId = 'sword' | 'spear' | 'hammer' | 'bow' | 'boomerang' | 'bom
   | 'trunk' | 'pitchfork' | 'robocannon' | 'beehive' | 'ninjascroll' | 'trumpet' | 'plasma'
   | 'guitar' | 'bat' | 'slingshot' | 'flamethrower'
   | 'booger' | 'racket' | 'lollipop' | 'scythe' | 'pillow'
-  | 'pie' | 'icecream' | 'rollingpin' | 'spatula' | 'ketchup' | 'popcorn';
+  | 'pie' | 'icecream' | 'rollingpin' | 'spatula' | 'ketchup' | 'popcorn'
+  | 'broom' | 'paperplane' | 'slipper' | 'waterballoon' | 'plunger' | 'fan' | 'frisbee' | 'morningstar' | 'blanket'
+  | SummonCardId;
+
+/** Summon cards (October 30): one for every helper that had no weapon of its own to call it. */
+export type SummonCardId =
+  | 'sum_redguy' | 'sum_sbsnow' | 'sum_fireally' | 'sum_retro' | 'sum_zombie' | 'sum_babyele' | 'sum_drone' | 'sum_penguin' | 'sum_knight'
+  | 'sum_frog' | 'sum_ghost' | 'sum_ginger' | 'sum_cupcake' | 'sum_chef' | 'sum_unicorn' | 'sum_dino' | 'sum_wizard' | 'sum_panda';
+
+/** Each summon card: the helper it calls, its price, the seconds between calls and its icon. */
+export const SUMMON_CARDS: { id: SummonCardId; helper: string; price: number; cd: number; icon: string }[] = [
+  { id: 'sum_redguy', helper: 'redguy', price: 300, cd: 10, icon: '🟥' },
+  { id: 'sum_cupcake', helper: 'cupcake', price: 300, cd: 10, icon: '🧁' },
+  { id: 'sum_penguin', helper: 'penguin', price: 350, cd: 12, icon: '🐧' },
+  { id: 'sum_zombie', helper: 'zombie', price: 400, cd: 12, icon: '🧟' },
+  { id: 'sum_frog', helper: 'frog', price: 400, cd: 12, icon: '🐸' },
+  { id: 'sum_ginger', helper: 'ginger', price: 400, cd: 12, icon: '🍪' },
+  { id: 'sum_ghost', helper: 'ghost', price: 450, cd: 14, icon: '👻' },
+  { id: 'sum_sbsnow', helper: 'sbsnow', price: 500, cd: 15, icon: '⛄' },
+  { id: 'sum_fireally', helper: 'fireally', price: 550, cd: 15, icon: '🔥' },
+  { id: 'sum_chef', helper: 'chef', price: 550, cd: 15, icon: '👨‍🍳' },
+  { id: 'sum_drone', helper: 'drone', price: 600, cd: 15, icon: '🛸' },
+  { id: 'sum_panda', helper: 'panda', price: 600, cd: 15, icon: '🐼' },
+  { id: 'sum_retro', helper: 'retro', price: 700, cd: 16, icon: '👾' },
+  { id: 'sum_unicorn', helper: 'unicorn', price: 700, cd: 16, icon: '🦄' },
+  { id: 'sum_wizard', helper: 'wizard', price: 750, cd: 16, icon: '🧙' },
+  { id: 'sum_babyele', helper: 'babyele', price: 800, cd: 18, icon: '🐘' },
+  { id: 'sum_knight', helper: 'knight', price: 900, cd: 20, icon: '🛡️' },
+  { id: 'sum_dino', helper: 'dino', price: 900, cd: 20, icon: '🦖' },
+];
+export const isSummonCard = (id: string): id is SummonCardId => id.startsWith('sum_');
+export const summonCard = (id: string) => SUMMON_CARDS.find((c) => c.id === id);
 
 export interface WeaponDef {
   id: WeaponId;
@@ -34,6 +65,11 @@ export const WEAPONS: WeaponDef[] = [
   { id: 'booger', price: 0, length: 26, damage: 30, turn: 15, cooldown: 1, ranged: true },
   // The Pie (October 23): 20 a hit. Throw it (50): whoever it lands on falls flat for 3 seconds. Same cooldown as the sword.
   { id: 'pie', price: 0, length: 34, damage: 20, turn: 15, cooldown: 2.5, ranged: true },
+  // October 30: three more free ones. Broom: Sweep knocks enemies off their feet. Paper Plane: glides far and straight.
+  // Flying Slipper: thrown, and it stuns for a moment.
+  { id: 'broom', price: 0, length: 86, damage: 18, turn: 13, cooldown: 3, ranged: false },
+  { id: 'paperplane', price: 0, length: 30, damage: 12, turn: 15, cooldown: 1.5, ranged: true },
+  { id: 'slipper', price: 0, length: 34, damage: 18, turn: 15, cooldown: 2, ranged: true },
   { id: 'hammer', price: 200, length: 84, damage: 42, turn: 9, cooldown: 3.5, ranged: false },
   { id: 'bow', price: 250, length: 40, damage: 10, turn: 14, cooldown: 0.9, ranged: true },
   { id: 'boomerang', price: 300, length: 40, damage: 14, turn: 14, cooldown: 0.4, ranged: true },
@@ -120,6 +156,15 @@ export const WEAPONS: WeaponDef[] = [
   { id: 'spatula', price: 400, length: 64, damage: 24, turn: 15, cooldown: 3.5, ranged: false },
   { id: 'ketchup', price: 300, length: 38, damage: 10, turn: 14, cooldown: 3, ranged: true },
   { id: 'popcorn', price: 600, length: 36, damage: 12, turn: 14, cooldown: 5, ranged: true },
+  // October 30 update: cheap ones (50-200), the Blanket (300) and the summon cards.
+  { id: 'waterballoon', price: 80, length: 28, damage: 8, turn: 15, cooldown: 2, ranged: true },
+  { id: 'frisbee', price: 100, length: 32, damage: 12, turn: 15, cooldown: 2.5, ranged: true },
+  { id: 'plunger', price: 120, length: 50, damage: 20, turn: 14, cooldown: 4, ranged: true },
+  { id: 'fan', price: 150, length: 44, damage: 10, turn: 14, cooldown: 4, ranged: false },
+  { id: 'morningstar', price: 200, length: 74, damage: 34, turn: 8, cooldown: 6, ranged: false },
+  // The Blanket: 20 a hit, and a hit sends them flying far. Throw it (50): whoever it lands on lies down asleep under it until somebody hits them.
+  { id: 'blanket', price: 300, length: 50, damage: 20, turn: 13, cooldown: 5, ranged: true },
+  ...SUMMON_CARDS.map((c): WeaponDef => ({ id: c.id, price: c.price, length: 34, damage: 10, turn: 14, cooldown: c.cd, ranged: true })),
 ];
 
 /** Weapons drawn as guns (flipped so they stay the right way up when you aim left). */

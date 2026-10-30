@@ -1,10 +1,10 @@
-import type { MapDef, MatchConfig } from '../game/types';
+import type { MapDef, MatchConfig, Mode } from '../game/types';
 import { playMusic } from '../music';
 import { sfx } from '../sfx';
 
 export interface Routes {
   menu: undefined;
-  lobby: { mapId?: string } | undefined;
+  lobby: { mapId?: string; mode?: Mode } | undefined;
   shop: undefined;
   settings: undefined;
   maps: undefined;

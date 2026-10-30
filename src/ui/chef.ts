@@ -1,6 +1,6 @@
-import { DISH, DISHES, DRIVE, ITEM, ITEMS, KITCHEN_SLOTS, STAFF, STATION_ICON, TABLE_SLOTS, DECOR_SLOTS, decorBonus, needs, rating, rewardPool, type ChefSave, type Dish, type Item, type ItemKind, type StaffKind, type Step } from '../chef/data';
-import { DECOR_Y, chefView, decorX, drawPeople, drawRoom, drawTickets } from '../chef/draw';
-import { ChefDay, KITCHEN_X, SLOT_W, TABLE_W, WORLD, stationX, tableX, type DayResult } from '../chef/sim';
+import { DISH, DISHES, DRIVE, FLOORS, ITEM, ITEMS, KITCHEN_SLOTS, STAFF, STATION_ICON, allTables, decorBonus, gridSize, needs, rating, rewardPool, seatsOf, type Dish, type Item, type StaffKind, type Step } from '../chef/data';
+import { TICKETS_H, chefView, drawFloor, drawPeople, drawTickets } from '../chef/draw';
+import { ChefDay, DRIVE_LANE, KITCHEN, STAIRS, STATION_W, cellAt, stationX, type DayResult } from '../chef/sim';
 import { t, type Key } from '../i18n';
 import { jingle, playMusic } from '../music';
 import { save } from '../save';
@@ -67,6 +67,7 @@ function homeTab(repaint: () => void): HTMLElement[] {
       h('h3', {}, t('chefDay', { n: c.day })),
       h('p', {}, `${t('chefRating')}: ${starText(Math.round(r * 2) / 2)} (${r.toFixed(1)})`),
       h('p', { class: 'muted' }, t('chefStats', { served: c.served, dishes: c.dishes.length })),
+      h('p', { class: 'muted' }, t('chefFloorsNow', { floors: c.grid.length, tables: allTables(c).length, seats: allTables(c).reduce((a, x) => a + x.seats, 0) })),
       h('button', { class: 'btn big primary', onclick: () => go('chefDay') }, `▶ ${t('chefStart', { n: c.day })}`),
       h('small', { class: 'muted' }, t('chefHow')),
     ),
@@ -99,6 +100,9 @@ function buy(price: number, apply: () => void, repaint: () => void): boolean {
 
 // ---------- Build ----------
 
+/** Which floor the Build tab shows. */
+let buildFloor = 0;
+
 function paintBuild(canvas: HTMLCanvasElement) {
   const ctx = canvas.getContext('2d')!;
   const dpr = Math.min(2, devicePixelRatio || 1);
@@ -111,53 +115,81 @@ function paintBuild(canvas: HTMLCanvasElement) {
   ctx.fillStyle = '#5d4037';
   ctx.fillRect(0, 0, w, hh);
   ctx.setTransform(dpr * v.z, 0, 0, dpr * v.z, dpr * v.ox, dpr * v.oy);
-  drawRoom(ctx, chef(), performance.now() / 1000, true);
+  drawFloor(ctx, chef(), Math.min(buildFloor, chef().grid.length - 1), performance.now() / 1000, true);
 }
 
-/** Which build slot is at this spot on the Build canvas. */
-function slotAt(canvas: HTMLCanvasElement, cx: number, cy: number): { kind: ItemKind; i: number } | null {
+type Slot = { kind: 'station'; i: number } | { kind: 'cell'; floor: number; i: number };
+
+/** Which build spot is at this point on the Build canvas. */
+function slotAt(canvas: HTMLCanvasElement, cx: number, cy: number): Slot | null {
   const v = chefView(canvas.clientWidth, canvas.clientHeight);
   const x = (cx - v.ox) / v.z;
   const y = (cy - v.oy) / v.z;
-  const F = WORLD.floor;
-  if (Math.abs(y - DECOR_Y) < 50) for (let i = 0; i < DECOR_SLOTS; i++) if (Math.abs(x - decorX(i)) < TABLE_W / 2) return { kind: 'decor', i };
-  if (y > F - 200 && y < F + 30) {
-    for (let i = 0; i < KITCHEN_SLOTS; i++) if (Math.abs(x - stationX(i)) < SLOT_W / 2) return { kind: 'station', i };
-    for (let i = 0; i < TABLE_SLOTS; i++) if (Math.abs(x - tableX(i)) < TABLE_W / 2) return { kind: 'table', i };
+  const floor = Math.min(buildFloor, chef().grid.length - 1);
+  if (floor === 0 && y >= KITCHEN.y - 10 && y <= KITCHEN.y + KITCHEN.h + 10) {
+    for (let i = 0; i < KITCHEN_SLOTS; i++) if (Math.abs(x - stationX(i)) < STATION_W / 2) return { kind: 'station', i };
+    return null;
   }
-  return null;
+  const cell = cellAt(floor, x, y);
+  return cell >= 0 ? { kind: 'cell', floor, i: cell } : null;
 }
 
-const slotsOf = (c: ChefSave, kind: ItemKind) => (kind === 'station' ? c.kitchen : kind === 'table' ? c.tables : c.decor);
-
 function buildTab(repaint: () => void): HTMLElement[] {
+  const c = chef();
+  buildFloor = Math.min(buildFloor, c.grid.length - 1);
   const canvas = h('canvas', { class: 'chef-build' }) as HTMLCanvasElement;
   canvas.addEventListener('pointerdown', (e) => {
     const r = canvas.getBoundingClientRect();
     const s = slotAt(canvas, e.clientX - r.left, e.clientY - r.top);
-    if (s) slotSheet(s.kind, s.i, repaint);
+    if (s) slotSheet(s, repaint);
   });
-  const c = chef();
+  const next = c.grid.length;
+  const price = FLOORS.price[next];
   return [
     h('p', { class: 'muted' }, t('chefBuildHint'), ' ', h('b', {}, t('chefDecorNow', { n: `+${decorBonus(c).toFixed(2)}` }))),
+    h(
+      'div',
+      { class: 'segs chef-floors' },
+      ...c.grid.map((_, f) => h('button', { class: `seg ${buildFloor === f ? 'on' : ''}`, onclick: () => ((buildFloor = f), repaint()) }, `🏢 ${t('chefFloor', { n: f + 1 })}`)),
+      price !== undefined
+        ? h(
+            'button',
+            {
+              class: 'seg chef-buy-floor',
+              onclick: () =>
+                buy(
+                  price,
+                  () => chef().grid.push(Array(gridSize(next)).fill(null)),
+                  () => {
+                    buildFloor = next;
+                    repaint();
+                  },
+                ),
+            },
+            `➕ ${t('chefBuyFloor', { n: next + 1, price })}`,
+          )
+        : null,
+    ),
     canvas,
   ];
 }
 
-/** Tapped a build slot: buy something for it, or sell what's there. */
-function slotSheet(kind: ItemKind, i: number, repaint: () => void) {
-  const c = chef();
-  const cur = slotsOf(c, kind)[i];
+const ITEM_SEATS = (it: Item) => (seatsOf(it.id) ? ` · 🪑${seatsOf(it.id)}` : '');
+
+/** Tapped a build spot: buy something for it, or sell what's there. */
+function slotSheet(slot: Slot, repaint: () => void) {
+  const get = (d: typeof save.data) => (slot.kind === 'station' ? d.chef.kitchen : d.chef.grid[slot.floor]);
+  const cur = get(save.data)[slot.i] ?? null;
   const close = () => wrap.remove();
-  const set = (id: string | null) => (d: typeof save.data) => (slotsOf(d.chef, kind)[i] = id);
-  const items = ITEMS.filter((it) => it.kind === kind);
+  const set = (id: string | null) => (d: typeof save.data) => (get(d)[slot.i] = id);
+  const items = ITEMS.filter((it) => (slot.kind === 'station' ? it.kind === 'station' : it.kind !== 'station'));
   const wrap: HTMLElement = h(
     'div',
     { class: 'modal-wrap', onclick: (e: Event) => e.target === wrap && close() },
     h(
       'div',
       { class: 'modal chef-sheet' },
-      h('h2', {}, cur ? `${ITEM[cur].icon} ${itemName(ITEM[cur])}` : t(`chefSlot.${kind}` as Key)),
+      h('h2', {}, cur ? `${ITEM[cur].icon} ${itemName(ITEM[cur])}` : t(slot.kind === 'station' ? 'chefSlot.station' : 'chefSlot.cell')),
       cur
         ? h(
             'button',
@@ -202,7 +234,7 @@ function slotSheet(kind: ItemKind, i: number, repaint: () => void) {
               },
               h('span', { class: 'chef-item-icon' }, it.icon),
               h('b', {}, itemName(it)),
-              h('small', {}, `💵 ${it.price}${it.stars ? ` · +${it.stars}⭐` : ''}`),
+              h('small', {}, `💵 ${it.price}${it.stars ? ` · +${it.stars}⭐` : ''}${ITEM_SEATS(it)}`),
             ),
           ),
       ),
@@ -295,6 +327,19 @@ register('chefDay', (root) => {
   const timer = h('b', { class: 'chef-timer' });
   const earned = h('b', { class: 'chef-earned' });
   const hint = h('div', { class: 'chef-hint' }, day.save.day === 1 ? t('chefFirstHint') : '');
+  // Which floor is on screen (it follows you when you take the stairs).
+  let view = 0;
+  let lastFloor = 0;
+  const floorBtns = h('div', { class: 'chef-floor-btns' });
+  const paintFloors = () => {
+    if (day.floors < 2) return floorBtns.replaceChildren();
+    floorBtns.replaceChildren(
+      ...Array.from({ length: day.floors }, (_, f) => {
+        const n = day.needs(f);
+        return h('button', { class: `btn small ${view === f ? 'primary' : 'ghost'}`, onclick: () => ((view = f), paintFloors()) }, `${f + 1}F${n ? ` ❗${n}` : ''}`);
+      }).reverse(),
+    );
+  };
   const overlay = h('div', { class: 'chef-overlay hidden' });
   let paused = false;
   const quit = async () => {
@@ -308,6 +353,7 @@ register('chefDay', (root) => {
       { class: 'play chef-play' },
       canvas,
       h('div', { class: 'chef-hud' }, h('button', { class: 'btn small ghost', onclick: () => void quit() }, '✖'), timer, earned),
+      floorBtns,
       hint,
       overlay,
     ),
@@ -336,20 +382,27 @@ register('chefDay', (root) => {
   canvas.addEventListener('pointerdown', (e) => {
     if (day.over || paused || !overlay.classList.contains('hidden')) return;
     const r = canvas.getBoundingClientRect();
-    const v = chefView(w, hh);
+    const v = chefView(w, hh, TICKETS_H);
     const x = (e.clientX - r.left - v.ox) / v.z;
     const y = (e.clientY - r.top - v.oy) / v.z;
-    const F = WORLD.floor;
-    // A guest (or their order bubble) at a table, or a car at the drive-thru window
-    const g = day.guests.find((g) => g.state !== 'walkin' && g.state !== 'leaving' && Math.abs(g.x - x) < 40 && y > F - 190 && y < F + 10);
+    // A table with guests (anywhere in its spot, or its order bubble just above)
+    const cell = cellAt(view, x, y) >= 0 ? cellAt(view, x, y) : cellAt(view, x, y + 40);
+    const g = day.guests.find((g) => g.state !== 'walkin' && g.state !== 'leaving' && g.table.floor === view && g.table.cell === cell);
     if (g) return day.tapGuest(g);
-    const car = day.cars[0];
-    if (car && x < KITCHEN_X && y > F - 200) return day.tapGuest(car);
-    if (y > F - 210 && y < F + 20 && x > KITCHEN_X && x < KITCHEN_X + KITCHEN_SLOTS * SLOT_W) {
-      const slot = Math.floor((x - KITCHEN_X) / SLOT_W);
-      if (day.save.kitchen[slot]) return day.tapStation(slot);
+    if (view === 0) {
+      // A car at the drive-thru window
+      const car = day.cars[0];
+      if (car && x < DRIVE_LANE + 60 && Math.abs(y - car.y) < 110) return day.tapGuest(car);
+      // A kitchen station
+      if (y >= KITCHEN.y - 20 && y <= KITCHEN.y + KITCHEN.h + 30)
+        for (let i = 0; i < KITCHEN_SLOTS; i++) if (Math.abs(x - stationX(i)) < STATION_W / 2 && day.save.kitchen[i]) return day.tapStation(i);
     }
-    day.tapFloor(x);
+    // The stairs: go up (or down from the top floor).
+    if (day.floors > 1 && x >= STAIRS.x - 10 && x <= STAIRS.x + STAIRS.w + 10 && y >= STAIRS.y - 30) {
+      const to = view < day.floors - 1 ? view + 1 : view - 1;
+      return day.tapFloor({ floor: to, x: STAIRS.x - 40, y: STAIRS.y + STAIRS.h / 2 });
+    }
+    day.tapFloor({ floor: view, x, y });
   });
 
   let last = performance.now();
@@ -366,10 +419,13 @@ register('chefDay', (root) => {
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.fillStyle = '#5d4037';
     ctx.fillRect(0, 0, w, hh);
-    const v = chefView(w, hh);
+    const v = chefView(w, hh, TICKETS_H);
     ctx.setTransform(dpr * v.z, 0, 0, dpr * v.z, dpr * v.ox, dpr * v.oy);
-    drawRoom(ctx, day.save, now / 1000, false, day.hintStation(), day.stationBusy);
-    drawPeople(ctx, day, now / 1000);
+    // Follow the player up and down the stairs.
+    if (day.player.floor !== lastFloor) view = lastFloor = day.player.floor;
+    if (Math.floor(now / 250) !== Math.floor((now - dt * 1000) / 250)) paintFloors();
+    drawFloor(ctx, day.save, view, now / 1000, false, day.hintStation(), day.stationBusy);
+    drawPeople(ctx, day, view, now / 1000);
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     drawTickets(ctx, day, w);
     if (day.over && !ended) {
@@ -565,6 +621,7 @@ function endOfDay(overlay: HTMLElement, r: DayResult) {
       { class: 'chef-mg chef-end' },
       h('h2', {}, `🌙 ${t('chefDayOver', { n: dayN })}`),
       h('p', {}, `${t('chefServed', { n: r.served })} · 😡 ${r.angry} · ${r.stars ? starText(Math.round(r.stars * 2) / 2) : '—'}`),
+      r.biggest >= 3 ? h('p', { class: 'muted' }, t('chefBiggest', { n: r.biggest })) : null,
       h('p', { class: 'coins-earned' }, `💵 +${r.cash}${r.tips ? ` (${t('chefTips', { n: r.tips })})` : ''}`),
       lines.length ? h('ul', { class: 'chef-lines' }, ...lines) : null,
       picks

@@ -5,6 +5,7 @@ import { PIGEON_WEAPON, SECRET_KINDS, isSecret, isXBoss, type BossKind, type Sec
 import { resolveHat } from '../game/hats';
 import { ALL_OWNABLE, WEAPONS } from '../game/weapons';
 import { BUILTIN_MAPS, GUARDIAN_MAPS, OUTBREAK_MAP } from '../game/maps';
+import { INFECTION_MAP, ZOMBIE_TEAM } from '../game/infection';
 import { jingle, playMusic, type TrackId } from '../music';
 import { JoystickManager } from '../game/input';
 import { allMaps } from '../game/maps';
@@ -281,6 +282,7 @@ export function resultTitle(r: Pick<MatchResult, 'mode' | 'winnerTeam' | 'winner
   if (r.mode === 'rush') return t(r.winnerTeam === BOSS_TEAM ? 'rushLost' : 'rushWon');
   if (r.mode === 'mascot') return r.winnerTeam === BOSS_TEAM ? t('mascotWon') : t('mascotDefeated');
   if (r.mode === 'cat') return r.winnerTeam === BOSS_TEAM ? t('catWon') : t('catDefeated');
+  if (r.mode === 'infection') return t(r.winnerTeam === ZOMBIE_TEAM ? 'infZombiesWin' : 'infHumansWin');
   if (r.mode === 'boss') return r.winnerTeam === BOSS_TEAM ? t(bosses > 1 ? 'bossesWon' : 'bossWon') : t(bosses > 1 ? 'bossesDefeated' : 'bossDefeated');
   if (r.winnerTeam === null || (!r.winners.length && r.mode !== 'sandbox')) return t('draw');
   if (r.mode === 'team' || (r.mode === 'sandbox' && r.winners.length !== 1)) return t('teamWins', { name: teamName(r.winnerTeam) });
@@ -293,6 +295,7 @@ export function matchTrack(game: Game): TrackId {
   if (secret) return secret;
   if (game.mode === 'pigeon' || game.bosses.some((b) => b.pigeon)) return 'pigeon';
   if (game.mode === 'outbreak') return 'outbreak';
+  if (game.mode === 'infection') return 'infect';
   if (game.mode === 'elephant' || game.bosses.some((b) => b.xboss === 'elephant')) return 'elephant';
   if (game.mode === 'sandbox' && game.rock) return 'rock';
   if (isBossMode(game.mode) || (game.mode === 'sandbox' && game.bosses.length)) return 'boss';
@@ -302,7 +305,8 @@ export function matchTrack(game: Game): TrackId {
 
 register('play', (root, { match, fromEditor }) => {
   // The Outbreak is always at the Castle Gate.
-  const map = fromEditor ?? (match.mode === 'outbreak' ? OUTBREAK_MAP : allMaps(save.data.customMaps).find((m) => m.id === match.mapId) ?? allMaps([])[0]);
+  // Stickman Infection is always in its own big town.
+  const map = fromEditor ?? (match.mode === 'outbreak' ? OUTBREAK_MAP : match.mode === 'infection' ? INFECTION_MAP : allMaps(save.data.customMaps).find((m) => m.id === match.mapId) ?? allMaps([])[0]);
   let paused = false;
   let game!: Game;
   let startCoins = 0;
@@ -417,6 +421,8 @@ register('play', (root, { match, fromEditor }) => {
       juice: save.data.settings.juice,
     });
     game.onOver = showResult;
+    // The camera follows this device's players (Stickman Infection's town is too big to fit everyone).
+    game.focus = game.fighters.flatMap((f, i) => (f.human ? [i] : []));
     // The Portal map: a player who goes through the portal leaves for Stickman Fight 2.
     game.onPortal = (i) => {
       if (!game.fighters[i]?.human) return;
