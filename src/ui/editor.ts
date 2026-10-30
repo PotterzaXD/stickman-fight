@@ -1,5 +1,7 @@
 import { BUILTIN_MAPS, MAP_SIZES, THEME_IDS, encodeMap } from '../game/maps';
 import { drawBackground, drawPlatforms } from '../game/render';
+import { drawWarps } from '../game/oct30Draw';
+import { WARP } from '../game/oct30';
 import type { BlockKind, MapDef, Platform, ThemeId } from '../game/types';
 import { t, type Key } from '../i18n';
 import { save } from '../save';
@@ -90,7 +92,9 @@ register('maps', (root) => {
   );
 });
 
-type Tool = 'platform' | BlockKind | 'mover' | 'lift' | 'spawn' | 'erase';
+type Tool = 'platform' | BlockKind | 'mover' | 'lift' | 'spawn' | 'warp' | 'erase';
+/** Most portals on one map (6 pairs). */
+const MAX_WARPS = 12;
 const BLOCKS: BlockKind[] = ['concrete', 'lava', 'glass', 'sandbag', 'bounce', 'ice', 'spikes', 'wall'];
 /** A wall is always taller than a double jump (about 350), so nobody can hop over it. */
 const WALL_H = 400;
@@ -108,11 +112,12 @@ register('editor', (root, { map }) => {
   const history: string[] = [];
   /** Undone steps, for Redo (a new change clears it). */
   const future: string[] = [];
-  const state = () => JSON.stringify({ p: m.platforms, s: m.spawns });
+  const state = () => JSON.stringify({ p: m.platforms, s: m.spawns, q: m.warps ?? [] });
   const restore = (json: string) => {
     const st = JSON.parse(json);
     m.platforms = st.p;
     m.spawns = st.s;
+    m.warps = st.q ?? [];
   };
   let drag: { x0: number; y0: number; x1: number; y1: number } | null = null;
 
@@ -162,6 +167,7 @@ register('editor', (root, { map }) => {
     ctx.strokeRect(0, 0, m.w, m.h);
     ctx.setLineDash([]);
     drawPlatforms(ctx, m, performance.now() / 1000);
+    if (m.warps?.length) drawWarps(ctx, m.warps, performance.now() / 1000);
     for (const [i, s] of m.spawns.entries()) {
       ctx.strokeStyle = '#111';
       ctx.lineWidth = 5;
@@ -228,7 +234,22 @@ register('editor', (root, { map }) => {
       // Drop the spawn onto the platform below the tap.
       const below = m.platforms.filter((q) => p.x >= q.x && p.x <= q.x + q.w && q.y >= p.y - 40).sort((a, b) => a.y - b.y)[0];
       m.spawns.push({ x: snap(p.x), y: below ? below.y : snap(p.y) });
+    } else if (tool === 'warp') {
+      // Portals link up in pairs, in the order you put them down (1 with 2, 3 with 4...).
+      const warps = (m.warps ??= []);
+      if (warps.length >= MAX_WARPS) return toast(t('warpMax', { n: MAX_WARPS / 2 }));
+      snapshot();
+      const below = m.platforms.filter((q) => p.x >= q.x && p.x <= q.x + q.w && q.y >= p.y - 40).sort((a, b) => a.y - b.y)[0];
+      warps.push({ x: snap(p.x), y: below ? below.y : snap(p.y) });
+      if (warps.length % 2 === 1) toast(t('warpOne'));
     } else {
+      const wi = (m.warps ?? []).findIndex((w) => Math.abs(w.x - p.x) < WARP.w / 2 + 6 && p.y < w.y + 10 && p.y > w.y - WARP.h - 10);
+      if (wi >= 0) {
+        snapshot();
+        m.warps!.splice(wi, 1);
+        draw();
+        return;
+      }
       const si = m.spawns.findIndex((s) => Math.abs(s.x - p.x) < 25 && p.y < s.y + 10 && p.y > s.y - 90);
       const pi = m.platforms.findIndex((q) => p.x >= q.x - 6 && p.x <= q.x + q.w + 6 && p.y >= q.y - 6 && p.y <= q.y + q.h + 6);
       if (si >= 0 || pi >= 0) snapshot();
@@ -282,6 +303,7 @@ register('editor', (root, { map }) => {
     ['mover', `↔️ ${t('toolMover')}`],
     ['lift', `↕️ ${t('toolLift')}`],
     ['spawn', `🧍 ${t('toolSpawn')}`],
+    ['warp', `🌀 ${t('toolWarp')}`],
   ];
   /** The last part picked (Erase switches back to it). */
   let part: Tool = 'platform';
@@ -417,6 +439,7 @@ register('editor', (root, { map }) => {
               snapshot();
               m.platforms = [];
               m.spawns = [];
+              m.warps = [];
               draw();
             },
           },

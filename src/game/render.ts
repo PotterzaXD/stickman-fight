@@ -16,6 +16,8 @@ import { drawElephant, drawMonster, drawMonsterProp, drawMonsterBlock, drawMonst
 import { save } from '../save';
 import { STOCK_LIVES } from './oct22';
 import { drawIceSpike, drawPortal, drawTreatDeco, drawTreat, drawTreatProjectile, drawTreatWeapon } from './treats';
+import { drawBlackout, drawEventsHud, drawEventsWorld, drawFunDeco, drawInfectionHud, drawProps } from './funDraw';
+import { drawOct30Helper, drawOct30Over, drawOct30Projectile, drawOct30Weapon, drawWarps } from './oct30Draw';
 import { clipAboveGround, drawCastle, drawToy, drawToyProjectile, drawToyWeapon, drawWall, swingArm, walkLegs } from './toys';
 
 type Ctx = CanvasRenderingContext2D;
@@ -166,7 +168,7 @@ export function drawBackground(ctx: Ctx, map: MapDef, vw: number, vh: number, ca
       ctx.arc(fx, fy, 8 + ph * 60, 0, Math.PI * 2);
       ctx.fill();
     }
-  } else if (!drawExtraDeco(ctx, th.deco, vw, vh, par, time) && !drawCritterDeco(ctx, th.deco, vw, vh, par, time) && !drawMonsterDeco(ctx, th.deco, vw, vh, par, time) && !drawGadgetDeco(ctx, th.deco, vw, vh, par, time) && !drawTreatDeco(ctx, th.deco, vw, vh, par, time)) {
+  } else if (!drawExtraDeco(ctx, th.deco, vw, vh, par, time) && !drawCritterDeco(ctx, th.deco, vw, vh, par, time) && !drawMonsterDeco(ctx, th.deco, vw, vh, par, time) && !drawGadgetDeco(ctx, th.deco, vw, vh, par, time) && !drawTreatDeco(ctx, th.deco, vw, vh, par, time) && !drawFunDeco(ctx, th.deco, vw, vh, par, time)) {
     for (let i = 0; i < 40; i++) {
       const x = ((hash(i) * vw - par) % vw + vw) % vw;
       const y = vh - (((hash(i + 7) * vh + time * (40 + hash(i) * 60)) % vh) + vh) % vh;
@@ -953,7 +955,7 @@ export function drawWeaponShape(ctx: Ctx, id: WeaponId, len: number, s: number, 
       ctx.fill();
       break;
     default:
-      if (!drawExtraWeapon(ctx, id, len, s, ready, performance.now() / 1000) && !drawCritterWeapon(ctx, id, len, s, ready, performance.now() / 1000) && !drawMonsterWeapon(ctx, id, len, s, ready, performance.now() / 1000) && !drawGadgetWeapon(ctx, id, len, s, ready, performance.now() / 1000) && !drawToyWeapon(ctx, id, len, s, ready, performance.now() / 1000)) drawTreatWeapon(ctx, id, len, s, ready, performance.now() / 1000);
+      if (!drawExtraWeapon(ctx, id, len, s, ready, performance.now() / 1000) && !drawCritterWeapon(ctx, id, len, s, ready, performance.now() / 1000) && !drawMonsterWeapon(ctx, id, len, s, ready, performance.now() / 1000) && !drawGadgetWeapon(ctx, id, len, s, ready, performance.now() / 1000) && !drawToyWeapon(ctx, id, len, s, ready, performance.now() / 1000) && !drawTreatWeapon(ctx, id, len, s, ready, performance.now() / 1000)) drawOct30Weapon(ctx, id, len, s, ready, performance.now() / 1000);
   }
 }
 
@@ -2100,7 +2102,7 @@ function drawSnowman(ctx: Ctx, m: Snowman) {
 }
 
 function drawProjectile(ctx: Ctx, p: Projectile, time: number) {
-  if (drawExtraProjectile(ctx, p, time) || drawCritterProjectile(ctx, p, time) || drawMonsterProjectile(ctx, p, time) || drawGadgetProjectile(ctx, p, time) || drawToyProjectile(ctx, p, time) || drawTreatProjectile(ctx, p)) return;
+  if (drawExtraProjectile(ctx, p, time) || drawCritterProjectile(ctx, p, time) || drawMonsterProjectile(ctx, p, time) || drawGadgetProjectile(ctx, p, time) || drawToyProjectile(ctx, p, time) || drawTreatProjectile(ctx, p) || drawOct30Projectile(ctx, p, time)) return;
   switch (p.kind) {
     case 'nerf': {
       // Foam dart: blue body, orange tip
@@ -2477,7 +2479,9 @@ export function renderGame(g: Game, ctx: Ctx, vw: number, vh: number, dpr: numbe
   const sy = (Math.random() - 0.5) * g.shake;
   ctx.setTransform(dpr * z, 0, 0, dpr * z, dpr * (vw / 2 - g.cam.x * z + sx), dpr * (vh / 2 - g.cam.y * z + sy));
 
+  if (g.map.props) drawProps(ctx, g.map.props, g.time);
   drawPlatforms(ctx, g.map, g.time, g.glassT);
+  if (g.map.warps?.length) drawWarps(ctx, g.map.warps, g.time);
   for (const s of g.iceSpikes) drawIceSpike(ctx, s);
   // King of the Hill: the zone, in the colour of whoever holds it alone.
   if (g.hill) drawHill(ctx, g.hill.x, g.hill.y, g.hill.w, g.hill.holder === null ? null : g.fighters.find((f) => f.team === g.hill!.holder)?.color ?? null, g.time);
@@ -2497,7 +2501,7 @@ export function renderGame(g: Game, ctx: Ctx, vw: number, vh: number, dpr: numbe
       continue;
     }
     // Chicks, the Chicken, the little pigeon, skeletons (a pile of bones when beaten) and the dog (asleep).
-    if (drawCritter(ctx, c, g.time) || drawMonster(ctx, c, g.time) || drawGadget(ctx, c, g.time) || drawToy(ctx, c, g.time) || drawTreat(ctx, c, g.time)) continue;
+    if (drawCritter(ctx, c, g.time) || drawMonster(ctx, c, g.time) || drawGadget(ctx, c, g.time) || drawToy(ctx, c, g.time) || drawTreat(ctx, c, g.time) || drawOct30Helper(ctx, c, g.time)) continue;
     if (!c.alive) continue;
     if (c.variant === 'sbsnow' || c.variant === 'fireally') {
       drawSbAlly(ctx, c, g.time);
@@ -2534,6 +2538,8 @@ export function renderGame(g: Game, ctx: Ctx, vw: number, vh: number, dpr: numbe
   for (const f of order) drawFighter(ctx, f, g.time);
   for (const b of g.bodies()) if (b.alive && b.burnT > 0) drawFlames(ctx, b, g.time);
   for (const b of g.bodies()) if (b.alive && b.poisonT > 0) drawPoison(ctx, b, g.time);
+  drawOct30Over(ctx, g.bodies(), g.fighters, g.time);
+  if (g.ev) drawEventsWorld(ctx, g, g.time);
   for (const p of g.projectiles) drawProjectile(ctx, p, g.time);
   for (const f of g.fighters) if (f.alive && f.jetT > 0) drawJet(ctx, f, g.time);
   for (const b of g.bolts) drawBolt(ctx, b);
@@ -2578,6 +2584,9 @@ export function renderGame(g: Game, ctx: Ctx, vw: number, vh: number, dpr: numbe
   // Boss health bars across the top (one per boss)
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   if (g.blizzard) drawBlizzard(ctx, g.blizzard, vw, vh, g.time);
+  if (g.ev?.cur === 'blackout') drawBlackout(ctx, g, vw, vh);
+  if (g.ev) drawEventsHud(ctx, g.ev, vw);
+  if (g.inf) drawInfectionHud(ctx, g, vw);
   if (g.ob) drawOutbreakSky(ctx, g.ob, vw, vh, g.cats.find((c) => c.alive && c.variant === 'zboss') ?? null);
   if (g.hill) {
     const h = g.hill;

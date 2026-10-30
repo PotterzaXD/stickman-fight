@@ -76,6 +76,15 @@ export const MELEE_FINISH: Partial<Record<WeaponId, Finish>> = {
   spatula: 'sky',
   ketchup: 'ragdoll',
   popcorn: 'pop',
+  broom: 'trip',
+  paperplane: 'fling',
+  slipper: 'trip',
+  waterballoon: 'ragdoll',
+  frisbee: 'fling',
+  plunger: 'fling',
+  fan: 'fling',
+  morningstar: 'fling',
+  blanket: 'fling',
 };
 
 /** Finisher for a skill shot. */
@@ -112,6 +121,13 @@ export const PROJ_FINISH: Partial<Record<ProjKind, Finish>> = {
   pie: 'trip',
   ketchup: 'ragdoll',
   popcorn: 'pop',
+  plane: 'fling',
+  slipper: 'trip',
+  balloon: 'ragdoll',
+  plunger: 'fling',
+  frisbee: 'fling',
+  blanket: 'trip',
+  magic: 'pop',
 };
 
 /** One flying body part (shotgun point blank: blown to pieces). */
@@ -348,12 +364,16 @@ export function helperCorpse(c: Cat): Corpse | null {
     case 'ghost':
     case 'ginger':
     case 'cupcake':
+    case 'unicorn':
+    case 'dino':
+    case 'panda':
       return propCorpse('fade', c.x, c.y, c.color, c.facing, 1.4);
     case 'drone':
       return propCorpse('scrap', c.x, c.y, '#90a4ae', c.facing, 1.4);
     case 'soldier':
     case 'knight':
     case 'chef':
+    case 'wizard':
     case 'sbsnow':
     case 'fireally':
     case 'ninja':

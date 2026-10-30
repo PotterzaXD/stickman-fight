@@ -1254,6 +1254,14 @@ select {
   background: linear-gradient(90deg, #1b2a49, #558b2f);
   color: #e8f5e9;
 }
+.version-card.fun-infection {
+  background: linear-gradient(90deg, #33691e, #7cb342 55%, #2a2244);
+  color: #f1f8e9;
+}
+.version-card.fun-events {
+  background: linear-gradient(90deg, #4a148c, #ff6d00 60%, #ffd740);
+  color: #fff;
+}
 .version-card.fun-td {
   background: linear-gradient(90deg, #8d6e63, #7cb342);
   color: #fff;

@@ -179,6 +179,8 @@ register('room', (root) => {
               ['scarecrow', `🌾 ${t('scarecrow')}`],
               ['robo', `🤖 ${t('robo')}`],
               ['outbreak', `🧟 ${t('outbreak')}`],
+              ['infection', `🦠 ${t('infection')}`],
+              ['events', `🌪️ ${t('events')}`],
               // Secret bosses only show once the host has unlocked them.
               ...SECRET_KINDS.filter((k) => st.hostSecrets?.includes(k)).map((k): [Mode, string] => [k, `${SECRET_ICONS[k]} ${t(k)}`]),
             ],
@@ -191,6 +193,8 @@ register('room', (root) => {
           ),
           st.mode === 'hill' ? h('small', { class: 'muted' }, t('hillDesc')) : null,
           st.mode === 'stock' ? h('small', { class: 'muted' }, t('stockDesc')) : null,
+          st.mode === 'infection' ? h('small', { class: 'muted' }, t('infectionDesc')) : null,
+          st.mode === 'events' ? h('small', { class: 'muted' }, t('eventsDesc')) : null,
           st.mode === 'buffalo' ? h('small', { class: 'muted' }, `🪙🏆 ${t('buffaloReward')}`) : null,
           isSecret(st.mode) || isXBoss(st.mode) ? h('small', { class: 'muted' }, `🪙🏆 ${t(`${st.mode}Reward` as Key)}`) : null,
           // The Outbreak uses the host's save: pick which one.
@@ -216,8 +220,8 @@ register('room', (root) => {
           st.mode === 'cat' ? h('small', { class: 'muted' }, `🪙🏆 ${t('catReward')}`) : null,
           st.mode === 'pigeon' ? h('small', { class: 'muted' }, `🪙🏆 ${t('pigeonReward')}`) : null,
           st.mode === 'boss' ? bossPicker(st.bosses ?? 1, host ? (n) => host.setRoom({ bosses: n }) : null, st.mapId === BEACH_MAP) : null,
-          h('h3', {}, `${t('map')}: ${st.mode === 'outbreak' ? t('m.castle') : st.map ? mapLabel(st.map) : ''}`),
-          st.mode === 'outbreak' ? h('small', { class: 'muted' }, t('obMapNote')) : host ? h('div', { class: 'map-row' }, ...maps.map((mp) => h('button', { class: `map-card ${st.mapId === mp.id ? 'on' : ''}`, onclick: () => host.setRoom({ map: mp }) }, mapThumb(mp), h('span', {}, mapLabel(mp))))) : st.map ? mapThumb(st.map) : null,
+          h('h3', {}, `${t('map')}: ${st.mode === 'outbreak' ? t('m.castle') : st.mode === 'infection' ? t('m.town') : st.map ? mapLabel(st.map) : ''}`),
+          st.mode === 'outbreak' ? h('small', { class: 'muted' }, t('obMapNote')) : st.mode === 'infection' ? h('small', { class: 'muted' }, t('infMapNote')) : host ? h('div', { class: 'map-row' }, ...maps.map((mp) => h('button', { class: `map-card ${st.mapId === mp.id ? 'on' : ''}`, onclick: () => host.setRoom({ map: mp }) }, mapThumb(mp), h('span', {}, mapLabel(mp))))) : st.map ? mapThumb(st.map) : null,
           h('h3', {}, `🕳️ ${t('fallOff')}`),
           seg<FallMode>(st.fallMode, [['ko', t('fallKO')], ['bounce', t('fallBounce')]], (v) => host?.setRoom({ fallMode: v })),
           h('h3', {}, `🧪 ${t('potions')}`),

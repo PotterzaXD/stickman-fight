@@ -161,7 +161,11 @@ register('lobby', (root, arg) => {
   if (!maps.some((x) => x.id === m.mapId)) m.mapId = 'arena';
   m.bosses = Math.max(1, Math.min(MAX_BOSSES, m.bosses ?? 1));
   if (m.mode === 'sandbox' || m.mode === 'outbreak' || (m.mode === 'buffalo' && !hasAch('buffalo')) || (isSecret(m.mode) && !save.data.secrets.includes(m.mode))) m.mode = 'ffa';
-  if (m.mapId === BEACH_MAP && !BEACH_MODES.includes(m.mode)) m.mode = 'boss';
+  if (arg?.mode) m.mode = arg.mode;
+  // Stickman Infection from the fun modes page: fill up with bots so there is someone to chase.
+  if (arg?.mode === 'infection') while (m.slots.length < 6) m.slots.push({ kind: 'bot', weapon: 'random', team: m.slots.length % 4, difficulty: 'medium' });
+  if (m.mapId === BEACH_MAP && !BEACH_MODES.includes(m.mode)) m.mode = m.mode === 'events' ? 'ffa' : 'boss';
+  if (m.mode === 'events' && m.mapId === BEACH_MAP) m.mapId = 'arena';
 
   const body = h('div', { class: 'page-body' });
   const errorEl = h('p', { class: 'error' });
@@ -343,6 +347,8 @@ register('lobby', (root, arg) => {
             h('button', { class: 'seg locked', onclick: () => toast(t(`hint.${k}` as Key)) }, `🔒 ???`),
           ),
         ),
+        h('small', { class: 'seg-group' }, t('modesFun')),
+        h('div', { class: 'segs' }, modeBtn('infection', '🦠'), modeBtn('events', '🌪️')),
         h('p', { class: 'muted' }, t(`${m.mode}Desc` as Key)),
         isSecret(m.mode) || isXBoss(m.mode) ? h('small', { class: 'muted' }, `🪙🏆 ${t(`${m.mode}Reward` as Key)}`) : null,
         m.mode === 'buffalo' ? h('small', { class: 'muted' }, `🪙🏆 ${t('buffaloReward')}`) : null,
@@ -363,7 +369,10 @@ register('lobby', (root, arg) => {
           : null,
       ),
       secretHints() ?? '',
-      h('section', {}, h('h3', {}, t('map')), h('div', { class: 'map-row' }, ...mapCards)),
+      // Stickman Infection is always in its own big town.
+      m.mode === 'infection'
+        ? h('section', {}, h('h3', {}, `${t('map')}: ${t('m.town')}`), h('small', { class: 'muted' }, t('infMapNote')))
+        : h('section', {}, h('h3', {}, t('map')), h('div', { class: 'map-row' }, ...mapCards)),
       h(
         'section',
         {},

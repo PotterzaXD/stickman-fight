@@ -1,6 +1,8 @@
 import { CAT_VARIANTS, Cat, Fighter, REVIVES, Snowman, type ProjKind, type Projectile } from '../game/entities';
 import { biting } from '../game/critters';
 import { OB_PHASES } from '../game/outbreak';
+import { EVENT_IDS, mirrorEvent, mirrorWeapons, restoreWeapons } from '../game/events';
+import { turnZombie } from '../game/infection';
 import type { WeaponId } from '../game/weapons';
 import type { Game, NetEvent } from '../game/game';
 import { FINISHES, makeCorpse } from '../game/finish';
@@ -37,9 +39,17 @@ export interface Snapshot {
   cl?: [number, number, string][];
   /** Ice Cream's ice spikes: [x, y, w, h, seconds left, on a head (1) or beside someone (0)]. */
   ic?: number[][];
+  /** Stickman Infection: seconds left, seconds until the first zombie, and who is a zombie. */
+  inf?: [number, number, number[]];
+  /** Random Events: the event (-1 = none), seconds left, how long it lasts, seconds to the next, the lava's top. */
+  ev?: [number, number, number, number, number];
+  /** Rocks and bombs falling: [x, y, rock (1) or bomb (0), size, spin]. */
+  fl?: number[][];
+  /** Weapon Shuffle: each fighter's weapon. */
+  ws?: string[];
 }
 
-const KINDS: ProjKind[] = ['arrow', 'snowball', 'minisnow', 'boomerang', 'bomb', 'axe', 'shuriken', 'laser', 'fireball', 'six7', 'poop', 'soup', 'icebolt', 'banana', 'fireslash', 'dart', 'memorybox', 'rocket', 'wave', 'shard', 'crash', 'vine', 'nerf', 'bullet67', 'water', 'bubble', 'yoyo', 'fishthrow', 'allyfire', 'egg', 'gum', 'crow', 'hay', 'goo', 'sound', 'pebble', 'flame', 'booger', 'tennis', 'pie', 'ketchup', 'popcorn'];
+const KINDS: ProjKind[] = ['arrow', 'snowball', 'minisnow', 'boomerang', 'bomb', 'axe', 'shuriken', 'laser', 'fireball', 'six7', 'poop', 'soup', 'icebolt', 'banana', 'fireslash', 'dart', 'memorybox', 'rocket', 'wave', 'shard', 'crash', 'vine', 'nerf', 'bullet67', 'water', 'bubble', 'yoyo', 'fishthrow', 'allyfire', 'egg', 'gum', 'crow', 'hay', 'goo', 'sound', 'pebble', 'flame', 'booger', 'tennis', 'pie', 'ketchup', 'popcorn', 'plane', 'slipper', 'balloon', 'plunger', 'frisbee', 'blanket', 'magic'];
 const r1 = (v: number) => Math.round(v);
 const r2 = (v: number) => Math.round(v * 100) / 100;
 
@@ -63,7 +73,9 @@ const SHIELD = 1,
   LEAF = 65536,
   SLOW = 131072,
   DIVE = 262144,
-  DOWN = 524288;
+  DOWN = 524288,
+  SLEEP = 1048576,
+  SPIN = 2097152;
 
 function ownerIndex(g: Game, o: unknown): number {
   const f = o instanceof Snowman || o instanceof Cat ? o.owner : o;
@@ -97,6 +109,8 @@ export function encodeSnapshot(g: Game): Snapshot {
       if (f.slowT > 0) fl |= SLOW;
       if (f.pigeonState === 'dive') fl |= DIVE;
       if (f.downT > 0) fl |= DOWN;
+      if (f.sleepT > 0) fl |= SLEEP;
+      if (f.spinT > 0) fl |= SPIN;
       return [f.alive ? 1 : 0, r1(f.x), r1(f.y), r1(f.vx), r1(f.vy), r1(f.hp), f.facing, f.onGround ? 1 : 0, fl, r1(f.shieldHp), r2(f.angles[0]), r2(f.angVel[0]), r2(f.angles[1] ?? 0), FINISHES.indexOf(f.finish)];
     }),
     m: g.snowmen.map((s) => [s.id, ownerIndex(g, s.owner), r1(s.x), r1(s.y), r1(s.hp), s.facing, s.hurtFlash > 0 ? 1 : 0]),
@@ -116,6 +130,13 @@ export function encodeSnapshot(g: Game): Snapshot {
   if (g.mode === 'stock') snap.lv = g.fighters.map((f) => f.lives);
   if (g.ob) snap.ob = [g.ob.wave, r2(g.ob.night), OB_PHASES.indexOf(g.ob.phase), g.ob.left];
   if (g.hill) snap.hl = [r1(g.hill.x), r1(g.hill.y), r1(g.hill.w), g.hill.holder ?? -1, [...g.hill.score].map(([team, sc]) => [team, r1(sc)])];
+  if (g.inf) snap.inf = [r2(g.inf.t), r2(g.inf.pick), g.fighters.flatMap((f, i) => (f.zombie ? [i] : []))];
+  if (g.ev) {
+    const ev = g.ev;
+    snap.ev = [ev.cur ? EVENT_IDS.indexOf(ev.cur) : -1, r2(ev.t), ev.dur, r2(ev.next), r1(ev.lavaY)];
+    if (ev.fallers.length) snap.fl = ev.fallers.map((r) => [r1(r.x), r1(r.y), r.kind === 'rock' ? 1 : 0, r1(r.r), r2(r.rot)]);
+    if (ev.cur === 'shuffle') snap.ws = g.fighters.map((f) => f.weapons[0]?.id ?? '');
+  }
   g.events = [];
   return snap;
 }
@@ -181,6 +202,8 @@ export class Mirror {
       f.leafT = fl & LEAF ? 1 : 0;
       f.slowT = fl & SLOW ? 1 : 0;
       f.downT = fl & DOWN ? 1 : 0;
+      f.sleepT = fl & SLEEP ? 1 : 0;
+      f.spinT = fl & SPIN ? 1 : 0;
       if (f.pigeon) f.pigeonState = fl & DIVE ? 'dive' : 'hover';
       f.shieldHp = shieldHp;
       f.angVel[0] = av0;
@@ -288,6 +311,25 @@ export class Mirror {
       g.hill.w = s.hl[2];
       g.hill.holder = s.hl[3] < 0 ? null : s.hl[3];
       g.hill.score = new Map(s.hl[4]);
+    }
+    if (g.inf && s.inf) {
+      g.inf.t = s.inf[0];
+      g.inf.pick = s.inf[1];
+      for (const i of s.inf[2]) if (g.fighters[i] && !g.fighters[i].zombie) turnZombie(g, g.fighters[i]);
+    }
+    if (g.ev && s.ev) {
+      const ev = g.ev;
+      const was = ev.cur;
+      ev.cur = s.ev[0] < 0 ? null : (EVENT_IDS[s.ev[0]] ?? null);
+      ev.t = s.ev[1];
+      ev.dur = s.ev[2];
+      ev.next = s.ev[3];
+      ev.lavaY = s.ev[4];
+      ev.fallers = (s.fl ?? []).map(([x, y, rock, r, rot]) => ({ x, y, vy: 0, kind: rock ? 'rock' : 'bomb', r, rot }));
+      if (was !== ev.cur) mirrorEvent(g);
+      if (s.ws) mirrorWeapons(g, s.ws);
+      // Back to their own weapons when the shuffle ends.
+      else if (was === 'shuffle') restoreWeapons(g);
     }
     g.glassT = g.map.platforms.map(() => 0);
     for (const [i, t] of s.gl ?? []) if (i in g.glassT) g.glassT[i] = t;
