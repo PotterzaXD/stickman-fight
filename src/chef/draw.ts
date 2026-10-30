@@ -1,18 +1,26 @@
-import { ITEM, STATION_ICON, seatsOf, type ChefSave, type StationId } from './data';
-import { DINING_X, DOOR_X, DRIVE_X, KITCHEN_X, PASS_W, PASS_X, SLOT_W, TABLE_W, WORLD, seatX, stationX, tableX, type ChefDay, type Customer, type Worker } from './sim';
+import { GRID, ITEM, KITCHEN_SLOTS, STATION_ICON, seatsOf, type ChefSave, type StationId } from './data';
+import {
+  CELL,
+  DOOR,
+  DRIVE_LANE,
+  GRID_X,
+  KITCHEN,
+  PASS,
+  STAIRS,
+  STATION_W,
+  WINDOW,
+  WORLD,
+  cellCenter,
+  gridY,
+  seatOffsets,
+  stationX,
+  tableSize,
+  type ChefDay,
+  type Party,
+  type Worker,
+} from './sim';
 
 type Ctx = CanvasRenderingContext2D;
-
-/** Where the decorations hang on the dining room wall. */
-export const decorX = (i: number) => DINING_X + i * TABLE_W + TABLE_W / 2;
-export const DECOR_Y = 170;
-
-function line(ctx: Ctx, x1: number, y1: number, x2: number, y2: number) {
-  ctx.beginPath();
-  ctx.moveTo(x1, y1);
-  ctx.lineTo(x2, y2);
-  ctx.stroke();
-}
 
 function emoji(ctx: Ctx, text: string, x: number, y: number, size: number) {
   ctx.font = `${size}px system-ui, "Apple Color Emoji", "Segoe UI Emoji", sans-serif`;
@@ -21,105 +29,181 @@ function emoji(ctx: Ctx, text: string, x: number, y: number, size: number) {
   ctx.fillText(text, x, y);
 }
 
-/** The view: the whole restaurant fits the screen (wider screens see a bit more around it). */
-export function chefView(vw: number, vh: number) {
-  const z = Math.min(vw / WORLD.w, vh / (WORLD.h + 20));
-  return { z, ox: (vw - WORLD.w * z) / 2, oy: (vh - WORLD.h * z) / 2 + 10 * z };
+function rr(ctx: Ctx, x: number, y: number, w: number, h: number, r: number) {
+  ctx.beginPath();
+  ctx.roundRect(x, y, w, h, r);
 }
 
-/** The restaurant: walls, the kitchen stations, the pass, tables and decorations. `build` shows the empty slots. */
-export function drawRoom(ctx: Ctx, save: ChefSave, time: number, build: boolean, glow = -1, busy?: Set<number>) {
-  const F = WORLD.floor;
-  // Outside (drive-thru lane) on the left
-  ctx.fillStyle = save.drive ? '#90a4ae' : '#a5d6a7';
-  ctx.fillRect(-400, 0, KITCHEN_X - 10 + 400, WORLD.h);
-  ctx.fillStyle = '#78909c';
-  ctx.fillRect(-400, F, KITCHEN_X + 390, WORLD.h - F);
-  // Kitchen: white tiles
-  ctx.fillStyle = '#f5f5f5';
-  ctx.fillRect(KITCHEN_X - 10, 0, PASS_X - KITCHEN_X + 10, F);
-  ctx.strokeStyle = 'rgba(0,0,0,0.06)';
-  ctx.lineWidth = 1;
-  for (let x = KITCHEN_X; x < PASS_X; x += 36) line(ctx, x, 0, x, F);
-  for (let y = 0; y < F; y += 36) line(ctx, KITCHEN_X - 10, y, PASS_X, y);
-  // Dining room: warm wallpaper with stripes
-  ctx.fillStyle = '#ffe0b2';
-  ctx.fillRect(PASS_X, 0, WORLD.w - PASS_X + 400, F);
-  ctx.fillStyle = 'rgba(255,183,77,0.35)';
-  for (let x = PASS_X; x < WORLD.w + 400; x += 60) ctx.fillRect(x, 0, 24, F);
-  // Floors
-  ctx.fillStyle = '#bdbdbd';
-  ctx.fillRect(KITCHEN_X - 10, F, PASS_X - KITCHEN_X + 10, WORLD.h - F);
-  ctx.fillStyle = '#a1887f';
-  ctx.fillRect(PASS_X, F, WORLD.w - PASS_X + 400, WORLD.h - F);
-  ctx.strokeStyle = 'rgba(0,0,0,0.12)';
-  for (let x = PASS_X; x < WORLD.w + 400; x += 50) line(ctx, x, F, x, WORLD.h);
-  // Drive-thru window
-  ctx.fillStyle = save.drive ? '#4fc3f7' : '#cfd8dc';
-  ctx.fillRect(KITCHEN_X - 14, F - 200, 18, 120);
-  if (save.drive) {
-    ctx.fillStyle = '#ffca28';
-    ctx.fillRect(DRIVE_X - 50, F - 260, 100, 34);
-    ctx.fillStyle = '#3e2723';
-    ctx.font = '800 18px "Baloo 2", system-ui, sans-serif';
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillText('DRIVE', DRIVE_X, F - 243);
+/** The view: the whole floor fits the screen (below `top`, where the order tickets go). */
+export function chefView(vw: number, vh: number, top = 0) {
+  const z = Math.min(vw / WORLD.w, (vh - top) / WORLD.h);
+  return { z, ox: (vw - WORLD.w * z) / 2, oy: top + (vh - top - WORLD.h * z) / 2 };
+}
+
+/**
+ * One floor of the restaurant from above: the floor, walls, the kitchen and drive-thru (ground floor), the stairs,
+ * and every table and decoration on the grid. `build` shows the empty spots.
+ */
+export function drawFloor(ctx: Ctx, save: ChefSave, floor: number, time: number, build: boolean, glow = -1, busy?: Set<number>) {
+  const ground = floor === 0;
+  // Outside: grass, or the drive-thru lane on the ground floor
+  ctx.fillStyle = '#7cb342';
+  ctx.fillRect(-600, -600, WORLD.w + 1200, WORLD.h + 1200);
+  if (ground) {
+    ctx.fillStyle = save.drive ? '#607d8b' : '#8d9e72';
+    ctx.fillRect(0, -600, DRIVE_LANE, WORLD.h + 1200);
+    if (save.drive) {
+      ctx.strokeStyle = '#ffeb3b';
+      ctx.lineWidth = 4;
+      ctx.setLineDash([26, 22]);
+      ctx.beginPath();
+      ctx.moveTo(DRIVE_LANE / 2, -600);
+      ctx.lineTo(DRIVE_LANE / 2, WORLD.h + 600);
+      ctx.stroke();
+      ctx.setLineDash([]);
+    }
   }
-  // Front door
+  // The floor: wood planks in the dining room
+  const left = DRIVE_LANE + 10;
+  ctx.fillStyle = floor === 0 ? '#c8a27a' : floor === 1 ? '#b98f6a' : '#d0b089';
+  ctx.fillRect(left, 0, WORLD.w - left, WORLD.h);
+  ctx.strokeStyle = 'rgba(0,0,0,0.08)';
+  ctx.lineWidth = 2;
+  for (let y = 0; y < WORLD.h; y += 40) {
+    ctx.beginPath();
+    ctx.moveTo(left, y);
+    ctx.lineTo(WORLD.w, y);
+    ctx.stroke();
+    for (let x = left + ((y / 40) % 2) * 90; x < WORLD.w; x += 180) {
+      ctx.beginPath();
+      ctx.moveTo(x, y);
+      ctx.lineTo(x, y + 40);
+      ctx.stroke();
+    }
+  }
+  // Rugs under the grid on upper floors
+  if (!ground) {
+    ctx.fillStyle = floor === 1 ? 'rgba(198,40,40,0.18)' : 'rgba(21,101,192,0.16)';
+    rr(ctx, GRID_X - 10, gridY(floor) - 10, GRID.cols * CELL + 20, GRID.rows[floor] * CELL + 20, 30);
+    ctx.fill();
+  }
+  if (ground) {
+    // Kitchen: white tiles along the top
+    ctx.fillStyle = '#eceff1';
+    ctx.fillRect(left, 0, WORLD.w - left, KITCHEN.bottom);
+    ctx.strokeStyle = 'rgba(0,0,0,0.06)';
+    for (let x = left; x < WORLD.w; x += 36) {
+      ctx.beginPath();
+      ctx.moveTo(x, 0);
+      ctx.lineTo(x, KITCHEN.bottom);
+      ctx.stroke();
+    }
+    for (let y = 0; y < KITCHEN.bottom; y += 36) {
+      ctx.beginPath();
+      ctx.moveTo(left, y);
+      ctx.lineTo(WORLD.w, y);
+      ctx.stroke();
+    }
+    // The low counter between the kitchen and the dining room (open in the middle)
+    ctx.fillStyle = '#8d6e63';
+    ctx.fillRect(left, KITCHEN.bottom, 940, 14);
+    ctx.fillRect(1330, KITCHEN.bottom, WORLD.w - 1330, 14);
+  }
+  // Walls
+  ctx.fillStyle = '#5d4037';
+  ctx.fillRect(left - 12, 0, 12, WORLD.h);
+  ctx.fillRect(WORLD.w - 12, 0, 12, WORLD.h);
+  ctx.fillRect(left - 12, 0, WORLD.w - left + 12, 14);
+  ctx.fillRect(left - 12, WORLD.h - 12, WORLD.w - left + 12, 12);
+  // Windows on the side walls
+  ctx.fillStyle = '#81d4fa';
+  for (let y = ground ? 330 : 160; y < WORLD.h - 120; y += 220) {
+    ctx.fillRect(left - 10, y, 8, 90);
+    ctx.fillRect(WORLD.w - 10, y, 8, 90);
+  }
+  if (ground) {
+    // The front door (a gap in the bottom wall with a mat)
+    ctx.fillStyle = '#c8a27a';
+    ctx.fillRect(DOOR.x - 60, WORLD.h - 14, 120, 16);
+    ctx.fillStyle = '#6d4c41';
+    rr(ctx, DOOR.x - 50, WORLD.h - 48, 100, 30, 6);
+    ctx.fill();
+    emoji(ctx, '🚪', DOOR.x, WORLD.h - 33, 22);
+    // The drive-thru window in the left wall
+    ctx.fillStyle = save.drive ? '#4fc3f7' : '#b0bec5';
+    ctx.fillRect(WINDOW.x - 4, WINDOW.y - 40, 16, 80);
+    if (save.drive) emoji(ctx, '🚗', WINDOW.x + 30, WINDOW.y - 60, 22);
+  }
+  drawStairs(ctx, floor, save.grid.length);
+
+  if (ground) {
+    for (let i = 0; i < KITCHEN_SLOTS; i++) {
+      const id = (save.kitchen[i] ?? null) as StationId | null;
+      const x = stationX(i);
+      if (!id) {
+        if (build) slotBox(ctx, x - STATION_W / 2 + 4, KITCHEN.y, STATION_W - 8, KITCHEN.h);
+        continue;
+      }
+      drawStation(ctx, id, x, time, i === glow, busy?.has(i) ?? false);
+    }
+    // The pass: a counter where finished dishes wait
+    ctx.fillStyle = '#8d6e63';
+    rr(ctx, PASS.x, PASS.y, PASS.w, PASS.h, 10);
+    ctx.fill();
+    ctx.fillStyle = '#d7ccc8';
+    rr(ctx, PASS.x + 8, PASS.y + 8, PASS.w - 16, PASS.h - 16, 8);
+    ctx.fill();
+    emoji(ctx, '🛎️', PASS.x + PASS.w - 22, PASS.y + 22, 22);
+  }
+
+  // Tables and decorations on the grid
+  const grid = save.grid[floor] ?? [];
+  for (let cell = 0; cell < grid.length; cell++) {
+    const id = grid[cell];
+    const c = cellCenter(floor, cell);
+    if (!id) {
+      if (build) slotBox(ctx, c.x - CELL / 2 + 8, c.y - CELL / 2 + 8, CELL - 16, CELL - 16);
+      continue;
+    }
+    const n = seatsOf(id);
+    if (n) drawTable(ctx, id, n, c.x, c.y);
+    else drawDecor(ctx, id, c.x, c.y, time);
+  }
+}
+
+function drawStairs(ctx: Ctx, floor: number, floors: number) {
+  const { x, y, w, h } = STAIRS;
+  if (floors < 2) {
+    // No upstairs yet: a locked door.
+    ctx.fillStyle = 'rgba(0,0,0,0.12)';
+    rr(ctx, x, y, w, h, 8);
+    ctx.fill();
+    emoji(ctx, '🔒', x + w / 2, y + h / 2, 30);
+    return;
+  }
   ctx.fillStyle = '#6d4c41';
-  ctx.fillRect(DOOR_X - 10, F - 200, 70, 200);
-  ctx.fillStyle = '#ffd54f';
-  ctx.beginPath();
-  ctx.arc(DOOR_X + 6, F - 100, 5, 0, Math.PI * 2);
+  rr(ctx, x, y, w, h, 8);
   ctx.fill();
-  emoji(ctx, '🚪', DOOR_X + 25, F - 230, 30);
-
-  // Kitchen stations
-  for (let i = 0; i < save.kitchen.length; i++) {
-    const id = save.kitchen[i] as StationId | null;
-    const x = stationX(i);
-    if (!id) {
-      if (build) slotBox(ctx, x - SLOT_W / 2 + 6, F - 130, SLOT_W - 12, 130);
-      continue;
-    }
-    drawStation(ctx, id, x, F, time, i === glow, busy?.has(i) ?? false);
-  }
-  // The pass: a counter where finished dishes wait
-  ctx.fillStyle = '#8d6e63';
-  ctx.fillRect(PASS_X, F - 110, PASS_W, 110);
-  ctx.fillStyle = '#d7ccc8';
-  ctx.fillRect(PASS_X - 6, F - 118, PASS_W + 12, 12);
-  emoji(ctx, '🛎️', PASS_X + PASS_W - 14, F - 132, 20);
-
-  // Decorations
-  for (let i = 0; i < save.decor.length; i++) {
-    const id = save.decor[i];
-    const x = decorX(i);
-    if (!id) {
-      if (build) slotBox(ctx, x - 34, DECOR_Y - 34, 68, 68);
-      continue;
-    }
-    emoji(ctx, ITEM[id].icon, x, id === 'plant' || id === 'flowers' || id === 'aquarium' ? F - 150 : DECOR_Y, id === 'aquarium' ? 54 : 46);
-  }
-  // Tables and chairs
-  for (let i = 0; i < save.tables.length; i++) {
-    const id = save.tables[i];
-    const x = tableX(i);
-    if (!id) {
-      if (build) slotBox(ctx, x - TABLE_W / 2 + 6, F - 90, TABLE_W - 12, 90);
-      continue;
-    }
-    drawTable(ctx, id, i, x, F);
-  }
+  ctx.fillStyle = '#a1887f';
+  for (let k = 0; k < 6; k++) ctx.fillRect(x + 8, y + 8 + k * 16, w - 16, 10);
+  ctx.fillStyle = '#ffffff';
+  ctx.font = '800 20px "Baloo 2", system-ui, sans-serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  // Where they go
+  const label = [floor < floors - 1 ? `⬆${floor + 2}F` : '', floor > 0 ? `⬇${floor}F` : ''].filter(Boolean).join(' ');
+  ctx.strokeStyle = 'rgba(0,0,0,0.6)';
+  ctx.lineWidth = 4;
+  ctx.strokeText(label, x + w / 2, y - 14);
+  ctx.fillText(label, x + w / 2, y - 14);
 }
 
 function slotBox(ctx: Ctx, x: number, y: number, w: number, h: number) {
   ctx.save();
   ctx.setLineDash([8, 6]);
-  ctx.strokeStyle = 'rgba(30,136,229,0.8)';
+  ctx.strokeStyle = 'rgba(30,136,229,0.7)';
   ctx.lineWidth = 3;
-  ctx.fillStyle = 'rgba(227,242,253,0.5)';
+  ctx.fillStyle = 'rgba(227,242,253,0.35)';
   ctx.fillRect(x, y, w, h);
   ctx.strokeRect(x, y, w, h);
   ctx.setLineDash([]);
@@ -131,154 +215,184 @@ function slotBox(ctx: Ctx, x: number, y: number, w: number, h: number) {
   ctx.restore();
 }
 
-function drawStation(ctx: Ctx, id: StationId, x: number, F: number, time: number, glow: boolean, busy: boolean) {
-  const w = SLOT_W - 12;
-  const left = x - w / 2;
+function drawStation(ctx: Ctx, id: StationId, x: number, time: number, glow: boolean, busy: boolean) {
+  const w = STATION_W - 8;
+  const l = x - w / 2;
+  const y = KITCHEN.y;
+  const h = KITCHEN.h;
   if (glow) {
     ctx.save();
     ctx.shadowColor = '#ffeb3b';
     ctx.shadowBlur = 24 + Math.sin(time * 6) * 10;
-    ctx.fillStyle = 'rgba(255,235,59,0.45)';
-    ctx.fillRect(left - 6, F - 140, w + 12, 140);
+    ctx.fillStyle = 'rgba(255,235,59,0.5)';
+    ctx.fillRect(l - 6, y - 6, w + 12, h + 12);
     ctx.restore();
   }
-  const body = id === 'fridge' ? '#e3f2fd' : id === 'icecream' ? '#fce4ec' : id === 'prep' ? '#bcaaa4' : '#9e9e9e';
-  const tall = id === 'fridge' ? 170 : id === 'icecream' ? 150 : 100;
-  ctx.fillStyle = body;
+  ctx.fillStyle = id === 'fridge' ? '#e3f2fd' : id === 'icecream' ? '#fce4ec' : id === 'prep' ? '#bcaaa4' : '#9e9e9e';
   ctx.strokeStyle = 'rgba(0,0,0,0.35)';
   ctx.lineWidth = 2;
-  ctx.beginPath();
-  ctx.roundRect(left, F - tall, w, tall, 6);
+  rr(ctx, l, y, w, h, 8);
   ctx.fill();
   ctx.stroke();
-  if (id === 'grill' || id === 'fryer') {
-    // Hot top
-    ctx.fillStyle = id === 'grill' ? '#424242' : '#ffb300';
-    ctx.fillRect(left + 4, F - tall - 6, w - 8, 10);
-    if (busy) for (let k = 0; k < 3; k++) {
-      ctx.fillStyle = `rgba(200,200,200,${0.5 - ((time + k * 0.3) % 1) * 0.5})`;
+  if (id === 'grill') {
+    ctx.fillStyle = '#424242';
+    ctx.fillRect(l + 10, y + 10, w - 20, h - 20);
+    ctx.strokeStyle = '#757575';
+    for (let k = 1; k < 5; k++) {
       ctx.beginPath();
-      ctx.arc(left + 16 + k * 20, F - tall - 16 - ((time + k * 0.3) % 1) * 40, 8, 0, Math.PI * 2);
-      ctx.fill();
+      ctx.moveTo(l + 10, y + 10 + k * ((h - 20) / 5));
+      ctx.lineTo(l + w - 10, y + 10 + k * ((h - 20) / 5));
+      ctx.stroke();
     }
+  }
+  if (id === 'fryer') {
+    ctx.fillStyle = busy ? `rgb(255,${170 + Math.sin(time * 12) * 30},0)` : '#ffb300';
+    rr(ctx, l + 12, y + 12, w - 24, h - 24, 6);
+    ctx.fill();
   }
   if (id === 'oven') {
     ctx.fillStyle = '#212121';
-    ctx.fillRect(left + 10, F - tall + 20, w - 20, 50);
-    ctx.fillStyle = busy ? `rgba(255,111,0,${0.5 + Math.sin(time * 8) * 0.3})` : '#ff8f00';
-    ctx.fillRect(left + 14, F - tall + 24, w - 28, 42);
-  }
-  if (id === 'fridge') {
-    ctx.strokeStyle = '#90a4ae';
-    line(ctx, left, F - tall * 0.55, left + w, F - tall * 0.55);
-    ctx.fillStyle = '#90a4ae';
-    ctx.fillRect(left + w - 12, F - tall + 20, 5, 30);
-    ctx.fillRect(left + w - 12, F - tall * 0.45, 5, 30);
+    rr(ctx, l + 10, y + 10, w - 20, h - 20, 6);
+    ctx.fill();
+    ctx.fillStyle = busy ? `rgba(255,111,0,${0.5 + Math.sin(time * 8) * 0.3})` : '#5d4037';
+    for (const [dx, dy] of [[0.3, 0.3], [0.7, 0.3], [0.3, 0.7], [0.7, 0.7]]) {
+      ctx.beginPath();
+      ctx.arc(l + w * dx, y + h * dy, 12, 0, Math.PI * 2);
+      ctx.fill();
+    }
   }
   if (id === 'prep') {
     ctx.fillStyle = '#efebe9';
-    ctx.fillRect(left - 2, F - tall - 8, w + 4, 12);
+    rr(ctx, l + 8, y + 8, w - 16, h - 16, 6);
+    ctx.fill();
+  }
+  if (busy && (id === 'grill' || id === 'fryer')) {
+    for (let k = 0; k < 3; k++) {
+      const ph = (time + k * 0.33) % 1;
+      ctx.fillStyle = `rgba(230,230,230,${0.6 - ph * 0.6})`;
+      ctx.beginPath();
+      ctx.arc(l + 22 + k * 24, y + h / 2 - ph * 30, 9 + ph * 8, 0, Math.PI * 2);
+      ctx.fill();
+    }
   }
   ctx.fillStyle = '#000';
-  emoji(ctx, STATION_ICON[id], x, F - tall - 30, 30);
+  emoji(ctx, STATION_ICON[id], x, y + h / 2, 32);
 }
 
-function drawTable(ctx: Ctx, id: string, i: number, x: number, F: number) {
-  const n = seatsOf(id);
-  const w = n > 2 ? 100 : 70;
+function drawTable(ctx: Ctx, id: string, n: number, x: number, y: number) {
+  const size = tableSize(n);
   // Chairs
   ctx.fillStyle = '#6d4c41';
-  for (let s = 0; s < n; s++) {
-    const sx = seatX(i, s, n);
-    ctx.fillRect(sx - 9, F - 44, 18, 6);
-    ctx.fillRect(sx - 9, F - 44, 4, 44);
-    ctx.fillRect(sx + 5, F - 44, 4, 44);
+  for (const o of seatOffsets(n)) {
+    ctx.beginPath();
+    ctx.roundRect(x + o.x - 13, y + o.y - 13, 26, 26, 6);
+    ctx.fill();
   }
   // Table top with a cloth
+  ctx.fillStyle = 'rgba(0,0,0,0.18)';
+  rr(ctx, x - size.w / 2 + 4, y - size.h / 2 + 5, size.w, size.h, 10);
+  ctx.fill();
   ctx.fillStyle = '#8d6e63';
-  ctx.fillRect(x - 4, F - 62, 8, 62);
-  ctx.fillStyle = id === 'bigtable' ? '#e57373' : '#ffffff';
-  ctx.fillRect(x - w / 2, F - 70, w, 10);
-  ctx.fillStyle = 'rgba(0,0,0,0.12)';
-  ctx.fillRect(x - w / 2, F - 60, w, 4);
+  rr(ctx, x - size.w / 2, y - size.h / 2, size.w, size.h, 10);
+  ctx.fill();
+  ctx.fillStyle = id === 'table8' ? '#ffd54f' : id === 'table6' ? '#81c784' : id === 'bigtable' ? '#e57373' : '#ffffff';
+  rr(ctx, x - size.w / 2 + 5, y - size.h / 2 + 5, size.w - 10, size.h - 10, 8);
+  ctx.fill();
 }
 
-/** A stickman: guests (kids are small, the VIP food critic wears a top hat), waiters and chefs. */
-function stick(ctx: Ctx, x: number, F: number, s: number, color: string, walk: number, facing: number, sitting: boolean, extra: 'chef' | 'waiter' | 'vip' | 'player' | null) {
-  const hip = F - (sitting ? 46 : 38) * s;
-  const neck = hip - 30 * s;
-  const head = neck - 12 * s;
-  ctx.strokeStyle = color;
-  ctx.lineWidth = 5 * s;
-  ctx.lineCap = 'round';
-  ctx.beginPath();
-  if (sitting) {
-    ctx.moveTo(x, hip);
-    ctx.lineTo(x + facing * 18 * s, hip);
-    ctx.lineTo(x + facing * 18 * s, F);
+function drawDecor(ctx: Ctx, id: string, x: number, y: number, time: number) {
+  if (id === 'fountain') {
+    ctx.fillStyle = '#b0bec5';
+    ctx.beginPath();
+    ctx.arc(x, y, 52, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#4fc3f7';
+    ctx.beginPath();
+    ctx.arc(x, y, 42, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(255,255,255,0.7)';
+    ctx.lineWidth = 2;
+    for (let k = 0; k < 3; k++) {
+      ctx.beginPath();
+      ctx.arc(x, y, ((time * 20 + k * 14) % 40) + 2, 0, Math.PI * 2);
+      ctx.stroke();
+    }
   } else {
-    const k = Math.sin(walk) * 12 * s;
-    ctx.moveTo(x, hip);
-    ctx.lineTo(x - 7 * s + k, F);
-    ctx.moveTo(x, hip);
-    ctx.lineTo(x + 7 * s - k, F);
+    ctx.fillStyle = 'rgba(0,0,0,0.15)';
+    ctx.beginPath();
+    ctx.ellipse(x, y + 26, 34, 12, 0, 0, Math.PI * 2);
+    ctx.fill();
   }
-  ctx.moveTo(x, hip);
-  ctx.lineTo(x, neck);
-  ctx.moveTo(x, neck + 4 * s);
-  ctx.lineTo(x + facing * 16 * s, neck + 16 * s);
-  ctx.moveTo(x, neck + 4 * s);
-  ctx.lineTo(x - facing * 10 * s, neck + 20 * s);
+  ctx.fillStyle = '#000';
+  emoji(ctx, ITEM[id]?.icon ?? '?', x, y, id === 'aquarium' || id === 'piano' || id === 'fountain' ? 58 : 50);
+}
+
+/** A stickman seen from above: head, shoulders and swinging arms. */
+function topStick(ctx: Ctx, x: number, y: number, s: number, color: string, walk: number, dir: number, extra: 'chef' | 'waiter' | 'vip' | 'player' | null) {
+  const px = -Math.sin(dir);
+  const py = Math.cos(dir);
+  const fx = Math.cos(dir);
+  const fy = Math.sin(dir);
+  ctx.fillStyle = 'rgba(0,0,0,0.18)';
+  ctx.beginPath();
+  ctx.ellipse(x + 3, y + 5, 16 * s, 12 * s, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.strokeStyle = color;
+  ctx.lineCap = 'round';
+  ctx.lineWidth = 6 * s;
+  // Shoulders
+  ctx.beginPath();
+  ctx.moveTo(x + px * 14 * s, y + py * 14 * s);
+  ctx.lineTo(x - px * 14 * s, y - py * 14 * s);
   ctx.stroke();
+  // Arms swing forward and back
+  ctx.lineWidth = 4.5 * s;
+  const sw = Math.sin(walk) * 10 * s;
+  for (const side of [1, -1]) {
+    const sx = x + px * 14 * s * side;
+    const sy = y + py * 14 * s * side;
+    ctx.beginPath();
+    ctx.moveTo(sx, sy);
+    ctx.lineTo(sx + fx * (8 * s + sw * side), sy + fy * (8 * s + sw * side));
+    ctx.stroke();
+  }
   ctx.fillStyle = color;
   ctx.beginPath();
-  ctx.arc(x, head, 11 * s, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.fillStyle = '#fff';
-  ctx.beginPath();
-  ctx.arc(x + facing * 4 * s, head - 2 * s, 3 * s, 0, Math.PI * 2);
+  ctx.arc(x, y, 11 * s, 0, Math.PI * 2);
   ctx.fill();
   if (extra === 'chef' || extra === 'player') {
     ctx.fillStyle = '#ffffff';
     ctx.strokeStyle = '#bdbdbd';
-    ctx.lineWidth = 1.2;
-    ctx.fillRect(x - 10 * s, head - 20 * s, 20 * s, 8 * s);
+    ctx.lineWidth = 1.5;
     ctx.beginPath();
-    ctx.arc(x - 6 * s, head - 24 * s, 7 * s, 0, Math.PI * 2);
-    ctx.arc(x + 6 * s, head - 24 * s, 7 * s, 0, Math.PI * 2);
-    ctx.arc(x, head - 29 * s, 8 * s, 0, Math.PI * 2);
+    ctx.arc(x, y, 9 * s, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+  }
+  if (extra === 'vip') {
+    ctx.fillStyle = '#212121';
+    ctx.beginPath();
+    ctx.arc(x, y, 13 * s, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#424242';
+    ctx.beginPath();
+    ctx.arc(x, y, 8 * s, 0, Math.PI * 2);
     ctx.fill();
   }
   if (extra === 'waiter') {
     ctx.fillStyle = '#212121';
     ctx.beginPath();
-    ctx.moveTo(x, neck + 3 * s);
-    ctx.lineTo(x - 7 * s, neck - 1 * s);
-    ctx.lineTo(x - 7 * s, neck + 7 * s);
-    ctx.lineTo(x + 7 * s, neck - 1 * s);
-    ctx.lineTo(x + 7 * s, neck + 7 * s);
-    ctx.closePath();
+    ctx.arc(x + fx * 12 * s, y + fy * 12 * s, 4 * s, 0, Math.PI * 2);
     ctx.fill();
-  }
-  if (extra === 'vip') {
-    ctx.fillStyle = '#212121';
-    ctx.fillRect(x - 12 * s, head - 12 * s, 24 * s, 3 * s);
-    ctx.fillRect(x - 8 * s, head - 30 * s, 16 * s, 18 * s);
-    ctx.strokeStyle = '#ffd54f';
-    ctx.lineWidth = 1.5;
-    ctx.beginPath();
-    ctx.arc(x + facing * 5 * s, head - 2 * s, 4.5 * s, 0, Math.PI * 2);
-    ctx.stroke();
   }
 }
 
-function bubble(ctx: Ctx, x: number, y: number, text: string, mood: number, time: number) {
+function bubble(ctx: Ctx, x: number, y: number, text: string, mood: number, time: number, w = 52) {
   const shake = mood < 0.25 ? Math.sin(time * 30) * 2 : 0;
   ctx.fillStyle = '#ffffff';
   ctx.strokeStyle = 'rgba(0,0,0,0.35)';
   ctx.lineWidth = 2;
-  ctx.beginPath();
-  ctx.roundRect(x - 26 + shake, y - 26, 52, 44, 12);
+  rr(ctx, x - w / 2 + shake, y - 26, w, 44, 12);
   ctx.fill();
   ctx.stroke();
   ctx.beginPath();
@@ -287,60 +401,59 @@ function bubble(ctx: Ctx, x: number, y: number, text: string, mood: number, time
   ctx.lineTo(x + 6 + shake, y + 18);
   ctx.fill();
   ctx.fillStyle = '#000';
-  emoji(ctx, text, x + shake, y - 4, 26);
+  emoji(ctx, text, x + shake, y - 4, text.length > 4 ? 18 : 24);
   // Patience: green, then yellow, then red
   ctx.fillStyle = 'rgba(0,0,0,0.2)';
-  ctx.fillRect(x - 22 + shake, y + 10, 44, 5);
+  ctx.fillRect(x - w / 2 + 4 + shake, y + 10, w - 8, 5);
   ctx.fillStyle = mood > 0.5 ? '#66bb6a' : mood > 0.25 ? '#ffca28' : '#ef5350';
-  ctx.fillRect(x - 22 + shake, y + 10, 44 * mood, 5);
+  ctx.fillRect(x - w / 2 + 4 + shake, y + 10, (w - 8) * mood, 5);
 }
 
-/** Everyone in the restaurant, the drive-thru cars, dishes on the pass and the floating words. */
-export function drawPeople(ctx: Ctx, day: ChefDay, time: number) {
-  const F = WORLD.floor;
-  // Cars in the drive-thru line
-  for (const c of day.cars) {
-    const x = DRIVE_X + c.x - 40;
-    ctx.fillStyle = c.color;
-    ctx.beginPath();
-    ctx.roundRect(x - 60, F - 60, 120, 40, 12);
-    ctx.fill();
-    ctx.beginPath();
-    ctx.roundRect(x - 36, F - 92, 72, 36, 10);
-    ctx.fill();
-    ctx.fillStyle = '#b3e5fc';
-    ctx.fillRect(x - 28, F - 86, 56, 24);
-    ctx.fillStyle = '#212121';
-    for (const k of [-36, 36]) {
-      ctx.beginPath();
-      ctx.arc(x + k, F - 18, 14, 0, Math.PI * 2);
+/** Everyone on this floor, the drive-thru cars, dishes on the pass and the floating words. */
+export function drawPeople(ctx: Ctx, day: ChefDay, floor: number, time: number) {
+  if (floor === 0) {
+    for (const c of day.cars) {
+      const x = DRIVE_LANE / 2;
+      const y = c.y;
+      ctx.fillStyle = 'rgba(0,0,0,0.2)';
+      rr(ctx, x - 40, y - 64, 86, 140, 18);
       ctx.fill();
+      ctx.fillStyle = c.color;
+      rr(ctx, x - 44, y - 70, 88, 140, 18);
+      ctx.fill();
+      ctx.fillStyle = '#b3e5fc';
+      rr(ctx, x - 34, y - 52, 68, 30, 8);
+      ctx.fill();
+      rr(ctx, x - 34, y + 34, 68, 22, 8);
+      ctx.fill();
+      ctx.fillStyle = 'rgba(0,0,0,0.15)';
+      rr(ctx, x - 34, y - 18, 68, 48, 6);
+      ctx.fill();
+      if (c.state === 'waiting') bubble(ctx, x + 60, y - 50, '❗', c.patience / c.max, time);
+      if (c.state === 'ordered') bubble(ctx, x + 60, y - 50, c.dish.icon, c.patience / c.max, time);
     }
-    if (c.state === 'waiting') bubble(ctx, x + 20, F - 140, '❗', c.patience / c.max, time);
-    if (c.state === 'ordered') bubble(ctx, x + 20, F - 140, c.dish.icon, c.patience / c.max, time);
+    // Ready dishes on the pass
+    const ready = day.tickets.filter((t) => t.step >= t.dish.steps.length && !day.workers.some((w) => w.carrying === t));
+    ready.slice(0, 12).forEach((t, k) => {
+      const px = PASS.x + 26 + (k % 5) * 28;
+      const py = PASS.y + 30 + Math.floor(k / 5) * 26;
+      ctx.fillStyle = '#ffffff';
+      ctx.beginPath();
+      ctx.arc(px, py, 12, 0, Math.PI * 2);
+      ctx.fill();
+      emoji(ctx, t.dish.icon, px, py, 18);
+    });
   }
-  // Ready dishes on the pass
-  const ready = day.tickets.filter((t) => t.step >= t.dish.steps.length && !day.workers.some((w) => w.carrying === t));
-  ready.forEach((t, k) => {
-    const px = PASS_X + 18 + (k % 3) * 22;
-    const py = F - 132 - Math.floor(k / 3) * 22;
-    ctx.fillStyle = '#ffffff';
-    ctx.beginPath();
-    ctx.ellipse(px, py + 8, 12, 4, 0, 0, Math.PI * 2);
-    ctx.fill();
-    emoji(ctx, t.dish.icon, px, py - 2, 20);
-  });
-  // Guests
-  for (const g of day.guests) drawGuest(ctx, g, time);
-  // Staff and you
-  for (const w of day.workers) drawWorker(ctx, w);
-  // Floating words
+  for (const g of day.guests) if (g.floor === floor || (g.state !== 'walkin' && g.state !== 'leaving' && g.table.floor === floor)) drawParty(ctx, day, g, floor, time);
+  for (const w of day.workers) if (w.floor === floor) drawWorker(ctx, w);
   for (const p of day.pops) {
+    if (p.floor !== floor) continue;
     ctx.globalAlpha = Math.max(0, 1 - p.t / 1.6);
-    ctx.font = '800 24px "Baloo 2", system-ui, sans-serif';
+    ctx.font = '800 26px "Baloo 2", system-ui, sans-serif';
     ctx.textAlign = 'center';
-    ctx.lineWidth = 4;
-    ctx.strokeStyle = 'rgba(255,255,255,0.9)';
+    ctx.textBaseline = 'middle';
+    ctx.lineWidth = 5;
+    ctx.strokeStyle = 'rgba(255,255,255,0.95)';
     ctx.strokeText(p.text, p.x, p.y - p.t * 40);
     ctx.fillStyle = p.color;
     ctx.fillText(p.text, p.x, p.y - p.t * 40);
@@ -348,68 +461,113 @@ export function drawPeople(ctx: Ctx, day: ChefDay, time: number) {
   ctx.globalAlpha = 1;
 }
 
-function drawGuest(ctx: Ctx, g: Customer, time: number) {
-  const F = WORLD.floor;
-  const s = g.kid ? 0.7 : 1;
-  const sitting = g.state === 'waiting' || g.state === 'ordered' || g.state === 'eating';
-  const facing = sitting ? (g.x > tableX(g.table) ? -1 : 1) : g.state === 'leaving' ? 1 : -1;
-  stick(ctx, g.x, F, s, g.state === 'leaving' && g.mood <= 0 ? '#e53935' : g.color, g.x * 0.06, facing, sitting, g.vip ? 'vip' : null);
-  const top = F - (sitting ? 100 : 92) * s - 34;
-  if (g.state === 'waiting') bubble(ctx, g.x, top, '❗', g.mood, time);
-  else if (g.state === 'ordered') bubble(ctx, g.x, top, (g.kid ? '🧸' : '') + g.dish.icon, g.mood, time);
-  else if (g.state === 'eating') {
-    emoji(ctx, g.dish.icon, tableX(g.table) + (g.x > tableX(g.table) ? 18 : -18), F - 82, 22);
-    emoji(ctx, '😋', g.x, top + 10, 22);
+function drawParty(ctx: Ctx, day: ChefDay, g: Party, floor: number, time: number) {
+  const seated = g.state === 'waiting' || g.state === 'ordered';
+  const c = cellCenter(g.table.floor, g.table.cell);
+  g.members.forEach((m, i) => {
+    const s = m.kid ? 0.75 : 1;
+    let x: number;
+    let y: number;
+    let dir: number;
+    if (seated) {
+      const at = day.seat(g, i);
+      x = at.x;
+      y = at.y;
+      dir = Math.atan2(c.y - y, c.x - x);
+    } else {
+      if (g.floor !== floor) return;
+      // Walking in a little line behind the first one.
+      x = g.x - Math.cos(g.dir) * i * 30 + (i % 2 ? 12 : -12) * Math.sin(g.dir);
+      y = g.y - Math.sin(g.dir) * i * 30;
+      dir = g.dir;
+    }
+    const color = g.state === 'leaving' && g.mood <= 0 ? '#e53935' : m.color;
+    topStick(ctx, x, y, s, color, seated ? 0 : g.walk + i, dir, g.vip && i === 0 ? 'vip' : null);
+    if (!seated) return;
+    if (m.eatT > 0 || m.done) {
+      // Their plate on the table
+      const px = x + (c.x - x) * 0.45;
+      const py = y + (c.y - y) * 0.45;
+      if (m.eatT > 0) {
+        ctx.fillStyle = '#ffffff';
+        ctx.beginPath();
+        ctx.arc(px, py, 11, 0, Math.PI * 2);
+        ctx.fill();
+        emoji(ctx, m.dish.icon, px, py, 16);
+      }
+    }
+  });
+  if (!seated) return;
+  const top = c.y - CELL / 2 + 4;
+  if (g.state === 'waiting') {
+    bubble(ctx, c.x, top, g.round > 1 ? '🔁❗' : '❗', g.mood, time, g.round > 1 ? 64 : 52);
+    return;
   }
+  // Ordered: what's still coming (up to 4 shown)
+  const waiting = g.members.filter((m) => m.ticket).map((m) => (m.kid ? '🧸' : '') + m.dish.icon);
+  if (waiting.length) {
+    const shown = waiting.slice(0, 4).join('') + (waiting.length > 4 ? '…' : '');
+    bubble(ctx, c.x, top, shown, g.mood, time, Math.max(52, 26 + Math.min(4, waiting.length) * 26));
+    // A dish of theirs is ready on the pass: a little bell.
+    if (day.tickets.some((t) => t.guest === g && t.step >= t.dish.steps.length)) emoji(ctx, '🔔', c.x + CELL / 2 - 14, top - 14, 20);
+  } else emoji(ctx, '😋', c.x, top, 24);
 }
 
 function drawWorker(ctx: Ctx, w: Worker) {
-  const F = WORLD.floor;
   const color = w.role === 'player' ? '#1e88e5' : w.role === 'waiter' ? '#455a64' : '#6d4c41';
-  stick(ctx, w.x, F, 1.05, color, w.walk, w.facing, false, w.role === 'player' ? 'player' : w.role === 'chef' ? 'chef' : 'waiter');
+  topStick(ctx, w.x, w.y, 1.1, color, w.walk, w.dir, w.role === 'player' ? 'player' : w.role === 'chef' ? 'chef' : 'waiter');
   if (w.carrying) {
-    const hx = w.x + w.facing * 18;
+    const hx = w.x + Math.cos(w.dir) * 22;
+    const hy = w.y + Math.sin(w.dir) * 22;
     ctx.fillStyle = '#ffffff';
     ctx.beginPath();
-    ctx.ellipse(hx, F - 72, 16, 5, 0, 0, Math.PI * 2);
+    ctx.arc(hx, hy, 14, 0, Math.PI * 2);
     ctx.fill();
-    emoji(ctx, w.carrying.dish.icon, hx, F - 84, 22);
+    emoji(ctx, w.carrying.dish.icon, hx, hy, 20);
   }
-  if (w.busy > 0 && w.busy !== Infinity) {
-    ctx.fillStyle = '#000';
-    emoji(ctx, w.role === 'chef' ? '🍳' : '📝', w.x, F - 150, 22);
-  }
+  if (w.busy > 0 && w.busy !== Infinity) emoji(ctx, w.role === 'chef' ? '🍳' : '📝', w.x, w.y - 36, 22);
   if (w.role === 'player') {
-    ctx.font = '800 14px "Baloo 2", system-ui, sans-serif';
+    ctx.font = '800 16px "Baloo 2", system-ui, sans-serif';
     ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.lineWidth = 4;
+    ctx.strokeStyle = 'rgba(255,255,255,0.9)';
+    ctx.strokeText('YOU', w.x, w.y - 30);
     ctx.fillStyle = '#1e88e5';
-    ctx.fillText('YOU', w.x, F - 152);
+    ctx.fillText('YOU', w.x, w.y - 30);
   }
 }
 
+/** Room at the top of the day screen for the order tickets. */
+export const TICKETS_H = 70;
+
 /** Top bar inside the canvas: the tickets (orders) waiting to be cooked, oldest first. */
 export function drawTickets(ctx: Ctx, day: ChefDay, vw: number) {
-  const list = day.tickets.slice(0, 8);
   let x = 10;
-  for (const t of list) {
+  for (const t of day.tickets.slice(0, 14)) {
     const ready = t.step >= t.dish.steps.length;
     ctx.fillStyle = ready ? '#c8e6c9' : '#fffde7';
     ctx.strokeStyle = 'rgba(0,0,0,0.3)';
     ctx.lineWidth = 1.5;
-    ctx.beginPath();
-    ctx.roundRect(x, 8, 64, 54, 8);
+    rr(ctx, x, 8, 64, 54, 8);
     ctx.fill();
     ctx.stroke();
     ctx.fillStyle = '#000';
     emoji(ctx, t.dish.icon, x + 20, 30, 22);
     emoji(ctx, ready ? '✅' : STATION_ICON[t.dish.steps[t.step].station], x + 46, 30, 16);
-    // Steps done
     for (let k = 0; k < t.dish.steps.length; k++) {
       ctx.fillStyle = k < t.step ? '#43a047' : 'rgba(0,0,0,0.2)';
       ctx.fillRect(x + 8 + k * 14, 50, 10, 5);
     }
+    // Where it goes: the drive-thru, or which floor
     if (t.guest.kind === 'car') emoji(ctx, '🚗', x + 54, 50, 12);
+    else if (day.floors > 1) {
+      ctx.font = '800 11px "Baloo 2", system-ui, sans-serif';
+      ctx.fillStyle = '#5d4037';
+      ctx.fillText(`${t.guest.table.floor + 1}F`, x + 54, 50);
+    }
     x += 70;
-    if (x > vw - 70) break;
+    // Leave room for the clock and cash on the right.
+    if (x > vw - 330) break;
   }
 }

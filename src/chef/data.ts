@@ -51,6 +51,12 @@ const BASE: Dish[] = [
   { id: 'cake', icon: '🍰', price: 16, steps: [bake(0.16, 1), stack('🍰', '🍦', '🍓')] },
   { id: 'taco', icon: '🌮', price: 10, steps: [grill(0.2, 1.2), stack('🌮', '🥩', '🥬', '🧀')] },
   { id: 'donut', icon: '🍩', price: 6, steps: [fry(0.2, 1.4), stack('🍩', '🍫', '✨')] },
+  { id: 'sushi', icon: '🍣', price: 14, steps: [stack('🍚', '🐟', '🥒', '🥢')] },
+  { id: 'ramen', icon: '🍜', price: 13, steps: [grill(0.2, 1.1), stack('🍜', '🥚', '🍥', '🧅')] },
+  { id: 'pasta', icon: '🍝', price: 12, steps: [grill(0.22, 1), stack('🍝', '🍅', '🧀')] },
+  { id: 'friedrice', icon: '🍛', price: 11, steps: [fry(0.2, 1.2), stack('🍚', '🥚', '🥕')] },
+  { id: 'pancakes', icon: '🥞', price: 9, steps: [grill(0.2, 1.1), stack('🥞', '🧈', '🍯')] },
+  { id: 'coffee', icon: '☕', price: 5, steps: [pour('fridge', 0.12)] },
 ];
 
 /** Kids meals: the grown-up dish with a toy, a bit cheaper. Only kids order them. */
@@ -91,25 +97,34 @@ export const ITEMS: Item[] = [
   { id: 'icecream', kind: 'station', icon: '🍦', price: 350 },
   { id: 'table', kind: 'table', icon: '🪑', price: 120 },
   { id: 'bigtable', kind: 'table', icon: '🛋️', price: 260 },
+  { id: 'table6', kind: 'table', icon: '👨‍👩‍👧', price: 450 },
+  { id: 'table8', kind: 'table', icon: '👨‍👩‍👧‍👦', price: 700 },
   { id: 'plant', kind: 'decor', icon: '🪴', price: 60, stars: 0.1 },
   { id: 'flowers', kind: 'decor', icon: '💐', price: 50, stars: 0.1 },
   { id: 'painting', kind: 'decor', icon: '🖼️', price: 90, stars: 0.15 },
   { id: 'lamp', kind: 'decor', icon: '💡', price: 70, stars: 0.1 },
   { id: 'clock', kind: 'decor', icon: '🕰️', price: 80, stars: 0.1 },
   { id: 'aquarium', kind: 'decor', icon: '🐠', price: 220, stars: 0.25 },
+  { id: 'piano', kind: 'decor', icon: '🎹', price: 320, stars: 0.3 },
+  { id: 'fountain', kind: 'decor', icon: '⛲', price: 400, stars: 0.35 },
 ];
 export const ITEM = Object.fromEntries(ITEMS.map((i) => [i.id, i])) as Record<string, Item>;
-export const DECOR_MAX = 0.6;
-/** A big table seats 4, a table 2. */
-export const seatsOf = (id: string | null) => (id === 'bigtable' ? 4 : id === 'table' ? 2 : 0);
+export const DECOR_MAX = 1;
+/** Seats at each table: a table 2, a big table 4, a family table 6, a party table 8. */
+export const seatsOf = (id: string | null) => (id === 'table8' ? 8 : id === 'table6' ? 6 : id === 'bigtable' ? 4 : id === 'table' ? 2 : 0);
 
-/** Slots along the restaurant: kitchen stations, dining tables, and decorations on the dining room wall. */
-export const KITCHEN_SLOTS = 6;
-export const TABLE_SLOTS = 6;
-export const DECOR_SLOTS = 6;
+/** Kitchen stations along the top wall. */
+export const KITCHEN_SLOTS = 8;
+/**
+ * The restaurant seen from above: each floor is a grid of spots for tables and decorations.
+ * The ground floor has the kitchen too, so it has fewer rows. Floors 2 and 3 are bought with Chef cash.
+ */
+export const GRID = { cols: 9, rows: [4, 5, 5] };
+export const FLOORS = { max: 3, price: [0, 1200, 3000] };
+export const gridSize = (floor: number) => GRID.cols * GRID.rows[floor];
 
-/** Staff: hired once, they stay for good (no wages). The second one of each costs more. */
-export const STAFF = { waiter: [400, 900], chef: [600, 1300] };
+/** Staff: hired once, they stay for good (no wages). Each one more costs more. */
+export const STAFF = { waiter: [400, 900, 1600], chef: [600, 1300, 2200] };
 export type StaffKind = keyof typeof STAFF;
 
 /** The drive-thru: can be built from day 10. */
@@ -126,8 +141,8 @@ export interface ChefSave {
   cash: number;
   dishes: string[];
   kitchen: (string | null)[];
-  tables: (string | null)[];
-  decor: (string | null)[];
+  /** Each floor's grid of tables and decorations (row by row). */
+  grid: (string | null)[][];
   staff: Record<StaffKind, number>;
   drive: boolean;
   /** The last reviews' stars (the restaurant's rating is their average). */
@@ -143,9 +158,8 @@ export function newChefSave(): ChefSave {
     day: 1,
     cash: START_CASH,
     dishes: [...START_DISHES],
-    kitchen: ['grill', 'prep', 'fridge', null, null, null],
-    tables: ['table', 'table', null, null, null, null],
-    decor: [null, null, null, null, null, null],
+    kitchen: ['grill', 'prep', 'fridge', null, null, null, null, null],
+    grid: [startGrid()],
     staff: { waiter: 0, chef: 0 },
     drive: false,
     ratings: [],
@@ -153,6 +167,26 @@ export function newChefSave(): ChefSave {
     served: 0,
     best: 0,
   };
+}
+
+/** The ground floor to start with: two little tables near the door. */
+function startGrid(): (string | null)[] {
+  const g: (string | null)[] = Array(gridSize(0)).fill(null);
+  g[GRID.cols * 3 + 3] = 'table';
+  g[GRID.cols * 3 + 5] = 'table';
+  return g;
+}
+
+/** Old saves had 6 tables and 6 wall decorations in a row: put them on the ground floor's grid. */
+function oldGrid(o: Record<string, unknown>): (string | null)[] {
+  const g: (string | null)[] = Array(gridSize(0)).fill(null);
+  const list = (a: unknown, kind: ItemKind) => (Array.isArray(a) ? a.filter((x): x is string => typeof x === 'string' && ITEM[x]?.kind === kind) : []);
+  const tables = list(o.tables, 'table');
+  const decor = list(o.decor, 'decor');
+  // Tables along the rows nearest the door, decorations along the back row.
+  tables.forEach((id, i) => (g[GRID.cols * (3 - Math.floor(i / 5)) + 2 + (i % 5)] = id));
+  decor.forEach((id, i) => (g[i * 2] = id));
+  return tables.length || decor.length ? g : startGrid();
 }
 
 /** Load a Stick Chef save, filling in anything missing. */
@@ -166,9 +200,10 @@ export function loadChef(r: unknown): ChefSave {
     cash: Math.max(0, Math.floor(Number(o.cash) || 0)),
     dishes: Array.isArray(o.dishes) && o.dishes.length ? o.dishes.filter((x) => typeof x === 'string' && DISH[x]) : d.dishes,
     kitchen: Array.isArray(o.kitchen) ? slots(o.kitchen, KITCHEN_SLOTS, 'station') : d.kitchen,
-    tables: Array.isArray(o.tables) ? slots(o.tables, TABLE_SLOTS, 'table') : d.tables,
-    decor: Array.isArray(o.decor) ? slots(o.decor, DECOR_SLOTS, 'decor') : d.decor,
-    staff: { waiter: Math.min(2, Number(o.staff?.waiter) || 0), chef: Math.min(2, Number(o.staff?.chef) || 0) },
+    grid: Array.isArray(o.grid) && o.grid.length
+      ? o.grid.slice(0, FLOORS.max).map((f, i) => Array.from({ length: gridSize(i) }, (_, k) => (Array.isArray(f) && typeof f[k] === 'string' && ITEM[f[k]] && ITEM[f[k]].kind !== 'station' ? (f[k] as string) : null)))
+      : [oldGrid(r as Record<string, unknown>)],
+    staff: { waiter: Math.min(STAFF.waiter.length, Number(o.staff?.waiter) || 0), chef: Math.min(STAFF.chef.length, Number(o.staff?.chef) || 0) },
     drive: o.drive === true,
     ratings: Array.isArray(o.ratings) ? o.ratings.filter((x) => typeof x === 'number').slice(-30) : [],
     reviews: Array.isArray(o.reviews) ? o.reviews.slice(-12) : [],
@@ -184,7 +219,12 @@ export function rating(c: ChefSave): number {
 }
 
 export function decorBonus(c: ChefSave): number {
-  return Math.min(DECOR_MAX, c.decor.reduce((a, id) => a + (id ? ITEM[id]?.stars ?? 0 : 0), 0));
+  return Math.min(DECOR_MAX, c.grid.flat().reduce((a, id) => a + (id ? ITEM[id]?.stars ?? 0 : 0), 0));
+}
+
+/** Every table in the restaurant: which floor, which grid spot, and how many seats. */
+export function allTables(c: ChefSave): { floor: number; cell: number; seats: number }[] {
+  return c.grid.flatMap((f, floor) => f.flatMap((id, cell) => (seatsOf(id) ? [{ floor, cell, seats: seatsOf(id) }] : [])));
 }
 
 /** Dishes a good day can give you (not ones you have; a kids meal only once you have its grown-up dish). */
