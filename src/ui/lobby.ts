@@ -3,7 +3,7 @@ import { allMaps } from '../game/maps';
 import { BEACH_MAP, BEACH_MODES, PIGEON_MAX, SECRET_KINDS, isBossMode, isSecret, isXBoss, type SecretKind, type Difficulty, type MapDef, type MatchConfig, type Mode, type SlotConfig } from '../game/types';
 import { GUARDIAN_MAPS } from '../game/maps';
 import { HATS } from '../game/hats';
-import { hasAch } from '../achievements';
+import { ACHIEVEMENTS, achDoneCount, hasAch, phylLocked, phylOpen } from '../achievements';
 import { WEAPONS } from '../game/weapons';
 import { t, teamName, type Key } from '../i18n';
 import { NAME_MAX, cleanName, save } from '../save';
@@ -18,8 +18,10 @@ export const MAX_PLAYERS = 6;
 export const MAX_BOTS = 6;
 export const MAX_BOSSES = 3;
 
+/** Stickman Infection and PHYLISHIEUS take up to 30 bots. */
+export const BIG_BOTS = 30;
 /** Bots allowed in this mode (the Pigeon fits up to 30 fighters). */
-export const maxBots = (mode: Mode, humans: number) => (mode === 'pigeon' ? PIGEON_MAX - humans : MAX_BOTS);
+export const maxBots = (mode: Mode, humans: number) => (mode === 'pigeon' ? PIGEON_MAX - humans : mode === 'infection' || mode === 'phyl' ? BIG_BOTS : MAX_BOTS);
 
 /** Hat picker for a slot: players pick from their hats, bots can also get a random one. */
 export function hatSelect(s: SlotConfig, bot: boolean) {
@@ -38,7 +40,7 @@ export function hatSelect(s: SlotConfig, bot: boolean) {
 /** Hints for the secret bosses you haven't unlocked yet (with your progress). */
 export function secretHints(): HTMLElement | null {
   const locked = SECRET_KINDS.filter((k) => !save.data.secrets.includes(k));
-  if (!locked.length) return null;
+  if (!locked.length && !phylLocked()) return null;
   const st = save.data.stats;
   const progress: Record<SecretKind, string> = {
     queen: t('hintProgress', { n: Math.min(3, st.catSnowWins), total: 3 }),
@@ -52,6 +54,7 @@ export function secretHints(): HTMLElement | null {
     ...locked.map((k) =>
       h('p', { class: 'hint' }, h('span', { class: 'hint-q' }, `${SECRET_ICONS[k]} ???`), ' ', t(`hint.${k}` as Key), progress[k] ? h('small', { class: 'muted' }, ` (${progress[k]})`) : null),
     ),
+    phylLocked() ? h('p', { class: 'hint' }, h('span', { class: 'hint-q' }, '📖 ???'), ' ', t('hint.phyl', { total: ACHIEVEMENTS.length }), h('small', { class: 'muted' }, ` (${t('hintProgress', { n: achDoneCount(), total: ACHIEVEMENTS.length })})`)) : null,
   );
 }
 
@@ -160,8 +163,8 @@ register('lobby', (root, arg) => {
   if (arg?.mapId) m.mapId = arg.mapId;
   if (!maps.some((x) => x.id === m.mapId)) m.mapId = 'arena';
   m.bosses = Math.max(1, Math.min(MAX_BOSSES, m.bosses ?? 1));
-  if (m.mode === 'sandbox' || m.mode === 'outbreak' || (m.mode === 'buffalo' && !hasAch('buffalo')) || (isSecret(m.mode) && !save.data.secrets.includes(m.mode))) m.mode = 'ffa';
-  if (arg?.mode) m.mode = arg.mode;
+  if (m.mode === 'sandbox' || m.mode === 'outbreak' || (m.mode === 'buffalo' && !hasAch('buffalo')) || (isSecret(m.mode) && !save.data.secrets.includes(m.mode)) || (m.mode === 'phyl' && !phylOpen())) m.mode = 'ffa';
+  if (arg?.mode && (arg.mode !== 'phyl' || phylOpen())) m.mode = arg.mode;
   // Stickman Infection from the fun modes page: fill up with bots so there is someone to chase.
   if (arg?.mode === 'infection') while (m.slots.length < 6) m.slots.push({ kind: 'bot', weapon: 'random', team: m.slots.length % 4, difficulty: 'medium' });
   if (m.mapId === BEACH_MAP && !BEACH_MODES.includes(m.mode)) m.mode = m.mode === 'events' ? 'ffa' : 'boss';
@@ -180,6 +183,7 @@ register('lobby', (root, arg) => {
     const n = m.slots.length;
     if (m.mode === 'mascot' && !mascotUnlocked(save.data.owned)) return t('mascotLocked', mascotProgress(save.data.owned));
     if (m.mode === 'buffalo' && !hasAch('buffalo')) return t('buffaloLocked');
+    if (m.mode === 'phyl' && !phylOpen()) return t('hint.phyl', { total: ACHIEVEMENTS.length });
     if (m.mapId === BEACH_MAP && !BEACH_MODES.includes(m.mode)) return t('beachOnly');
     if (isBossMode(m.mode)) return n >= 1 ? '' : t('needOne');
     if (n < 2) return t('needTwo');
@@ -208,7 +212,7 @@ register('lobby', (root, arg) => {
             m.mode = mode;
             // Leaving the Pigeon: only 6 bots fit in the other modes.
             let extra = m.slots.filter((s) => s.kind === 'bot').length - maxBots(mode, 0);
-            if (extra > 0) toast(t('botsTrimmed', { n: MAX_BOTS }));
+            if (extra > 0) toast(t('botsTrimmed', { n: maxBots(mode, 0) }));
             for (let i = m.slots.length - 1; i >= 0 && extra > 0; i--) {
               if (m.slots[i].kind !== 'bot') continue;
               m.slots.splice(i, 1);
@@ -346,11 +350,17 @@ register('lobby', (root, arg) => {
           ...SECRET_KINDS.filter((k) => !save.data.secrets.includes(k)).map((k) =>
             h('button', { class: 'seg locked', onclick: () => toast(t(`hint.${k}` as Key)) }, `🔒 ???`),
           ),
+          // PHYLISHIEUS: ??? until every achievement is done, gone once both phases are beaten.
+          phylOpen() ? modeBtn('phyl', '📖') : null,
+          phylLocked()
+            ? h('button', { class: 'seg locked', onclick: () => toast(`${t('hint.phyl', { total: ACHIEVEMENTS.length })} (${achDoneCount()}/${ACHIEVEMENTS.length})`) }, `🔒 ???`)
+            : null,
         ),
         h('small', { class: 'seg-group' }, t('modesFun')),
         h('div', { class: 'segs' }, modeBtn('infection', '🦠'), modeBtn('events', '🌪️')),
         h('p', { class: 'muted' }, t(`${m.mode}Desc` as Key)),
         isSecret(m.mode) || isXBoss(m.mode) ? h('small', { class: 'muted' }, `🪙🏆 ${t(`${m.mode}Reward` as Key)}`) : null,
+        m.mode === 'phyl' ? h('p', { class: 'phyl-phase' }, `📖 ${t('phylPhase', { n: save.data.phyl.phase })} · 🪙🏆 ${t(save.data.phyl.phase === 2 ? 'phylReward2' : 'phylReward1')}`) : null,
         m.mode === 'buffalo' ? h('small', { class: 'muted' }, `🪙🏆 ${t('buffaloReward')}`) : null,
         m.mode === 'pigeon' ? h('small', { class: 'muted' }, `🪙🏆 ${t('pigeonReward')}`) : null,
         m.mode === 'rush' ? h('small', { class: 'muted' }, `🪙🏆 ${t('rushReward')}`) : null,
@@ -372,6 +382,8 @@ register('lobby', (root, arg) => {
       // Stickman Infection is always in its own big town.
       m.mode === 'infection'
         ? h('section', {}, h('h3', {}, `${t('map')}: ${t('m.town')}`), h('small', { class: 'muted' }, t('infMapNote')))
+        : m.mode === 'phyl'
+        ? h('section', {}, h('h3', {}, `${t('map')}: ${t('m.tomekeep')}`), h('small', { class: 'muted' }, t('phylMapNote')))
         : h('section', {}, h('h3', {}, t('map')), h('div', { class: 'map-row' }, ...mapCards)),
       h(
         'section',

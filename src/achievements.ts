@@ -36,6 +36,12 @@ export const ACHIEVEMENTS = [
 ] as const;
 export type AchievementId = (typeof ACHIEVEMENTS)[number];
 
+/** PHYLISHIEUS wakes up once every achievement is done, and leaves for good (to Sandbox) once phase 2 is beaten. */
+export const achDoneCount = () => ACHIEVEMENTS.filter((id) => save.data.achievements.includes(id)).length;
+export const phylOpen = () => achDoneCount() >= ACHIEVEMENTS.length && !save.data.phyl.done;
+/** Locked: still shows as ??? (until the mode is gone). */
+export const phylLocked = () => achDoneCount() < ACHIEVEMENTS.length && !save.data.phyl.done;
+
 /** Achievements for the secret bosses stay hidden until that boss is unlocked (no spoilers). */
 export const SECRET_ACH: Partial<Record<AchievementId, SecretKind>> = { winterWarrior: 'queen', oceanConqueror: 'tide', forestProtector: 'guardian' };
 

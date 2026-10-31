@@ -36,7 +36,9 @@ export type TrackId =
   | 'pigeon'
   | 'queen'
   | 'tide'
-  | 'guardian';
+  | 'guardian'
+  | 'tome'
+  | 'phyl';
 
 interface TrackDef {
   bpm: number;
@@ -125,6 +127,10 @@ const TRACKS: Record<TrackId, TrackDef> = {
   tide: { bpm: 100, root: 50, scale: MINOR, chords: [0, 0, 5, 6], lead: 'sawtooth', bass: 'sawtooth', arp: null, drums: [HALF, 'k..k....s.....k.'], busy: 0.45, bassRhythm: 'x.xxx.xxx.xxx.xx', seed: 73, leadOct: -1, vol: 1.1 },
   // The Ancient Guardian: tribal drums and a mysterious flute
   guardian: { bpm: 124, root: 57, scale: PENTA, chords: [0, 0, 3, 4], lead: 'sine', bass: 'triangle', arp: null, drums: ['k..tt..tk.t.t.tt', 'k.ttk.t.k..tt.tk'], busy: 0.55, bassRhythm: 'x..x..x.x..x....', seed: 79 },
+  // The Forbidden Tome Keep: slow, dark organ-like chords
+  tome: { bpm: 92, root: 50, scale: HARM, chords: [0, 5, 1, 4], lead: 'triangle', bass: 'sawtooth', arp: 'sine', drums: [HALF, 'k.......s.....t.'], busy: 0.4, bassRhythm: 'x...x...x...x.x.', seed: 83, leadOct: -1 },
+  // PHYLISHIEUS: a huge, fast, scary final boss theme
+  phyl: { bpm: 184, root: 50, scale: PHRYG, chords: [0, 1, 0, 6, 0, 1, 5, 4], lead: 'sawtooth', bass: 'sawtooth', arp: 'square', drums: [DRIVE, 'k.hks.hkk.hksts.'], busy: 0.9, bassRhythm: 'xxxxxxxxxxxxxxxx', seed: 89, vol: 1.1, rock: true },
 };
 
 /** Small seeded random numbers, so a track's tune never changes. */

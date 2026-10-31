@@ -1,6 +1,7 @@
-import { BUILTIN_MAPS, MAP_SIZES, THEME_IDS, encodeMap } from '../game/maps';
+import { BUILTIN_MAPS, CONNECT_MAX, MAP_SIZES, THEME_IDS, connectMaps, encodeMap, type ConnectLayout } from '../game/maps';
 import { drawBackground, drawPlatforms } from '../game/render';
 import { drawWarps } from '../game/oct30Draw';
+import { drawPortal } from '../game/treats';
 import { WARP } from '../game/oct30';
 import type { BlockKind, MapDef, Platform, ThemeId } from '../game/types';
 import { t, type Key } from '../i18n';
@@ -86,13 +87,18 @@ register('maps', (root) => {
             ...BUILTIN_MAPS.map((b) => h('button', { class: 'map-card', onclick: () => go('editor', { map: newMap(b) }) }, mapThumb(b), h('span', {}, `${t('copyOf')}: ${mapLabel(b)}`))),
           ),
         ),
+        connectSection(),
         h('section', {}, h('h3', {}, `🗺️ ${t('myMaps')}`), list),
       ),
     ),
   );
 });
 
-type Tool = 'platform' | BlockKind | 'mover' | 'lift' | 'spawn' | 'warp' | 'erase';
+type Tool = 'platform' | BlockKind | 'mover' | 'lift' | 'spawn' | 'warp' | 'purple' | 'erase' | 'pan';
+/** Most purple portals on one map. */
+const MAX_PURPLE = 4;
+/** Same size as the Portal map's one. */
+const PURPLE_R = 105;
 /** Most portals on one map (6 pairs). */
 const MAX_WARPS = 12;
 const BLOCKS: BlockKind[] = ['concrete', 'lava', 'glass', 'sandbag', 'bounce', 'ice', 'spikes', 'wall'];
@@ -112,12 +118,13 @@ register('editor', (root, { map }) => {
   const history: string[] = [];
   /** Undone steps, for Redo (a new change clears it). */
   const future: string[] = [];
-  const state = () => JSON.stringify({ p: m.platforms, s: m.spawns, q: m.warps ?? [] });
+  const state = () => JSON.stringify({ p: m.platforms, s: m.spawns, q: m.warps ?? [], o: m.portals ?? [] });
   const restore = (json: string) => {
     const st = JSON.parse(json);
     m.platforms = st.p;
     m.spawns = st.s;
     m.warps = st.q ?? [];
+    m.portals = st.o ?? [];
   };
   let drag: { x0: number; y0: number; x1: number; y1: number } | null = null;
 
@@ -127,10 +134,19 @@ register('editor', (root, { map }) => {
   let ch = 0;
   let dpr = 1;
 
+  // Zoom in (1 = the whole map fits) and the point in the middle of the screen, for big maps.
+  let zoom = 1;
+  let center = { x: m.w / 2, y: m.h / 2 };
   const view = () => {
-    const z = Math.min(cw / (m.w + 80), ch / (m.h + 80));
-    return { z, ox: (cw - m.w * z) / 2, oy: (ch - m.h * z) / 2 };
+    const z = Math.min(cw / (m.w + 80), ch / (m.h + 80)) * zoom;
+    return { z, ox: cw / 2 - center.x * z, oy: ch / 2 - center.y * z };
   };
+  const setZoom = (k: number) => {
+    zoom = Math.max(1, Math.min(8, k));
+    if (zoom === 1) center = { x: m.w / 2, y: m.h / 2 };
+    draw();
+  };
+  let pan: { sx: number; sy: number; cx: number; cy: number } | null = null;
   const toWorld = (sx: number, sy: number) => {
     const v = view();
     return { x: (sx - v.ox) / v.z, y: (sy - v.oy) / v.z };
@@ -168,6 +184,7 @@ register('editor', (root, { map }) => {
     ctx.setLineDash([]);
     drawPlatforms(ctx, m, performance.now() / 1000);
     if (m.warps?.length) drawWarps(ctx, m.warps, performance.now() / 1000);
+    for (const o of m.portals ?? []) drawPortal(ctx, o, performance.now() / 1000);
     for (const [i, s] of m.spawns.entries()) {
       ctx.strokeStyle = '#111';
       ctx.lineWidth = 5;
@@ -225,6 +242,11 @@ register('editor', (root, { map }) => {
   canvas.addEventListener('pointerdown', (e) => {
     const r = canvas.getBoundingClientRect();
     const p = toWorld(e.clientX - r.left, e.clientY - r.top);
+    if (tool === 'pan') {
+      canvas.setPointerCapture(e.pointerId);
+      pan = { sx: e.clientX, sy: e.clientY, cx: center.x, cy: center.y };
+      return;
+    }
     if (tool === 'platform' || isBlock(tool) || isMove(tool)) {
       canvas.setPointerCapture(e.pointerId);
       drag = { x0: p.x, y0: p.y, x1: p.x, y1: p.y };
@@ -242,7 +264,20 @@ register('editor', (root, { map }) => {
       const below = m.platforms.filter((q) => p.x >= q.x && p.x <= q.x + q.w && q.y >= p.y - 40).sort((a, b) => a.y - b.y)[0];
       warps.push({ x: snap(p.x), y: below ? below.y : snap(p.y) });
       if (warps.length % 2 === 1) toast(t('warpOne'));
+    } else if (tool === 'purple') {
+      // A purple portal goes exactly where you tap, even in the air.
+      const list = (m.portals ??= []);
+      if (list.length >= MAX_PURPLE) return toast(t('purpleMax', { n: MAX_PURPLE }));
+      snapshot();
+      list.push({ x: snap(p.x), y: snap(p.y), r: PURPLE_R });
     } else {
+      const oi = (m.portals ?? []).findIndex((o) => Math.hypot((p.x - o.x) / 0.75, p.y - o.y) < o.r + 10);
+      if (oi >= 0) {
+        snapshot();
+        m.portals!.splice(oi, 1);
+        draw();
+        return;
+      }
       const wi = (m.warps ?? []).findIndex((w) => Math.abs(w.x - p.x) < WARP.w / 2 + 6 && p.y < w.y + 10 && p.y > w.y - WARP.h - 10);
       if (wi >= 0) {
         snapshot();
@@ -259,6 +294,12 @@ register('editor', (root, { map }) => {
     draw();
   });
   canvas.addEventListener('pointermove', (e) => {
+    if (pan) {
+      const z = view().z;
+      center = { x: pan.cx - (e.clientX - pan.sx) / z, y: pan.cy - (e.clientY - pan.sy) / z };
+      draw();
+      return;
+    }
     if (!drag) return;
     const r = canvas.getBoundingClientRect();
     const p = toWorld(e.clientX - r.left, e.clientY - r.top);
@@ -267,6 +308,7 @@ register('editor', (root, { map }) => {
     draw();
   });
   const endDrag = () => {
+    pan = null;
     if (!drag) return;
     snapshot();
     const tiny = Math.abs(drag.x1 - drag.x0) < GRID && Math.abs(drag.y1 - drag.y0) < GRID;
@@ -281,7 +323,12 @@ register('editor', (root, { map }) => {
     draw();
   };
   canvas.addEventListener('pointerup', endDrag);
+  canvas.addEventListener('wheel', (e) => {
+    e.preventDefault();
+    setZoom(zoom * (e.deltaY < 0 ? 1.2 : 1 / 1.2));
+  }, { passive: false });
   canvas.addEventListener('pointercancel', () => {
+    pan = null;
     drag = null;
     draw();
   });
@@ -304,17 +351,21 @@ register('editor', (root, { map }) => {
     ['lift', `↕️ ${t('toolLift')}`],
     ['spawn', `🧍 ${t('toolSpawn')}`],
     ['warp', `🌀 ${t('toolWarp')}`],
+    ['purple', `🟣 ${t('toolPurple')}`],
   ];
   /** The last part picked (Erase switches back to it). */
   let part: Tool = 'platform';
   const partsBtn = h('button', { class: 'btn small parts-btn' });
   const eraseBtn = h('button', { class: 'btn small erase-btn' }, `🧽 ${t('toolErase')}`);
+  // Big maps: zoom in and drag the view around.
+  const panBtn = h('button', { class: 'btn small' }, `✋ ${t('toolPan')}`);
   const partsPanel = h('div', { class: 'parts-panel hidden' });
   const paintTools = () => {
     const label = PARTS.find(([id]) => id === part)?.[1] ?? '';
     partsBtn.textContent = `🧩 ${t('parts')}: ${label}`;
     partsBtn.classList.toggle('on', tool !== 'erase');
     eraseBtn.classList.toggle('on', tool === 'erase');
+    panBtn.classList.toggle('on', tool === 'pan');
     partsPanel.replaceChildren(
       ...PARTS.map(([id, text]) =>
         h(
@@ -338,6 +389,11 @@ register('editor', (root, { map }) => {
     partsPanel.classList.toggle('hidden');
     paintTools();
   });
+  panBtn.addEventListener('click', () => {
+    tool = tool === 'pan' ? part : 'pan';
+    partsPanel.classList.add('hidden');
+    paintTools();
+  });
   eraseBtn.addEventListener('click', () => {
     tool = tool === 'erase' ? part : 'erase';
     partsPanel.classList.add('hidden');
@@ -353,14 +409,18 @@ register('editor', (root, { map }) => {
         const s = MAP_SIZES[(e.target as HTMLSelectElement).value as keyof typeof MAP_SIZES];
         m.w = s.w;
         m.h = s.h;
-        draw();
+        setZoom(1);
       },
     },
     h('option', { value: 'small' }, `${t('size')}: ${t('small')}`),
     h('option', { value: 'medium' }, `${t('size')}: ${t('medium2')}`),
     h('option', { value: 'large' }, `${t('size')}: ${t('large')}`),
+    h('option', { value: 'giant' }, `${t('size')}: ${t('giant')}`),
   );
-  sizeSel.value = (Object.entries(MAP_SIZES).find(([, s]) => s.w === m.w)?.[0] ?? 'medium') as string;
+  // A connected map has its own size: show it as its own choice.
+  const own = !Object.values(MAP_SIZES).some((s) => s.w === m.w && s.h === m.h);
+  if (own) sizeSel.append(h('option', { value: 'own' }, `${t('size')}: ${m.w}×${m.h}`));
+  sizeSel.value = own ? 'own' : ((Object.entries(MAP_SIZES).find(([, s]) => s.w === m.w)?.[0] ?? 'medium') as string);
 
   const themeSel = h(
     'select',
@@ -401,6 +461,9 @@ register('editor', (root, { map }) => {
         nameInput,
         partsBtn,
         eraseBtn,
+        panBtn,
+        h('button', { class: 'btn small', 'aria-label': 'zoom in', onclick: () => setZoom(zoom * 1.5) }, '🔍＋'),
+        h('button', { class: 'btn small', 'aria-label': 'zoom out', onclick: () => setZoom(zoom / 1.5) }, '🔍－'),
         h(
           'button',
           {
@@ -440,6 +503,7 @@ register('editor', (root, { map }) => {
               m.platforms = [];
               m.spawns = [];
               m.warps = [];
+              m.portals = [];
               draw();
             },
           },
@@ -477,3 +541,67 @@ register('editor', (root, { map }) => {
   resize();
   return () => ro.disconnect();
 });
+
+/** The map connector: pick 2-4 maps (the game's maps or your own), in a row or 2 by 2, and they become one big map. */
+function connectSection(): HTMLElement {
+  const picked: MapDef[] = [];
+  let layout: ConnectLayout = 'row';
+  const sec = h('section', { class: 'connect' });
+  const paint = () => {
+    const all = [...BUILTIN_MAPS, ...save.data.customMaps];
+    sec.replaceChildren(
+      h('h3', {}, `🔗 ${t('connectMaps')}`),
+      h('p', { class: 'muted small' }, t('connectHint', { n: CONNECT_MAX })),
+      h(
+        'div',
+        { class: 'segs' },
+        h('button', { class: `seg ${layout === 'row' ? 'on' : ''}`, onclick: () => ((layout = 'row'), paint()) }, `➡️ ${t('connectRow')}`),
+        h('button', { class: `seg ${layout === 'grid' ? 'on' : ''}`, onclick: () => ((layout = 'grid'), paint()) }, `🔲 ${t('connectGrid')}`),
+      ),
+      h(
+        'p',
+        {},
+        h('b', {}, `${t('connectPicked')}: `),
+        picked.length ? picked.map((m, i) => `${i + 1}. ${mapLabel(m)}`).join('  ') : h('span', { class: 'muted' }, t('connectNone')),
+      ),
+      h(
+        'div',
+        { class: 'map-row' },
+        ...all.map((mp) => {
+          const n = picked.indexOf(mp);
+          return h(
+            'button',
+            {
+              class: `map-card ${n >= 0 ? 'on' : ''}`,
+              onclick: () => {
+                // Tap again to take it out. The same map can't go in twice.
+                if (n >= 0) picked.splice(n, 1);
+                else if (picked.length >= CONNECT_MAX) return toast(t('connectFull', { n: CONNECT_MAX }));
+                else picked.push(mp);
+                paint();
+              },
+            },
+            mapThumb(mp),
+            h('span', {}, `${n >= 0 ? `${n + 1}. ` : ''}${mapLabel(mp)}`),
+          );
+        }),
+      ),
+      h(
+        'button',
+        {
+          class: 'btn primary',
+          disabled: picked.length < 2,
+          onclick: () => {
+            const big = connectMaps(picked, layout, `${mapLabel(picked[0]).slice(0, 24)} +${picked.length - 1}`);
+            save.update((d) => d.customMaps.push(structuredClone(big)));
+            toast(t('connectDone'));
+            go('editor', { map: structuredClone(big) });
+          },
+        },
+        `🔗 ${t('connectGo')}`,
+      ),
+    );
+  };
+  paint();
+  return sec;
+}

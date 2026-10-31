@@ -2,6 +2,7 @@ import { ballisticAngle, nearestEnemy, platformBelow } from './ai';
 import { Body, CHEF, CUPCAKE, Cat, Fighter, GINGER, type Projectile } from './entities';
 import type { Game } from './game';
 import type { Platform } from './types';
+import { purplePortals } from './maps';
 
 /*
  * The October 23 update: food weapons (the free Pie, Ice Cream, Rolling Pin, Spatula, Ketchup and Popcorn),
@@ -182,16 +183,16 @@ export function updateOct23(g: Game, dt: number) {
     }
   }
   g.iceSpikes = g.iceSpikes.filter((s) => s.life > 0);
-  if (g.map.portal) updatePortal(g);
+  if (g.map.portal || g.map.portals?.length) updatePortal(g);
 }
 
-/** Is this point in the Portal? */
+/** Is this point in a purple portal (the Portal map's, or one from the map editor)? */
 export function inPortal(g: Game, x: number, y: number): boolean {
-  const p = g.map.portal;
-  if (!p) return false;
-  const dx = (x - p.x) / (p.r * 0.75);
-  const dy = (y - p.y) / p.r;
-  return dx * dx + dy * dy < 1;
+  return purplePortals(g.map).some((p) => {
+    const dx = (x - p.x) / (p.r * 0.75);
+    const dy = (y - p.y) / p.r;
+    return dx * dx + dy * dy < 1;
+  });
 }
 
 /** Anyone who walks (or is flung) into the purple portal disappears into it. A player who goes in leaves for Stickman Fight 2. */
