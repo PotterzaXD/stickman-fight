@@ -201,6 +201,23 @@ Besides normal platforms, you can build with special blocks:
 - **Lava:** landing on it takes 40 HP and throws you up into the air.
 - **Sandbag:** you can walk through it sideways, but it blocks bullets and thrown weapons. Good cover for gun fights.
 - **Glass:** any weapon skill that hits it breaks it, for example an arrow, a laser, a bomb, the sword's dash or the hammer's slam. Broken glass comes back after 10 seconds.
+- **Purple portal:** works like the Portal map's portal, and goes exactly where you tap, even in the air (up to 4 on a map).
+
+Map sizes are Small, Medium, Large and **Giant** (4400 x 2400). On Giant maps the camera follows your own stickmen. Use **Move view** and the zoom buttons (or the mouse wheel) to build on big maps.
+
+**Connect maps** (on the Map Editor page) joins 2 to 4 maps, the game's maps or your own, side by side or 2 by 2, into one big map. Bridges join the floors of maps side by side, and lifts go up from the bottom maps into the ones above. The new map is saved in My maps and opens in the editor.
+
+## PHYLISHIEUS
+
+The final boss, shown as ??? in the boss list until you have all 28 achievements. He is fought in **The Forbidden Tome Keep** (a Giant map) with up to 30 bots, offline or online (the host's phase counts).
+
+- He floats at the top of the map and can't be hurt there. For about 25 seconds he rains meteors, swords (a red column warns you first) and fireballs on everyone, bots included, and they try to dodge.
+- After the first round he says "YOU ALL SHOULD DIE." and drops a 500,000 damage bomb. Only the two glowing bottom corners are safe. Then the Tome Golem rises to fight on your side.
+- Then he gets tired and comes down for 8 seconds: that is the only time you can hit him. He goes back up at 50,000 HP, and at 25,000 HP he says "WHY ARE YOU STILL HERE?" and destroys the Golem.
+- At 0 HP: "THIS IS NOT THE END." (+10,000 coins), and you go back to his menu for **phase 2**: 100,000 HP, "YOU THOUGHT I WAS DEAD?", and he adds chasing spell books, lasers and floor shockwaves, and drops the bomb a second time at half HP.
+- Beat phase 2 (+20,000 coins) and the mode leaves the menu for good. Phase 1 and phase 2 then show up in Sandbox as two separate bosses.
+
+Random weapons never give a bot a summon card (players can still pick one). Stickman Infection takes up to 30 bots (online: up to 8 people, and bots fill the rest of the room).
 
 ## Names
 

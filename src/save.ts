@@ -35,6 +35,8 @@ export interface SaveData {
   sf2: boolean;
   /** Stick Chef: its own save and its own money (Chef cash), separate from the coins. */
   chef: ChefSave;
+  /** PHYLISHIEUS: the phase you are on (1 or 2), and done once phase 2 is beaten (the mode leaves, he moves to Sandbox). */
+  phyl: { phase: 1 | 2; done: boolean };
   updatedAt: number;
 }
 
@@ -98,6 +100,7 @@ function defaults(): SaveData {
     zombieAlly: false,
     sf2: false,
     chef: newChefSave(),
+    phyl: { phase: 1, done: false },
     pendingZombie: false,
     td: tdSave(null),
     updatedAt: 0,
@@ -144,6 +147,7 @@ export function normalize(raw: unknown): SaveData {
     zombieAlly: r.zombieAlly === true,
     sf2: r.sf2 === true,
     chef: loadChef(r.chef),
+    phyl: { phase: r.phyl?.phase === 2 ? 2 : 1, done: r.phyl?.done === true },
     pendingZombie: r.pendingZombie === true,
     td: tdSave(r.td),
     updatedAt: Number.isFinite(r.updatedAt) ? (r.updatedAt as number) : 0,

@@ -5,12 +5,23 @@ import { BEACH_MAP, BEACH_MODES, isBossMode, isSecret, type Controller, type Dif
 import { OUTBREAK } from '../game/outbreak';
 import { OUTBREAK_MAP } from '../game/maps';
 import { INFECTION_MAP } from '../game/infection';
+import { TOME_MAP } from '../game/phyl';
+import { phylOpen } from '../achievements';
 import { cleanName, save } from '../save';
-import { MASCOT_WEAPONS } from '../game/weapons';
+import { MASCOT_WEAPONS, isSummonCard } from '../game/weapons';
+
+/** PHYLISHIEUS for the host: the phase, or 0 while locked or gone. */
+const hostPhyl = () => (phylOpen() ? save.data.phyl.phase : 0);
+
+/** Random never gives a bot a summon card. */
+const randomPick = (owned: string[]) => {
+  const pool = owned.filter((id) => !isSummonCard(id));
+  return pool.length ? pool[Math.floor(Math.random() * pool.length)] : 'sword';
+};
 import { HATS, hatExists, resolveHat } from '../game/hats';
 import type { Snapshot } from './snapshot';
 
-export const PROTO = 14;
+export const PROTO = 15;
 export const MIN_ROOM = 2;
 export const MAX_ROOM = 30;
 export const MAX_LOCAL = 6;
@@ -61,6 +72,8 @@ export interface RoomState {
   hostBuffalo?: boolean;
   /** Secret bosses the host has unlocked. */
   hostSecrets?: string[];
+  /** PHYLISHIEUS: the host's phase (1 or 2), or 0 while he is locked (or gone) for the host. */
+  hostPhyl?: number;
   phase: 'lobby' | 'playing';
   members: Member[];
   /** The Outbreak: the host's save (0-2), its next wave and if it is Endless. */
@@ -86,6 +99,8 @@ export interface StartPayload {
   bossWeapons: string[][];
   /** The Outbreak: the wave from the host's save. */
   outbreak?: OutbreakInfo;
+  /** PHYLISHIEUS: the host's phase. */
+  phyl?: 1 | 2;
 }
 
 export interface NetResult {
@@ -363,6 +378,7 @@ export class RoomHost extends Emitter<RoomEvents> {
         hostWeapons,
         hostBuffalo: save.data.achievements.includes('buffalo'),
         hostSecrets: [...save.data.secrets],
+        hostPhyl: hostPhyl(),
         phase: 'lobby',
         members,
       });
@@ -405,7 +421,10 @@ export class RoomHost extends Emitter<RoomEvents> {
       case 'hello': {
         if (m.v !== PROTO) return sendJson(peer.rel, { t: 'reject', reason: 'version' });
         const players = m.players.slice(0, MAX_LOCAL);
-        if (!players.length || st.members.length + players.length > st.size) return sendJson(peer.rel, { t: 'reject', reason: 'full' });
+        // Stickman Infection: up to 8 people (bots fill the rest of the room).
+        const people = st.members.filter((x) => x.kind === 'human').length;
+        if (!players.length || st.members.length + players.length > st.size || (st.mode === 'infection' && people + players.length > INFECTION_ROOM))
+          return sendJson(peer.rel, { t: 'reject', reason: 'full' });
         const taken = new Set(st.members.map((x) => x.name));
         players.forEach((n, i) => {
           const name = uniqueName(cleanName(n), taken);
@@ -490,9 +509,8 @@ export class RoomHost extends Emitter<RoomEvents> {
     if (p.mode === 'mascot' && !mascotUnlocked(this.state.hostWeapons)) this.state.mode = 'boss';
     if (p.mode === 'buffalo' && !this.state.hostBuffalo) this.state.mode = 'boss';
     if (p.mode && isSecret(p.mode) && !this.state.hostSecrets?.includes(p.mode)) this.state.mode = 'boss';
+    if (p.mode === 'phyl' && !this.state.hostPhyl) this.state.mode = 'boss';
     if (p.size) this.state.size = Math.max(Math.max(MIN_ROOM, this.state.members.length), Math.min(MAX_ROOM, p.size));
-    // Stickman Infection is for up to 8.
-    if (this.state.mode === 'infection') this.state.size = Math.max(this.state.members.length, Math.min(INFECTION_ROOM, this.state.size));
     if (p.map) {
       this.state.map = p.map;
       this.state.mapId = p.map.id;
@@ -575,7 +593,7 @@ export class RoomHost extends Emitter<RoomEvents> {
       color: st.mode === 'team' ? TEAM_COLORS[m.team] : ONLINE_COLORS[i % ONLINE_COLORS.length],
       team: st.mode === 'team' ? m.team : isBossMode(st.mode) || ob ? 0 : i,
       human: m.kind === 'human',
-      weapon: m.weapon === 'random' ? st.hostWeapons[Math.floor(Math.random() * st.hostWeapons.length)] : m.weapon,
+      weapon: m.weapon === 'random' ? randomPick(st.hostWeapons) : m.weapon,
       difficulty: m.difficulty,
       // Random hats for bots come from the host's hats.
       hat: resolveHat(m.hat, m.hat === 'random' ? save.data.hats : HATS.map((x) => x.id)),
@@ -593,7 +611,8 @@ export class RoomHost extends Emitter<RoomEvents> {
     st.phase = 'playing';
     const bosses = st.mode === 'boss' ? st.bosses : 0;
     // The Outbreak is always at the Castle Gate.
-    this.lastStart = { map: ob ? OUTBREAK_MAP : st.mode === 'infection' ? INFECTION_MAP : st.map, mode: st.mode, fallMode: st.fallMode, specs, bosses, potions: st.potions !== false, bossWeapons: Array.from({ length: bosses }, randomBossWeapons) };
+    this.lastStart = { map: ob ? OUTBREAK_MAP : st.mode === 'infection' ? INFECTION_MAP : st.mode === 'phyl' ? TOME_MAP : st.map, mode: st.mode, fallMode: st.fallMode, specs, bosses, potions: st.potions !== false, bossWeapons: Array.from({ length: bosses }, randomBossWeapons) };
+    if (st.mode === 'phyl') this.lastStart.phyl = save.data.phyl.phase;
     if (ob) this.lastStart.outbreak = { wave: ob.wave, endless: ob.endless, allies: Math.floor(ob.wave / 10) };
     for (const p of this.peers.values()) sendJson(p.rel, { t: 'start', start: this.lastStart });
     this.changed();
@@ -615,6 +634,9 @@ export class RoomHost extends Emitter<RoomEvents> {
 
   toLobby() {
     this.state.phase = 'lobby';
+    // Beating PHYLISHIEUS moves the host on to phase 2 (or makes him leave).
+    this.state.hostPhyl = hostPhyl();
+    if (this.state.mode === 'phyl' && !this.state.hostPhyl) this.state.mode = 'boss';
     if (this.state.mode === 'outbreak') this.syncOutbreak();
     this.changed();
   }

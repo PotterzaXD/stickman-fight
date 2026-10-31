@@ -107,6 +107,7 @@ register('netplay', (root) => {
         bosses,
         fish: !!r.fish,
         beachBoss: game.beach && r.mode === 'boss',
+        phylPhase: game.phy?.phase,
         solo: others.length === 1 && localIdx.includes(game.fighters.indexOf(others[0])),
         facts: matchFacts(game, r, localIdx.map((i) => game.fighters[i]), startCoins),
       });
@@ -144,6 +145,8 @@ register('netplay', (root) => {
       bosses: start.bosses,
       bossWeapons: start.bossWeapons,
       outbreak: start.outbreak,
+      phylPhase: start.phyl,
+      golemName: t('golem_name'),
       // Screen juice would make the host's match wait; online keeps the normal screen shake.
       juice: false,
     });

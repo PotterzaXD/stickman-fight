@@ -40,7 +40,7 @@ import {
 } from './entities';
 import { MELEE_FINISH, PROJ_FINISH, helperCorpse, makeCorpse, updateCorpses, type Corpse, type Finish } from './finish';
 import { THEMES, pickSpawns } from './maps';
-import { HELPER_KINDS, PIGEON_WEAPON, SB_CHICKS, isSbZombie, isXBoss, type OutbreakInfo, type SandboxHelper } from './types';
+import { HELPER_KINDS, PIGEON_WEAPON, SB_CHICKS, isPhylKind, isSbZombie, isXBoss, type OutbreakInfo, type SandboxHelper } from './types';
 import { updateElephant, scarecrowSkill, roboSkill, steerCrow } from './bosses';
 import { OutbreakState, startOutbreak, outbreakWinner, updateOutbreak, updateRise, updateZombieBosses, zombieBoom } from './outbreak';
 import { feedCount, type FeedKind } from './killfeed';
@@ -49,11 +49,12 @@ import { BOOGER, CHEF, CUPCAKE, FROG, GHOST, GINGER, KNIGHT, LOLLIPOP } from './
 import { oct23AttackGap, oct23Bit, oct23Hit, oct23Skill, oct23Splat, summonOct23, updateOct23 } from './oct23';
 import { infectHit, infectionWinner, startInfection, turnZombie, updateInfection, type InfectionState } from './infection';
 import { startEvents, updateEvents, type EventsState } from './events';
+import { makePhyl, phylCanDie, phylClientTick, phylDodge, phylGuard, updatePhyl, type PhylState } from './phyl';
 import { HELPER_STATS, meleeForce, oct30AttackGap, oct30Hit, oct30Skill, oct30Splat, pierces, summonOct30, updateOct30, wake } from './oct30';
 import { helperArmour, oct22AttackGap, oct22Hit, oct22Skill, rushWinner, startRush, startStock, stockWinner, tennisBounce, updateRush, type RushState } from './oct22';
 import { Juice, wallPush } from './juice';
 import { BEACH_MAP, BEACH_MODES, isBossMode, isSecret, type BossKind, type Difficulty, type FallMode, type MapDef, type Mode, type Platform, type SandboxBoss } from './types';
-import { SHOP_WEAPONS, weapon, type WeaponId } from './weapons';
+import { SHOP_WEAPONS, isSummonCard, weapon, type WeaponId } from './weapons';
 import type { Key } from '../i18n';
 import { sfx } from '../sfx';
 
@@ -125,6 +126,9 @@ export interface GameOpts {
   outbreak?: OutbreakInfo;
   /** Screen juice (Settings): hit-stop, slow motion and flashes. Default on. */
   juice?: boolean;
+  /** PHYLISHIEUS: which phase (1 or 2), and the Tome Golem's name in this device's language. */
+  phylPhase?: 1 | 2;
+  golemName?: string;
 }
 
 /** Potions: 25% chance on each KO and every 10 seconds from the sky. Heal 25% of max HP. */
@@ -272,7 +276,8 @@ export interface Caption {
 
 /** Two different random weapons for a boss. */
 export function randomBossWeapons(): string[] {
-  const pool = [...SHOP_WEAPONS];
+  // Bosses are bots too: no summon cards.
+  const pool = SHOP_WEAPONS.filter((w) => !isSummonCard(w.id));
   const a = pool.splice(Math.floor(Math.random() * pool.length), 1)[0];
   const b = pool[Math.floor(Math.random() * pool.length)];
   return [a.id, b.id];
@@ -410,6 +415,9 @@ export class Game {
   inf: InfectionState | null = null;
   /** Random Events: the event going on, rising lava and things falling from the sky (null in other modes). */
   ev: EventsState | null = null;
+  /** PHYLISHIEUS: his attacks, the bomb and the Tome Golem (null when he isn't in the match). */
+  phy: PhylState | null = null;
+  golemName = 'Tome Golem';
   /** The fighters this device plays (Stickman Infection's big town: the camera follows them). */
   focus: number[] = [];
 
@@ -426,6 +434,7 @@ export class Game {
     this.glassT = map.platforms.map(() => 0);
     this.gravity = GRAVITY * (THEMES[map.theme]?.gravity ?? 1);
     this.potionsOn = !!opts.potions && !opts.demo;
+    if (opts.golemName) this.golemName = opts.golemName;
     const spawns = pickSpawns(map, specs.length + (opts.mode === 'boss' ? 1 : 0));
     specs.forEach((s, i) => {
       const sp = spawns[i];
@@ -511,6 +520,7 @@ export class Game {
     if (isSecret(opts.mode)) this.addBoss(opts.mode, names[opts.mode] ?? opts.bossName ?? 'Boss', BOSS_TEAM, 0);
     if (opts.mode === 'pigeon') this.addBoss('pigeon', names.pigeon ?? opts.bossName ?? 'Pigeon', BOSS_TEAM, 0);
     if (isXBoss(opts.mode)) this.addBoss(opts.mode, names[opts.mode] ?? opts.bossName ?? 'Boss', BOSS_TEAM, 0);
+    if (opts.mode === 'phyl') makePhyl(this, opts.phylPhase ?? 1, opts.bossName ?? 'PHYLISHIEUS', BOSS_TEAM);
     // Sandbox: any bosses, on any team, with any HP. Free For All: everyone on their own team.
     (opts.extraBosses ?? []).forEach((b, k) => {
       const f = this.addBoss(b.kind, names[b.kind] ?? b.kind, opts.ffa ? 100 + k : b.team, k, b.hp);
@@ -559,6 +569,7 @@ export class Game {
 
   /** Put a boss on the k-th widest platform (Buffalo, the Fishy boss, and Sandbox bosses). */
   addBoss(kind: BossKind, name: string, team: number, k: number, hp?: number): Fighter {
+    if (isPhylKind(kind)) return makePhyl(this, kind === 'phyl2' ? 2 : 1, name, team, hp);
     const wide = [...this.map.platforms].filter((p) => p.kind !== 'lava' && p.kind !== 'spikes').sort((p, q) => q.w - p.w);
     const top = wide.length ? wide[k % wide.length] : null;
     const weapons =
@@ -853,6 +864,7 @@ export class Game {
       p.x += p.vx * dt;
       p.y += p.vy * dt;
     }
+    if (this.phy) phylClientTick(this, dt);
     this.updateEffects(dt);
     this.updateCamera(dt);
   }
@@ -957,6 +969,7 @@ export class Game {
     if (this.hill) updateHill(this, dt);
     if (this.inf && !this.over) updateInfection(this, dt);
     if (this.ev && !this.over) updateEvents(this, dt);
+    if (this.phy && !this.over) updatePhyl(this, dt);
     if ((this.hill || this.race || this.inf || this.mode === 'stock') && !this.over) updateRespawns(this, dt);
     if (this.rush && !this.over) updateRush(this, dt);
     for (const f of this.fighters) if (f.alive) this.updateFighter(f, dt);
@@ -1044,8 +1057,12 @@ export class Game {
     }
     if (f.pigeon) return this.updatePigeon(f, dt);
     if (f.xboss === 'elephant') return updateElephant(this, f, dt);
+    // PHYLISHIEUS moves on his own (see phyl.ts).
+    if (f.phyl) return;
 
     let it = f.human ? f.humanIntent(dt) : f.brain!.think(dt, f, this);
+    // Bots dodge his meteors, swords and the bomb.
+    if (this.phy && !f.human) it = phylDodge(this, f, it);
     // Cutscene: nobody moves on their own.
     if (this.cut) it = { moveX: this.cutMove.get(f) ?? 0, aim: null, shield: false, jump: false, skill: null, skillSlot: 0 };
 
@@ -1279,6 +1296,11 @@ export class Game {
   /** Returns true if the hit landed (not blocked by a shield). */
   damage(target: Body, amount: number, src: Body | null, kx: number, ky: number, how?: Finish): boolean {
     if (!target.alive || amount <= 0) return false;
+    // PHYLISHIEUS can only be hurt while he is tired on the ground.
+    if (this.phy && target instanceof Fighter && target.phyl) {
+      amount = phylGuard(this, target, amount);
+      if (amount <= 0) return false;
+    }
     // Sandbox: stronger (or weaker) fighters, and their snowmen and helpers.
     const by = src instanceof Snowman || src instanceof Cat ? src.owner : src;
     if (by instanceof Fighter) amount *= by.power;
@@ -1346,6 +1368,11 @@ export class Game {
   /** `env`: what the map did (lava block, fire); falling off the map is worked out here. */
   kill(b: Body, src: Body | null, how: Finish = 'pop', env?: FeedKind) {
     if (!b.alive) return;
+    // PHYLISHIEUS only goes down at the very end of his fight.
+    if (!phylCanDie(this, b)) {
+      b.hp = Math.max(1, b.hp);
+      return;
+    }
     b.alive = false;
     b.hp = 0;
     const fighter = b instanceof Fighter;
@@ -2673,7 +2700,7 @@ export class Game {
   private summonClone(f: Fighter, sandbox = false) {
     // Sandbox may add more than one Clone of the same fighter.
     if (!sandbox && (f.cloneOf || this.fighters.some((c) => c.alive && c.cloneOf === f))) return;
-    const pool = SHOP_WEAPONS.filter((w) => !SUMMON_WEAPONS.includes(w.id));
+    const pool = SHOP_WEAPONS.filter((w) => !SUMMON_WEAPONS.includes(w.id) && !isSummonCard(w.id));
     const c = this.addClone(f, pool[Math.floor(Math.random() * pool.length)].id);
     c.brain = new BotBrain('hard');
     c.vy = -500;
@@ -3356,7 +3383,9 @@ export class Game {
     const { w: vw, h: vh } = this.view;
     let list: Body[] = this.fighters.filter((f) => f.alive);
     // Stickman Infection's town is too big to see at once: follow this device's own stickmen.
-    const mine = this.inf ? this.focus.map((i) => this.fighters[i]).filter((f) => f?.alive) : [];
+    // So are the Forbidden Tome Keep and Giant (or connected) maps from the map editor.
+    const big = this.inf || this.phy || this.map.w * this.map.h > 4000 * 2200;
+    const mine = big ? this.focus.map((i) => this.fighters[i]).filter((f) => f?.alive) : [];
     if (mine.length) list = mine;
     if (!list.length) list = this.snowmen;
     let minX: number, maxX: number, minY: number, maxY: number;
@@ -3365,6 +3394,13 @@ export class Game {
       maxX = Math.max(...list.map((b) => b.x + b.w));
       minY = Math.min(...list.map((b) => b.y - b.h - 40));
       maxY = Math.max(...list.map((b) => b.y + 20));
+      // PHYLISHIEUS: see well above you (things fall from the sky) and a good way to each side.
+      if (this.phy && mine.length) {
+        minX -= 500;
+        maxX += 500;
+        minY -= 650;
+        maxY += 120;
+      }
       // King of the Hill: keep the zone on screen too.
       if (this.hill) {
         minX = Math.min(minX, this.hill.x - this.hill.w / 2);

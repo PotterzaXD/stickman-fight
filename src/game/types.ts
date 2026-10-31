@@ -23,7 +23,7 @@ export interface Intent {
 }
 
 export type Difficulty = 'easy' | 'medium' | 'hard';
-export type Mode = 'ffa' | 'team' | 'boss' | 'cat' | 'mascot' | 'buffalo' | 'pigeon' | 'sandbox' | 'outbreak' | 'hill' | 'race' | 'stock' | 'rush' | 'infection' | 'events' | XBossKind | SecretKind;
+export type Mode = 'ffa' | 'team' | 'boss' | 'cat' | 'mascot' | 'buffalo' | 'pigeon' | 'sandbox' | 'outbreak' | 'hill' | 'race' | 'stock' | 'rush' | 'infection' | 'events' | 'phyl' | XBossKind | SecretKind;
 
 /** The October 20 bosses: the Magical Elephant (flies with its big ears), the Giant Scarecrow and Robo Stick. */
 export type XBossKind = 'elephant' | 'scarecrow' | 'robo';
@@ -36,7 +36,7 @@ export const SECRET_KINDS: SecretKind[] = ['queen', 'tide', 'guardian'];
 export const isSecret = (m: string): m is SecretKind => (SECRET_KINDS as string[]).includes(m);
 
 /** Boss Fight, Boss Rush, Grandfather Cat, the Mascot, Buffalo, the Pigeon and the secret bosses: everyone teams up against the boss. */
-export const isBossMode = (m: Mode) => m === 'boss' || m === 'rush' || m === 'cat' || m === 'mascot' || m === 'buffalo' || m === 'pigeon' || isXBoss(m) || isSecret(m);
+export const isBossMode = (m: Mode) => m === 'boss' || m === 'rush' || m === 'cat' || m === 'mascot' || m === 'buffalo' || m === 'pigeon' || m === 'phyl' || isXBoss(m) || isSecret(m);
 /** The Pigeon: up to this many fighters, everyone holds a shotgun, and KO'd fighters come back. */
 export const PIGEON_MAX = 30;
 export const PIGEON_WEAPON = 'shotgun';
@@ -44,7 +44,7 @@ export const PIGEON_WEAPON = 'shotgun';
 export const BEACH_MODES: Mode[] = ['ffa', 'team', 'boss'];
 export const BEACH_MAP = 'beach';
 export type FallMode = 'ko' | 'bounce';
-export type ThemeId = 'day' | 'sunset' | 'night' | 'snow' | 'lava' | 'space' | 'beach' | 'war' | 'jungle' | 'haunted' | 'candy' | 'farm' | 'graveyard' | 'inferno' | 'pirate' | 'desert' | 'stage' | 'portal' | 'kitchen' | 'dessert' | 'infect';
+export type ThemeId = 'day' | 'sunset' | 'night' | 'snow' | 'lava' | 'space' | 'beach' | 'war' | 'jungle' | 'haunted' | 'candy' | 'farm' | 'graveyard' | 'inferno' | 'pirate' | 'desert' | 'stage' | 'portal' | 'kitchen' | 'dessert' | 'infect' | 'tome';
 
 /** Special blocks from the map editor. No kind = a normal platform. Sandbags stop bullets. Bounce pads launch you, ice is slippery, spikes hurt.
  * Walls are solid from every side: you can stand on top, but you can't walk through, jump up through, or hop over them. */
@@ -75,6 +75,8 @@ export interface MapDef {
   deco?: 'spaceship' | 'palms' | 'ship' | 'castle';
   /** The Portal map: the purple portal (center and height). Whoever goes in disappears; a player leaves for Stickman Fight 2. */
   portal?: { x: number; y: number; r: number };
+  /** Map editor purple portals (they work like the Portal map's one), anywhere on the map, even in the air. */
+  portals?: { x: number; y: number; r: number }[];
   /** Map editor portals: they link up in pairs (1 with 2, 3 with 4...). Walk into one and you come out of the other. */
   warps?: Vec[];
   /** Things to look at that you can't stand on (Stickman Infection's town: trees, lamps, cars, houses...). */
@@ -107,7 +109,11 @@ export interface SlotConfig {
 }
 
 /** Bosses you can add in Sandbox. */
-export type BossKind = 'boss' | 'cat' | 'mascot' | 'buffalo' | 'fish' | 'pigeon' | XBossKind | SecretKind;
+export type BossKind = 'boss' | 'cat' | 'mascot' | 'buffalo' | 'fish' | 'pigeon' | XBossKind | SecretKind | PhylKind;
+/** PHYLISHIEUS in Sandbox (once both phases are beaten): phase 1 and phase 2 are separate bosses. */
+export type PhylKind = 'phyl1' | 'phyl2';
+export const PHYL_KINDS: PhylKind[] = ['phyl1', 'phyl2'];
+export const isPhylKind = (k: string): k is PhylKind => (PHYL_KINDS as string[]).includes(k);
 
 export interface SandboxBoss {
   kind: BossKind;

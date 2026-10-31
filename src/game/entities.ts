@@ -148,6 +148,11 @@ export class Fighter extends Body {
   /** The October 20 bosses (null = none of them). */
   xboss: XBossKind | null;
   /** The Magical Elephant: what it is doing, seconds left in it, its next move and who it is after. */
+  /** PHYLISHIEUS (his phase, 1 or 2; 0 = not him) and how he looks right now (see PHY_POSES). */
+  phyl = 0;
+  phyPose = 0;
+  /** The giant Tome Golem that helps you against PHYLISHIEUS. */
+  golem = false;
   elState: 'fly' | 'slam' | 'rise' | 'drop' | 'spray' | 'charge' = 'fly';
   elT = 2.5;
   elMove = 0;

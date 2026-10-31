@@ -7,7 +7,8 @@ import { HILL, RACE_WEAPONS } from './hill';
 import { drawCritter, drawCritterDeco, drawCritterProjectile, drawCritterProp, drawCritterWeapon } from './critters';
 import { t } from '../i18n';
 import { drawCorpse, type Corpse } from './finish';
-import { THEMES } from './maps';
+import { THEMES, purplePortals } from './maps';
+import { drawPhyl, drawPhylBack, drawPhylDeco, drawPhylHud, drawPhylWorld } from './phylDraw';
 import type { MapDef, Platform } from './types';
 import { GUNS, type WeaponId } from './weapons';
 import { drawBravery, drawBubble, drawBubbleWand, drawGun67, drawPan, drawPistol, drawShotgun, drawSniper, drawSummoner, drawWaterGun } from './guns';
@@ -168,7 +169,7 @@ export function drawBackground(ctx: Ctx, map: MapDef, vw: number, vh: number, ca
       ctx.arc(fx, fy, 8 + ph * 60, 0, Math.PI * 2);
       ctx.fill();
     }
-  } else if (!drawExtraDeco(ctx, th.deco, vw, vh, par, time) && !drawCritterDeco(ctx, th.deco, vw, vh, par, time) && !drawMonsterDeco(ctx, th.deco, vw, vh, par, time) && !drawGadgetDeco(ctx, th.deco, vw, vh, par, time) && !drawTreatDeco(ctx, th.deco, vw, vh, par, time) && !drawFunDeco(ctx, th.deco, vw, vh, par, time)) {
+  } else if (!drawExtraDeco(ctx, th.deco, vw, vh, par, time) && !drawCritterDeco(ctx, th.deco, vw, vh, par, time) && !drawMonsterDeco(ctx, th.deco, vw, vh, par, time) && !drawGadgetDeco(ctx, th.deco, vw, vh, par, time) && !drawTreatDeco(ctx, th.deco, vw, vh, par, time) && !drawFunDeco(ctx, th.deco, vw, vh, par, time) && !drawPhylDeco(ctx, th.deco, vw, vh, par, time)) {
     for (let i = 0; i < 40; i++) {
       const x = ((hash(i) * vw - par) % vw + vw) % vw;
       const y = vh - (((hash(i + 7) * vh + time * (40 + hash(i) * 60)) % vh) + vh) % vh;
@@ -397,7 +398,7 @@ export function drawPlatforms(ctx: Ctx, map: MapDef, time = 0, glassT?: number[]
     ctx.fillRect(-3000, map.h + 160, map.w + 6000, 3000);
   }
   // The Portal map's portal, behind everyone.
-  if (map.portal) drawPortal(ctx, map.portal, time);
+  for (const p of purplePortals(map)) drawPortal(ctx, p, time);
   for (const [i, p] of map.platforms.entries()) {
     // Ice Cream's ice spikes are drawn on their own (see renderGame).
     if (p.temp) continue;
@@ -1684,6 +1685,7 @@ function drawPoison(ctx: Ctx, b: Body, time: number) {
 }
 
 function drawFighter(ctx: Ctx, f: Fighter, time: number) {
+  if (f.phyl) return drawPhyl(ctx, f, time);
   // Knocked flat by a pie (or the Rolling Pin): the whole stickman lies on the ground, head first.
   if (f.downT > 0 && !f.boss) {
     ctx.save();
@@ -2533,6 +2535,7 @@ export function renderGame(g: Game, ctx: Ctx, vw: number, vh: number, dpr: numbe
     for (const p of f.trail) ctx.lineTo(p.x, p.y);
     ctx.stroke();
   }
+  if (g.phy) drawPhylBack(ctx, g, g.time);
   // Humans drawn last so they stay on top.
   const order = g.fighters.filter((f) => f.alive).sort((a, b) => Number(a.human) - Number(b.human) || Number(b.boss) - Number(a.boss));
   for (const f of order) drawFighter(ctx, f, g.time);
@@ -2540,6 +2543,7 @@ export function renderGame(g: Game, ctx: Ctx, vw: number, vh: number, dpr: numbe
   for (const b of g.bodies()) if (b.alive && b.poisonT > 0) drawPoison(ctx, b, g.time);
   drawOct30Over(ctx, g.bodies(), g.fighters, g.time);
   if (g.ev) drawEventsWorld(ctx, g, g.time);
+  if (g.phy) drawPhylWorld(ctx, g, g.time);
   for (const p of g.projectiles) drawProjectile(ctx, p, g.time);
   for (const f of g.fighters) if (f.alive && f.jetT > 0) drawJet(ctx, f, g.time);
   for (const b of g.bolts) drawBolt(ctx, b);
@@ -2587,6 +2591,7 @@ export function renderGame(g: Game, ctx: Ctx, vw: number, vh: number, dpr: numbe
   if (g.ev?.cur === 'blackout') drawBlackout(ctx, g, vw, vh);
   if (g.ev) drawEventsHud(ctx, g.ev, vw);
   if (g.inf) drawInfectionHud(ctx, g, vw);
+  if (g.phy) drawPhylHud(ctx, g, vw, vh);
   if (g.ob) drawOutbreakSky(ctx, g.ob, vw, vh, g.cats.find((c) => c.alive && c.variant === 'zboss') ?? null);
   if (g.hill) {
     const h = g.hill;

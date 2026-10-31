@@ -1,6 +1,8 @@
 import { SB_ROCK_AT, TEAM_COLORS } from '../game/game';
 import { playMusic } from '../music';
 import { BABY_ELE, BEES, CHEF, CUPCAKE, GINGER, FROG, GHOST, KNIGHT, CHICK, CHICKEN, DOG, DRONE, LIL_PIGEON, MEMORY_ALLY, NINJAS, PENGUIN, PIGEON_HP, RED_GUY, RETRO, SB_ALLY, SECRET_HP, SKELETON, SNOWMAN_HP, SOLDIER_HP, XBOSS_HP, ZOMBIES, ZOMBIE_ALLY, UNICORN, DINO, WIZARD, PANDA } from '../game/entities';
+import { PHYL_KINDS, isPhylKind } from '../game/types';
+import { PHYL } from '../game/phyl';
 import { HELPER_KINDS, SB_CHICKS, SB_ZOMBIE_KINDS, SECRET_KINDS, XBOSS_KINDS, isSbZombie, type HelperKind, type SandboxHelper, type SbZombieKind } from '../game/types';
 import { hasAch } from '../achievements';
 import { allMaps } from '../game/maps';
@@ -26,8 +28,8 @@ const MAX_SB_CLONES = 10;
 const MAX_SB_ZOMBIES = 30;
 
 const POWERS = [25, 50, 100, 200, 500, 1000];
-const BOSS_HP: Record<BossKind, number> = { boss: 5000, cat: 10000, mascot: 50000, buffalo: 8000, fish: 9999, pigeon: PIGEON_HP, ...SECRET_HP, ...XBOSS_HP };
-export const BOSS_ICON: Record<BossKind, string> = { boss: '👹', cat: '🐱', mascot: '⚪', buffalo: '🐃', fish: '🐟', pigeon: '🐦', queen: '❄️', tide: '🌊', guardian: '🌲', elephant: '🐘', scarecrow: '🌾', robo: '🤖' };
+const BOSS_HP: Record<BossKind, number> = { boss: 5000, cat: 10000, mascot: 50000, buffalo: 8000, fish: 9999, pigeon: PIGEON_HP, ...SECRET_HP, ...XBOSS_HP, phyl1: PHYL.hp[1], phyl2: PHYL.hp[2] };
+export const BOSS_ICON: Record<BossKind, string> = { boss: '👹', cat: '🐱', mascot: '⚪', buffalo: '🐃', fish: '🐟', pigeon: '🐦', queen: '❄️', tide: '🌊', guardian: '🌲', elephant: '🐘', scarecrow: '🌾', robo: '🤖', phyl1: '📖', phyl2: '📕' };
 const HELPER_ICON: Record<HelperKind | SbZombieKind, string> = {
   cat: '🐱', fish: '🐟', memory: '💭', soldier: '💂', snowman: '☃️', sbsnow: '⛄', fireally: '🔥', redguy: '🟥', chicken: '🐔', chick: '🐥', lilpigeon: '🐦', skeleton: '💀', dog: '🐕', retro: '👾', bee: '🐝', ninja: '🥷', zombie: '🧟',
   babyele: '🐘', drone: '🛸', penguin: '🐧', knight: '🛡️', frog: '🐸', ghost: '👻', ginger: '🍪', cupcake: '🧁', chef: '👨‍🍳', unicorn: '🦄', dino: '🦖', wizard: '🧙', panda: '🐼',
@@ -67,7 +69,7 @@ register('sandbox', (root) => {
   const m: MatchConfig = structuredClone(save.data.lastSandbox ?? defaultSandbox());
   m.mode = 'sandbox';
   m.extraBosses ??= [];
-  m.extraBosses = m.extraBosses.filter((b) => b.kind in BOSS_HP && (!(SECRET_KINDS as string[]).includes(b.kind) || save.data.secrets.includes(b.kind)) && (b.kind !== 'pigeon' || pigeonOpen()));
+  m.extraBosses = m.extraBosses.filter((b) => b.kind in BOSS_HP && (!(SECRET_KINDS as string[]).includes(b.kind) || save.data.secrets.includes(b.kind)) && (b.kind !== 'pigeon' || pigeonOpen()) && (!isPhylKind(b.kind) || save.data.phyl.done));
   m.helpers = (m.helpers ?? []).filter((x) => (HELPER_KINDS.includes(x.kind as HelperKind) || isSbZombie(x.kind)) && helperOpen(x.kind));
   m.clones = (m.clones ?? []).filter((i) => Number.isInteger(i) && i >= 0 && i < m.slots.length);
   if (!maps.some((x) => x.id === m.mapId)) m.mapId = 'arena';
@@ -268,7 +270,8 @@ register('sandbox', (root) => {
         'button',
         {
           class: 'btn small',
-          disabled: m.extraBosses!.length >= MAX_SB_BOSSES,
+          // Only one PHYLISHIEUS at a time (his attacks fill the whole map).
+          disabled: m.extraBosses!.length >= MAX_SB_BOSSES || (isPhylKind(kind) && m.extraBosses!.some((b) => isPhylKind(b.kind))),
           onclick: () => {
             m.extraBosses!.push({ kind, team: 1, hp: BOSS_HP[kind], power: 100 });
             render();
@@ -377,6 +380,8 @@ register('sandbox', (root) => {
           // Secret bosses stay hidden until you unlock them.
           ...SECRET_KINDS.filter((k) => save.data.secrets.includes(k)).map(addBoss),
           ...XBOSS_KINDS.map(addBoss),
+          // PHYLISHIEUS moves here once both of his phases are beaten.
+          ...(save.data.phyl.done ? PHYL_KINDS.map(addBoss) : []),
         ),
         h('div', { class: `slots tidy ${m.ffa ? 'cols-boss-ffa' : 'cols-boss'}` }, ...bossRows),
       ),

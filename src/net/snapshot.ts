@@ -3,6 +3,7 @@ import { biting } from '../game/critters';
 import { OB_PHASES } from '../game/outbreak';
 import { EVENT_IDS, mirrorEvent, mirrorWeapons, restoreWeapons } from '../game/events';
 import { turnZombie } from '../game/infection';
+import { applyPhyl, encodePhyl } from '../game/phyl';
 import type { WeaponId } from '../game/weapons';
 import type { Game, NetEvent } from '../game/game';
 import { FINISHES, makeCorpse } from '../game/finish';
@@ -47,6 +48,9 @@ export interface Snapshot {
   fl?: number[][];
   /** Weapon Shuffle: each fighter's weapon. */
   ws?: string[];
+  /** PHYLISHIEUS: [state, seconds left, bombs dropped, flash, pose] and his hazards [kind, x, y, vx, vy, t, tx, ty, big]. */
+  py?: number[];
+  hz?: number[][];
 }
 
 const KINDS: ProjKind[] = ['arrow', 'snowball', 'minisnow', 'boomerang', 'bomb', 'axe', 'shuriken', 'laser', 'fireball', 'six7', 'poop', 'soup', 'icebolt', 'banana', 'fireslash', 'dart', 'memorybox', 'rocket', 'wave', 'shard', 'crash', 'vine', 'nerf', 'bullet67', 'water', 'bubble', 'yoyo', 'fishthrow', 'allyfire', 'egg', 'gum', 'crow', 'hay', 'goo', 'sound', 'pebble', 'flame', 'booger', 'tennis', 'pie', 'ketchup', 'popcorn', 'plane', 'slipper', 'balloon', 'plunger', 'frisbee', 'blanket', 'magic'];
@@ -136,6 +140,11 @@ export function encodeSnapshot(g: Game): Snapshot {
     snap.ev = [ev.cur ? EVENT_IDS.indexOf(ev.cur) : -1, r2(ev.t), ev.dur, r2(ev.next), r1(ev.lavaY)];
     if (ev.fallers.length) snap.fl = ev.fallers.map((r) => [r1(r.x), r1(r.y), r.kind === 'rock' ? 1 : 0, r1(r.r), r2(r.rot)]);
     if (ev.cur === 'shuffle') snap.ws = g.fighters.map((f) => f.weapons[0]?.id ?? '');
+  }
+  if (g.phy) {
+    const e = encodePhyl(g.phy);
+    snap.py = e.py;
+    snap.hz = e.hz;
   }
   g.events = [];
   return snap;
@@ -331,6 +340,7 @@ export class Mirror {
       // Back to their own weapons when the shuffle ends.
       else if (was === 'shuffle') restoreWeapons(g);
     }
+    if (g.phy && s.py) applyPhyl(g.phy, s.py, s.hz ?? []);
     g.glassT = g.map.platforms.map(() => 0);
     for (const [i, t] of s.gl ?? []) if (i in g.glassT) g.glassT[i] = t;
     g.applyEvents(s.e);

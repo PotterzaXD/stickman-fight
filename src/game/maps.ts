@@ -4,7 +4,7 @@ export interface Theme {
   sky: [string, string];
   plat: string;
   top: string;
-  deco: 'clouds' | 'stars' | 'snow' | 'embers' | 'space' | 'beach' | 'war' | 'jungle' | 'haunted' | 'candy' | 'farm' | 'graveyard' | 'inferno' | 'pirate' | 'desert' | 'stage' | 'portal' | 'kitchen' | 'dessert' | 'infect';
+  deco: 'clouds' | 'stars' | 'snow' | 'embers' | 'space' | 'beach' | 'war' | 'jungle' | 'haunted' | 'candy' | 'farm' | 'graveyard' | 'inferno' | 'pirate' | 'desert' | 'stage' | 'portal' | 'kitchen' | 'dessert' | 'infect' | 'tome';
   /** Gravity multiplier (space: low gravity, you jump higher and fall slower). */
   gravity?: number;
 }
@@ -31,10 +31,11 @@ export const THEMES: Record<ThemeId, Theme> = {
   kitchen: { sky: ['#fffaf0', '#ffe0b2'], plat: '#8d6e63', top: '#eceff1', deco: 'kitchen' },
   dessert: { sky: ['#fce4ec', '#e1f5fe'], plat: '#a1662f', top: '#f8bbd0', deco: 'dessert' },
   infect: { sky: ['#2a2244', '#e0876a'], plat: '#5d5d63', top: '#7cb342', deco: 'infect' },
+  tome: { sky: ['#0a0414', '#2d0f3f'], plat: '#3e2a1f', top: '#8e5cc4', deco: 'tome' },
 };
 
 /** Append only (shared map links send the index). */
-export const THEME_IDS: ThemeId[] = ['day', 'sunset', 'night', 'snow', 'lava', 'space', 'beach', 'war', 'jungle', 'haunted', 'candy', 'farm', 'graveyard', 'inferno', 'pirate', 'desert', 'stage', 'portal', 'kitchen', 'dessert', 'infect'];
+export const THEME_IDS: ThemeId[] = ['day', 'sunset', 'night', 'snow', 'lava', 'space', 'beach', 'war', 'jungle', 'haunted', 'candy', 'farm', 'graveyard', 'inferno', 'pirate', 'desert', 'stage', 'portal', 'kitchen', 'dessert', 'infect', 'tome'];
 
 const P = (x: number, y: number, w: number, h = 24): Platform => ({ x, y, w, h });
 /** Special block: concrete, lava or glass. */
@@ -673,6 +674,7 @@ export const MAP_SIZES = {
   small: { w: 1400, h: 800 },
   medium: { w: 1700, h: 950 },
   large: { w: 2200, h: 1200 },
+  giant: { w: 4400, h: 2400 },
 };
 
 /** Candidate standing spots spread across every platform. */
@@ -736,6 +738,7 @@ export function encodeMap(m: MapDef): string {
     }),
     s: m.spawns.map((s) => [Math.round(s.x), Math.round(s.y)]),
     q: m.warps?.length ? m.warps.map((w) => [Math.round(w.x), Math.round(w.y)]) : undefined,
+    o: purplePortals(m).length ? purplePortals(m).map((o) => [Math.round(o.x), Math.round(o.y), Math.round(o.r)]) : undefined,
   };
   const bytes = new TextEncoder().encode(JSON.stringify(compact));
   let bin = '';
@@ -749,10 +752,11 @@ export function decodeMap(code: string): MapDef | null {
     const bytes = Uint8Array.from(bin, (c) => c.charCodeAt(0));
     const c = JSON.parse(new TextDecoder().decode(bytes));
     const num = (v: unknown, lo: number, hi: number) => Math.min(hi, Math.max(lo, Number(v) || 0));
-    const w = num(c.w, 600, 4000);
-    const h = num(c.h, 400, 3000);
+    // Giant maps and connected maps (up to 4 Giant maps side by side) are big.
+    const w = num(c.w, 600, MAX_MAP_W);
+    const h = num(c.h, 400, MAX_MAP_H);
     const platforms: Platform[] = (Array.isArray(c.p) ? c.p : [])
-      .slice(0, 200)
+      .slice(0, MAX_PLATFORMS)
       .map((a: number[]) => {
         const p = P(num(a[0], -500, w + 500), num(a[1], -500, h + 500), num(a[2], 10, 5000), num(a[3], 10, 500));
         const kind = BLOCK_CODES[Math.floor(num(a[4], 0, BLOCK_CODES.length - 1))];
@@ -760,12 +764,114 @@ export function decodeMap(code: string): MapDef | null {
         if (a.length >= 8) q.move = { dx: num(a[5], -3000, 3000), dy: num(a[6], -3000, 3000), period: num(a[7], 1, 30) };
         return q;
       });
-    const spawns: Vec[] = (Array.isArray(c.s) ? c.s : []).slice(0, 24).map((a: number[]) => ({ x: num(a[0], 0, w), y: num(a[1], 0, h) }));
-    const warps: Vec[] = (Array.isArray(c.q) ? c.q : []).slice(0, 12).map((a: number[]) => ({ x: num(a[0], 0, w), y: num(a[1], 0, h) }));
+    const spawns: Vec[] = (Array.isArray(c.s) ? c.s : []).slice(0, 96).map((a: number[]) => ({ x: num(a[0], 0, w), y: num(a[1], 0, h) }));
+    const warps: Vec[] = (Array.isArray(c.q) ? c.q : []).slice(0, 48).map((a: number[]) => ({ x: num(a[0], 0, w), y: num(a[1], 0, h) }));
+    const portals = (Array.isArray(c.o) ? c.o : []).slice(0, 16).map((a: number[]) => ({ x: num(a[0], 0, w), y: num(a[1], 0, h), r: num(a[2], 40, 200) }));
     if (!platforms.length) return null;
     const theme = (THEME_IDS as string[]).includes(c.t) ? (c.t as ThemeId) : 'day';
-    return { id: 'c' + Date.now().toString(36), name: String(c.n || 'Map').slice(0, 30), w, h, theme, platforms, spawns, ...(warps.length ? { warps } : {}) };
+    return { id: 'c' + Date.now().toString(36), name: String(c.n || 'Map').slice(0, 30), w, h, theme, platforms, spawns, ...(warps.length ? { warps } : {}), ...(portals.length ? { portals } : {}) };
   } catch {
     return null;
   }
+}
+
+/** Biggest maps a shared link can hold: 4 Giant maps in a row, or 2 by 2. */
+const MAX_MAP_W = MAP_SIZES.giant.w * 4 + 2000;
+const MAX_MAP_H = MAP_SIZES.giant.h * 2 + 1000;
+const MAX_PLATFORMS = 900;
+
+/** Every purple portal on a map (the Portal map's own one and the ones from the map editor). */
+export function purplePortals(m: MapDef): { x: number; y: number; r: number }[] {
+  return [...(m.portal ? [m.portal] : []), ...(m.portals ?? [])];
+}
+
+/** The map connector: up to 4 maps in one row, or 2 by 2 (top row first). */
+export type ConnectLayout = 'row' | 'grid';
+export const CONNECT_MAX = 4;
+/** Space between two connected maps (a bridge or a lift crosses it). */
+const SEAM = 160;
+
+/**
+ * Join maps into one big map. Each map keeps its platforms, spawns, portals and decorations, moved to its own spot.
+ * Side by side the floors line up at the bottom and a bridge crosses each gap (with a bounce pad when one side is much higher).
+ * In 2 by 2, a lift goes up from each bottom map into the map above it.
+ */
+export function connectMaps(list: MapDef[], layout: ConnectLayout, name: string): MapDef {
+  const maps = list.slice(0, CONNECT_MAX);
+  const cols = layout === 'grid' && maps.length > 2 ? 2 : maps.length;
+  const rows = Math.ceil(maps.length / cols);
+  const colW = Array.from({ length: cols }, (_, c) => Math.max(...maps.filter((_, i) => i % cols === c).map((m) => m.w)));
+  const rowH = Array.from({ length: rows }, (_, r) => Math.max(...maps.filter((_, i) => Math.floor(i / cols) === r).map((m) => m.h)));
+  const colX = colW.map((_, c) => colW.slice(0, c).reduce((a, b) => a + b + SEAM, 0));
+  const rowY = rowH.map((_, r) => rowH.slice(0, r).reduce((a, b) => a + b, 0));
+  const out: MapDef = {
+    id: 'c' + Date.now().toString(36) + Math.floor(Math.random() * 1000),
+    name: name.slice(0, 30),
+    w: colX[cols - 1] + colW[cols - 1],
+    h: rowY[rows - 1] + rowH[rows - 1],
+    theme: maps[0]?.theme ?? 'day',
+    platforms: [],
+    spawns: [],
+  };
+  const warps: Vec[] = [];
+  const portals: { x: number; y: number; r: number }[] = [];
+  const props: NonNullable<MapDef['props']> = [];
+  // Where each map ended up, for the bridges and lifts.
+  const placed: { ox: number; oy: number; m: MapDef; plats: Platform[] }[] = [];
+  maps.forEach((m, i) => {
+    const c = i % cols;
+    const r = Math.floor(i / cols);
+    // Centred in its column, standing on the bottom of its row.
+    const ox = colX[c] + (colW[c] - m.w) / 2;
+    const oy = rowY[r] + rowH[r] - m.h;
+    const plats = m.platforms.filter((p) => !p.temp).map((p) => ({ ...p, x: p.x + ox, y: p.y + oy, ...(p.move ? { move: { ...p.move } } : {}) }));
+    out.platforms.push(...plats);
+    out.spawns.push(...m.spawns.map((s) => ({ x: s.x + ox, y: s.y + oy })));
+    // Portal pairs stay pairs: an odd one out would pair with the next map's first portal, so it is left behind.
+    const ws = m.warps ?? [];
+    warps.push(...ws.slice(0, ws.length - (ws.length % 2)).map((w) => ({ x: w.x + ox, y: w.y + oy })));
+    portals.push(...purplePortals(m).map((o) => ({ x: o.x + ox, y: o.y + oy, r: o.r })));
+    props.push(...(m.props ?? []).map((p) => ({ ...p, x: p.x + ox, y: p.y + oy })));
+    placed.push({ ox, oy, m, plats });
+  });
+  const ground = (list: Platform[]) => list.filter((p) => p.w >= 200).sort((p, q) => q.y - p.y)[0] ?? list.sort((p, q) => q.w - p.w)[0];
+  const solid = (p: Platform) => p.kind !== 'lava' && p.kind !== 'spikes' && p.kind !== 'wall' && !p.move && p.w >= 60;
+  // Bridges between maps that sit side by side.
+  for (let i = 0; i < placed.length; i++) {
+    const a = placed[i];
+    const b = placed[i + 1];
+    if (!b || i % cols === cols - 1) continue;
+    // Each map's floor (its lowest wide ground): the bridge joins the two floors.
+    const edgeA = ground(a.plats.filter(solid));
+    const edgeB = ground(b.plats.filter(solid));
+    if (!edgeA || !edgeB) continue;
+    const x0 = edgeA.x + edgeA.w;
+    const x1 = edgeB.x;
+    const y = Math.max(edgeA.y, edgeB.y);
+    if (x1 - x0 > 0) out.platforms.push(P(x0 - 20, y, x1 - x0 + 40, 30));
+    // Much higher on one side: a bounce pad at the bottom end of the bridge gets you up.
+    if (Math.abs(edgeA.y - edgeB.y) > 220) {
+      const lowLeft = edgeA.y > edgeB.y;
+      out.platforms.push(B('bounce', lowLeft ? x0 - 100 : x1 + 20, y - 20, 80, 20));
+    }
+  }
+  // Lifts from each bottom map up into the map above it.
+  if (rows > 1)
+    for (let c = 0; c < cols; c++) {
+      const top = placed[c];
+      const bot = placed[c + cols];
+      if (!top || !bot) continue;
+      const seamY = rowY[1];
+      // Start on the highest wide ground of the bottom map, go up past the lowest ground of the top map.
+      const from = bot.plats.filter(solid).sort((p, q) => p.y - q.y)[0];
+      const to = top.plats.filter(solid).sort((p, q) => q.y - p.y)[0];
+      const x = c === 0 ? colX[0] + colW[0] - 260 : colX[c] + 40;
+      const y0 = from ? Math.min(from.y - 120, seamY + 200) : seamY + 200;
+      const y1 = to ? to.y - 60 : seamY - 200;
+      out.platforms.push(M(x, y0, 220, 0, y1 - y0, Math.max(4, Math.abs(y1 - y0) / 120)));
+    }
+  if (warps.length) out.warps = warps;
+  if (portals.length) out.portals = portals;
+  if (props.length) out.props = props;
+  return out;
 }
