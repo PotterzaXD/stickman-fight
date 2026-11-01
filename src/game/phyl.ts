@@ -40,6 +40,8 @@ export const PHYL = {
   skyEvery: 45,
   skyWarn: 5,
   sky: 1000000,
+  /** Final phase: HP multiplier for everyone on your side. */
+  x10: 10,
   /** PHYSICERTAS: 1 to 3 at a time, about every 40 s, 6 alive at most. */
   minEvery: 40,
   minMax: 6,
@@ -326,6 +328,7 @@ export function updatePhyl(g: Game, dt: number) {
   p.flash = Math.max(0, p.flash - dt * 0.8);
   p.skyFlash = Math.max(0, p.skyFlash - dt * 0.9);
   updateHazards(g, p, dt);
+  tenfold(g, p, true);
   if (!f.alive) return;
   if (p.phase === 3 && p.st !== 'intro' && p.st !== 'dying') {
     updateSky(g, p, dt);
@@ -835,11 +838,30 @@ export function phylDodge(g: Game, f: Fighter, it: Intent): Intent {
   return away ? { ...it, moveX: away, jump, shield: false } : { ...it, jump, shield };
 }
 
+/**
+ * The final phase (story only, not Sandbox): every player, bot and helper on your side has ×10 HP.
+ * Each one is boosted once, also the ones summoned later. The host owns HP; the joining devices only
+ * scale maxHp so the bars read right (cats/helpers already send their maxHp in snapshots).
+ */
+function tenfold(g: Game, p: PhylState, host: boolean) {
+  if (p.phase !== 3 || !p.story) return;
+  const team = p.boss.team;
+  const list: Body[] = host ? [...g.fighters, ...g.snowmen, ...g.cats] : [...g.fighters, ...g.snowmen];
+  for (const b of list) {
+    if (b.x10 || b.team === team) continue;
+    if (b.kind === 'cat' && (b as Cat).owner?.team === team) continue;
+    b.x10 = true;
+    b.maxHp *= PHYL.x10;
+    if (host) b.hp *= PHYL.x10;
+  }
+}
+
 // ---------- online ----------
 
 /** The joining devices keep his hazards moving between snapshots from the host. */
 export function phylClientTick(g: Game, dt: number) {
   const p = g.phy!;
+  tenfold(g, p, false);
   p.flash = Math.max(0, p.flash - dt * 0.8);
   p.skyFlash = Math.max(0, p.skyFlash - dt * 0.9);
   if (p.skyWarnT > 0) p.skyWarnT = Math.max(0, p.skyWarnT - dt);
