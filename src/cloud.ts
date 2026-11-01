@@ -14,6 +14,8 @@ export const cloudEnabled = Boolean(URL && KEY);
 export interface CloudUser {
   name: string;
   email: string;
+  /** When the Google account first signed in to the game (ms). */
+  joined: number;
 }
 
 let client: SupabaseClient | null = null;
@@ -56,7 +58,12 @@ function merge(local: SaveData, remote: SaveData): SaveData {
       catSnowWins: Math.max(local.stats.catSnowWins, remote.stats.catSnowWins),
       mapsWon: Array.from(new Set([...local.stats.mapsWon, ...remote.stats.mapsWon])),
       usedWeapons: Array.from(new Set([...local.stats.usedWeapons, ...remote.stats.usedWeapons])),
+      matches: Math.max(local.stats.matches, remote.stats.matches),
     },
+    clothes: Array.from(new Set([...local.clothes, ...remote.clothes])),
+    joined: Math.min(local.joined, remote.joined),
+    // PHYLISHIEUS: whichever device got further.
+    phyl: local.phyl.beat > remote.phyl.beat ? local.phyl : remote.phyl.beat > local.phyl.beat ? remote.phyl : newer.phyl,
     // Volume settings belong to this device.
     settings: { ...newer.settings, musicVol: local.settings.musicVol, sfxVol: local.settings.sfxVol, musicMute: local.settings.musicMute, sfxMute: local.settings.sfxMute, killFeed: local.settings.killFeed },
     customMaps: [...maps.values()],
@@ -100,7 +107,8 @@ export async function initCloud() {
       const u = session?.user ?? null;
       uid = u?.id ?? null;
       const meta = (u?.user_metadata ?? {}) as Record<string, string>;
-      user = u ? { name: meta.full_name || meta.name || u.email || 'Player', email: u.email ?? '' } : null;
+      const made = u?.created_at ? Date.parse(u.created_at) : NaN;
+      user = u ? { name: meta.full_name || meta.name || u.email || 'Player', email: u.email ?? '', joined: Number.isFinite(made) ? made : 0 } : null;
       for (const l of listeners) l(user);
       if (u && uid !== lastUid) {
         // First sign-in: use the Google first name until the player picks one.

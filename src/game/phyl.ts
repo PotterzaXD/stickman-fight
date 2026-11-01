@@ -1,7 +1,8 @@
 import { BotBrain } from './ai';
-import { Body, Fighter } from './entities';
+import { Body, Cat, Fighter, PHYSI } from './entities';
 import type { Game } from './game';
-import type { Intent, MapDef, Platform } from './types';
+import { BUILTIN_MAPS, connectMaps, pickSpawns } from './maps';
+import type { Intent, MapDef, PhylPhase, Platform } from './types';
 import { weapon } from './weapons';
 
 /*
@@ -10,12 +11,15 @@ import { weapon } from './weapons';
  * lasers and shockwaves) and can't be hurt up there. When he gets tired he comes down and you can hit him.
  * After the first round he says "YOU ALL SHOULD DIE." and drops a 500,000 bomb: only the two glowing bottom corners
  * are safe. Then the Tome Golem rises to fight on your side, until "WHY ARE YOU STILL HERE?" at 25,000 HP.
+ * The final phase (3) is fought on every map joined in one long row: he keeps all of phase 2's attacks except the bomb,
+ * and every 45 s a laser comes down from the sky over the WHOLE map (1,000,000 damage: hide under something).
+ * He also calls his minions, the PHYSICERTAS.
  */
 
 export const PHYL = {
-  hp: { 1: 75000, 2: 100000 } as Record<1 | 2, number>,
+  hp: { 1: 75000, 2: 100000, 3: 125000 } as Record<PhylPhase, number>,
   /** Seconds up at the top attacking, and seconds tired on the ground. */
-  attack: { 1: 25, 2: 22 } as Record<1 | 2, number>,
+  attack: { 1: 25, 2: 22, 3: 22 } as Record<PhylPhase, number>,
   tired: 8,
   intro: 3,
   /** Seconds from "YOU ALL SHOULD DIE." to the bomb going off. */
@@ -32,7 +36,17 @@ export const PHYL = {
   book: 40,
   laser: 140,
   wave: 80,
+  /** The final phase's sky laser: every 45 s, 5 s of warning, 1,000,000 damage to anyone with nothing over their head. */
+  skyEvery: 45,
+  skyWarn: 5,
+  sky: 1000000,
+  /** PHYSICERTAS: 1 to 3 at a time, about every 40 s, 6 alive at most. */
+  minEvery: 40,
+  minMax: 6,
 };
+
+/** The final phase's map id (all the maps joined). */
+export const FINAL_MAP_ID = 'phylfinal';
 
 /** Append only (online sends the index). */
 export const PHY_STATES = ['intro', 'attack', 'bomb', 'fall', 'tired', 'rise', 'dying'] as const;
@@ -62,7 +76,7 @@ export interface Hazard {
 
 export interface PhylState {
   boss: Fighter;
-  phase: 1 | 2;
+  phase: PhylPhase;
   /** The real mode (the story, the Golem and the lines). Sandbox only has the fight. */
   story: boolean;
   st: PhyStateId;
@@ -80,6 +94,13 @@ export interface PhylState {
   floor: Platform | null;
   /** The last blow has landed: now he may really go down. */
   final: boolean;
+  /** Final phase: seconds to the next sky laser warning, and seconds of warning left (0 = no warning on). */
+  skyT: number;
+  skyWarnT: number;
+  /** The sky laser's white flash (1 to 0). */
+  skyFlash: number;
+  /** Final phase: seconds to the next PHYSICERTAS. */
+  minT: number;
 }
 
 const rand = Math.random;
@@ -138,10 +159,63 @@ export const TOME_MAP: MapDef = {
   spawns: [1300, 1500, 1700, 1900, 2100, 2300, 2500, 2700, 2900, 3100].map((x) => ({ x, y: 2250 })),
 };
 
+/**
+ * The final phase's map: every map in the game joined in one row, The Forbidden Tome Keep on the far left (where he is)
+ * and the players starting on the far right. No purple portal (no leaving for Stickman Fight 2), and all in the Tome Keep's look.
+ */
+let finalMap: MapDef | null = null;
+export function finalPhylMap(): MapDef {
+  if (finalMap) return finalMap;
+  const all = [TOME_MAP, ...BUILTIN_MAPS];
+  const list = all.map((m, i) => ({
+    ...m,
+    // Walls between two maps would block the way through, so those go (the two far ends keep theirs).
+    platforms: m.platforms.filter((p) => !(p.kind === 'wall' && ((i > 0 && p.x <= 10) || (i < all.length - 1 && p.x + p.w >= m.w - 10)))),
+  }));
+  const big = connectMaps(list, 'row', 'm.phylfinal', list.length);
+  // Start spots: the last 4 maps, right-most first (players get the first ones, so they start at the very right).
+  const spots: { x: number; y: number }[] = [];
+  let ox = big.w;
+  for (let k = list.length - 1; k >= list.length - 4; k--) {
+    const m = list[k];
+    ox -= m.w;
+    spots.push(...pickSpawns(m, 12).map((sp) => ({ x: sp.x + ox, y: sp.y + big.h - m.h })).sort((a, b) => b.x - a.x));
+    ox -= 160;
+  }
+  finalMap = {
+    ...big,
+    id: FINAL_MAP_ID,
+    name: 'm.phylfinal',
+    theme: 'tome',
+    builtin: true,
+    portal: undefined,
+    portals: undefined,
+    // A wall at the far right end, so nobody gets pushed off the end of the world.
+    platforms: [...big.platforms, { x: big.w - 40, y: 0, w: 40, h: big.h, kind: 'wall' }],
+    spawns: spots,
+  };
+  return finalMap;
+}
+
+/** The final map: players start at the far right, bots spread over the last few maps behind them. */
+export function finalSpawns(map: MapDef, humans: boolean[]): { x: number; y: number }[] {
+  const spots = map.spawns;
+  const order = [...humans.keys()].sort((a, b) => Number(humans[b]) - Number(humans[a]));
+  const out: { x: number; y: number }[] = [];
+  order.forEach((who, k) => {
+    const sp = spots[k % spots.length];
+    out[who] = { x: sp.x + (Math.floor(k / spots.length) % 5 - 2) * 30, y: sp.y };
+  });
+  return out;
+}
+
+/** Where each phase is fought: The Forbidden Tome Keep, and the final phase on every map joined. */
+export const phylMapFor = (phase: PhylPhase): MapDef => (phase === 3 ? finalPhylMap() : TOME_MAP);
+
 // ---------- start ----------
 
 /** Make PHYLISHIEUS (phase 1 or 2). Bosses go after the fighters, so every device makes him at the same index. */
-export function makePhyl(g: Game, phase: 1 | 2, name: string, team: number, hp?: number): Fighter {
+export function makePhyl(g: Game, phase: PhylPhase, name: string, team: number, hp?: number): Fighter {
   const f = new Fighter({ name, color: '#4a148c', team, human: false, weapons: [weapon('staff')], x: g.map.w / 2, y: -400, boss: true, hp: hp ?? PHYL.hp[phase] });
   f.phyl = phase;
   f.w = 140;
@@ -153,9 +227,12 @@ export function makePhyl(g: Game, phase: 1 | 2, name: string, team: number, hp?:
   return f;
 }
 
-function startPhyl(g: Game, boss: Fighter, phase: 1 | 2, story: boolean): PhylState {
-  const top = Math.min(...g.map.platforms.filter((p) => p.kind !== 'lava').map((p) => p.y), g.map.h * 0.5);
-  const floor = [...g.map.platforms].filter((p) => p.kind !== 'lava' && p.kind !== 'spikes' && p.kind !== 'wall' && !p.move).sort((a, b) => b.w - a.w)[0] ?? null;
+function startPhyl(g: Game, boss: Fighter, phase: PhylPhase, story: boolean): PhylState {
+  // The final map: he stays over the Tome Keep at the far left end.
+  const home = g.map.id === FINAL_MAP_ID ? g.map.platforms.filter((p) => p.x + p.w <= TOME_MAP.w + 10) : g.map.platforms;
+  const homeW = g.map.id === FINAL_MAP_ID ? TOME_MAP.w : g.map.w;
+  const top = Math.min(...home.filter((p) => p.kind !== 'lava').map((p) => p.y), g.map.h * 0.5);
+  const floor = [...home].filter((p) => p.kind !== 'lava' && p.kind !== 'spikes' && p.kind !== 'wall' && !p.move).sort((a, b) => b.w - a.w)[0] ?? null;
   const max = boss.maxHp;
   const checks = (phase === 1 ? [2 / 3, 1 / 3, 0] : [3 / 4, 1 / 2, 1 / 4, 0]).map((k) => Math.round(max * k));
   const st: PhylState = {
@@ -171,27 +248,38 @@ function startPhyl(g: Game, boss: Fighter, phase: 1 | 2, story: boolean): PhylSt
     golem: null,
     why: false,
     checks,
-    peak: { x: g.map.w / 2, y: Math.max(330, top - 60) },
+    peak: { x: homeW / 2, y: Math.max(330, top - 60) },
     floor,
     final: false,
+    skyT: PHYL.skyEvery,
+    skyWarnT: 0,
+    skyFlash: 0,
+    minT: PHYL.minEvery * 0.6,
   };
   boss.x = st.peak.x;
   boss.y = st.peak.y - 900;
-  // The Tome Golem waits, asleep, until after the first bomb.
-  if (story) {
-    const gol = new Fighter({ name: g.golemName, color: '#8d6e63', team: 0, human: false, weapons: [weapon('hammer'), weapon('morningstar')], x: st.peak.x, y: floor?.y ?? g.map.h - 200, boss: true, hp: PHYL.golemHp });
-    gol.golem = true;
-    gol.w = 110;
-    gol.h = 290;
-    gol.scale = 3.6;
+  // The Tome Golem waits, asleep, until after the first bomb (the final phase has no Golem: he killed it).
+  if (story && phase < 3) {
+    const gol = makeGolem(g.golemName, 0, st.peak.x, floor?.y ?? g.map.h - 200);
     gol.alive = false;
     gol.hp = 0;
     gol.brain = new BotBrain('boss');
     g.fighters.push(gol);
     st.golem = gol;
   }
-  if (story) g.say(phase === 2 ? 'phyBack' : 'phyIntro', g.fighters.indexOf(boss), PHYL.intro);
+  if (story) g.say(phase === 3 ? 'phyFinal' : phase === 2 ? 'phyBack' : 'phyIntro', g.fighters.indexOf(boss), PHYL.intro);
   return st;
+}
+
+/** The Tome Golem: a giant living book-golem with a hammer and a morning star (in the story, and in Sandbox). */
+export function makeGolem(name: string, team: number, x: number, y: number, hp = PHYL.golemHp): Fighter {
+  const gol = new Fighter({ name, color: '#8d6e63', team, human: false, weapons: [weapon('hammer'), weapon('morningstar')], x, y, boss: true, hp });
+  gol.golem = true;
+  gol.w = 110;
+  gol.h = 290;
+  gol.scale = 3.6;
+  gol.brain = new BotBrain('boss');
+  return gol;
 }
 
 // ---------- the fight ----------
@@ -236,8 +324,13 @@ export function updatePhyl(g: Game, dt: number) {
   const p = g.phy!;
   const f = p.boss;
   p.flash = Math.max(0, p.flash - dt * 0.8);
+  p.skyFlash = Math.max(0, p.skyFlash - dt * 0.9);
   updateHazards(g, p, dt);
   if (!f.alive) return;
+  if (p.phase === 3 && p.st !== 'intro' && p.st !== 'dying') {
+    updateSky(g, p, dt);
+    updateMinions(g, p, dt);
+  }
   f.stun = 0;
   f.frozenT = 0;
   f.bubbleT = 0;
@@ -265,7 +358,7 @@ export function updatePhyl(g: Game, dt: number) {
       spawnHazards(g, p, dt);
       if (p.t <= 0) {
         // The bomb: after the first round (phase 2 also once he is down to half).
-        const due = p.bombs === 0 || (p.phase === 2 && p.bombs === 1 && f.hp <= f.maxHp / 2);
+        const due = p.phase < 3 && (p.bombs === 0 || (p.phase === 2 && p.bombs === 1 && f.hp <= f.maxHp / 2));
         if (due) {
           go(p, 'bomb', PHYL.bombWarn);
           if (p.story || p.bombs === 0) g.say('phyDie', g.fighters.indexOf(f), 3);
@@ -304,7 +397,8 @@ export function updatePhyl(g: Game, dt: number) {
         if (mark <= 0) {
           go(p, 'dying', PHYL.dying);
           p.hz = [];
-          g.say(p.phase === 2 ? 'phyEnd2' : 'phyEnd1', g.fighters.indexOf(f), PHYL.dying);
+          p.skyWarnT = 0;
+          g.say(p.phase === 3 ? 'phyEnd3' : p.phase === 2 ? 'phyEnd2' : 'phyEnd1', g.fighters.indexOf(f), PHYL.dying);
           g.play('ko');
           break;
         }
@@ -331,6 +425,8 @@ export function updatePhyl(g: Game, dt: number) {
         g.shake = 18;
         g.play('boom');
         g.kill(f, null, 'pop');
+        // His PHYSICERTAS go with him.
+        for (const c of g.cats) if (c.alive && c.owner === f) g.kill(c, null, 'pop');
       }
       break;
   }
@@ -354,7 +450,7 @@ export function phylCanDie(g: Game, b: Body): boolean {
 }
 
 function spawnHazards(g: Game, p: PhylState, dt: number) {
-  const two = p.phase === 2;
+  const two = p.phase >= 2;
   const every: Record<HazKind, number> = two
     ? { meteor: 1.2, sword: 0.8, fire: 0.3, book: 2.4, laser: 2.8, wave: 5 }
     : { meteor: 1.6, sword: 1.0, fire: 0.4, book: 0, laser: 0, wave: 0 };
@@ -592,6 +688,66 @@ function bigBomb(g: Game, p: PhylState) {
   }
 }
 
+// ---------- the final phase ----------
+
+/** Is there anything over this body's head (a platform or block, however high)? The sky laser can't reach them there. */
+export function covered(g: Game, b: Body): boolean {
+  const head = b.y - b.h;
+  return g.map.platforms.some((q, i) => q.kind !== 'lava' && g.solid(i) && b.x > q.x - 4 && b.x < q.x + q.w + 4 && q.y + q.h <= head + 6);
+}
+
+/** The sky laser: a warning, then a beam over the whole map. */
+function updateSky(g: Game, p: PhylState, dt: number) {
+  if (p.skyWarnT > 0) {
+    p.skyWarnT -= dt;
+    if (p.skyWarnT <= 0) {
+      p.skyWarnT = 0;
+      skyLaser(g, p);
+    }
+    return;
+  }
+  p.skyT -= dt;
+  if (p.skyT > 0) return;
+  p.skyT = PHYL.skyEvery;
+  p.skyWarnT = PHYL.skyWarn;
+  g.say('phySky', g.fighters.indexOf(p.boss), 3);
+  g.play('boom');
+  g.shake = Math.min(18, g.shake + 6);
+}
+
+function skyLaser(g: Game, p: PhylState) {
+  p.skyFlash = 1;
+  g.shake = 18;
+  g.play('boom');
+  for (const b of foes(g, p)) {
+    if (covered(g, b)) continue;
+    if (b instanceof Fighter) b.shielding = false;
+    g.damage(b, PHYL.sky, p.boss, 0, -300, 'pieces');
+  }
+}
+
+/** PHYSICERTAS: he calls 1 to 3 now and then, from the sky next to one of you (6 alive at most). */
+function updateMinions(g: Game, p: PhylState, dt: number) {
+  p.minT -= dt;
+  if (p.minT > 0) return;
+  p.minT = PHYL.minEvery * (0.8 + rand() * 0.4);
+  const alive = g.cats.filter((c) => c.alive && c.owner === p.boss && c.variant === 'physi').length;
+  const n = Math.min(1 + Math.floor(rand() * 3), PHYL.minMax - alive);
+  if (n <= 0) return;
+  const tg = pickTarget(g, p);
+  if (!tg) return;
+  g.say('phyMinions', g.fighters.indexOf(p.boss), 2.5);
+  for (let k = 0; k < n; k++) {
+    const x = clamp(tg.x + (k - (n - 1) / 2) * 120 + (rand() < 0.5 ? -1 : 1) * (260 + rand() * 200), 40, g.map.w - 40);
+    const c = new Cat(p.boss, x, Math.max(40, tg.y - 700), PHYSI.hp, PHYSI.dmg, 'physi');
+    c.vy = 200;
+    g.cats.push(c);
+    g.ring(x, c.y, 120, 0.5, '#7c4dff');
+    g.burst(x, c.y, '#b388ff', 14, 320);
+  }
+  g.text(tg.x, tg.y - tg.h - 60, `👁️ PHYSICERTAS ×${n}`, '#b388ff', 30);
+}
+
 /** Landing hard when he gets tired (phase 2 sends shockwaves along the floor). */
 function slam(g: Game, p: PhylState, x: number, y: number) {
   g.ring(x, y, 420, 0.6, '#b388ff');
@@ -599,7 +755,7 @@ function slam(g: Game, p: PhylState, x: number, y: number) {
   g.burst(x, y, '#d1c4e9', 14, 420);
   g.shake = 18;
   g.play('boom');
-  if (p.phase === 2) waves(p, x);
+  if (p.phase >= 2) waves(p, x);
 }
 
 /** "WHY ARE YOU STILL HERE?": a giant laser finishes off the Tome Golem. */
@@ -620,6 +776,22 @@ function killGolem(g: Game, p: PhylState) {
 export function phylDodge(g: Game, f: Fighter, it: Intent): Intent {
   const p = g.phy;
   if (!p || f.team === p.boss.team || f.golem) return it;
+  // The sky laser is coming: get under something and stay there.
+  if (p.skyWarnT > 0) {
+    if (covered(g, f)) return { ...it, moveX: 0, jump: false, shield: false };
+    const head = f.y - f.h;
+    let best = Infinity;
+    let goal = f.x;
+    g.map.platforms.forEach((q, i) => {
+      if (q.kind === 'lava' || !g.solid(i) || q.y + q.h > head) return;
+      const x = clamp(f.x, q.x + 20, q.x + q.w - 20);
+      if (Math.abs(x - f.x) < Math.abs(best)) {
+        best = x - f.x;
+        goal = x;
+      }
+    });
+    return { ...it, moveX: sign(goal - f.x), jump: false, shield: false };
+  }
   if (p.st === 'bomb') {
     if (inSafeCorner(p, f)) return { ...it, moveX: 0, jump: false, shield: false };
     const fl = p.floor;
@@ -669,6 +841,8 @@ export function phylDodge(g: Game, f: Fighter, it: Intent): Intent {
 export function phylClientTick(g: Game, dt: number) {
   const p = g.phy!;
   p.flash = Math.max(0, p.flash - dt * 0.8);
+  p.skyFlash = Math.max(0, p.skyFlash - dt * 0.9);
+  if (p.skyWarnT > 0) p.skyWarnT = Math.max(0, p.skyWarnT - dt);
   for (const h of p.hz) {
     h.t += dt;
     if (h.k === 'sword' && h.t < SWORD_WARN) continue;
@@ -682,7 +856,7 @@ export function encodePhyl(p: PhylState): { py: number[]; hz: number[][] } {
   const r1 = Math.round;
   const r2 = (v: number) => Math.round(v * 100) / 100;
   return {
-    py: [PHY_STATES.indexOf(p.st), r2(p.t), p.bombs, r2(p.flash), p.boss.phyPose],
+    py: [PHY_STATES.indexOf(p.st), r2(p.t), p.bombs, r2(p.flash), p.boss.phyPose, r2(p.skyWarnT), r2(p.skyFlash)],
     hz: p.hz.map((h) => [HAZ_KINDS.indexOf(h.k), r1(h.x), r1(h.y), r1(h.k === 'sword' ? 0 : h.vx), r1(h.vy), r2(h.t), r1(h.tx), r1(h.ty), h.big ? 1 : 0]),
   };
 }
@@ -693,5 +867,7 @@ export function applyPhyl(p: PhylState, py: number[], hz: number[][]) {
   p.bombs = py[2];
   p.flash = Math.max(p.flash, py[3]);
   p.boss.phyPose = py[4] ?? 0;
+  p.skyWarnT = py[5] ?? 0;
+  p.skyFlash = Math.max(p.skyFlash, py[6] ?? 0);
   p.hz = hz.map(([k, x, y, vx, vy, t, tx, ty, big]) => ({ k: HAZ_KINDS[k] ?? 'fire', x, y, vx, vy, t, tx, ty, big: big === 1 }));
 }

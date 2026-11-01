@@ -8,7 +8,7 @@ import { drawCritter, drawCritterDeco, drawCritterProjectile, drawCritterProp, d
 import { t } from '../i18n';
 import { drawCorpse, type Corpse } from './finish';
 import { THEMES, purplePortals } from './maps';
-import { drawPhyl, drawPhylBack, drawPhylDeco, drawPhylHud, drawPhylWorld } from './phylDraw';
+import { drawPhyl, drawPhylBack, drawPhylDeco, drawPhylHelper, drawPhylHud, drawPhylWorld } from './phylDraw';
 import type { MapDef, Platform } from './types';
 import { GUNS, type WeaponId } from './weapons';
 import { drawBravery, drawBubble, drawBubbleWand, drawGun67, drawPan, drawPistol, drawShotgun, drawSniper, drawSummoner, drawWaterGun } from './guns';
@@ -2481,6 +2481,11 @@ export function renderGame(g: Game, ctx: Ctx, vw: number, vh: number, dpr: numbe
   const sy = (Math.random() - 0.5) * g.shake;
   ctx.setTransform(dpr * z, 0, 0, dpr * z, dpr * (vw / 2 - g.cam.x * z + sx), dpr * (vh / 2 - g.cam.y * z + sy));
 
+  // Very long maps (PHYLISHIEUS's final phase): only draw who is near the screen.
+  const vx0 = g.cam.x - vw / 2 / z - 400;
+  const vx1 = g.cam.x + vw / 2 / z + 400;
+  const cull = g.map.w > 8000;
+  const seen = (x: number) => !cull || (x > vx0 && x < vx1);
   if (g.map.props) drawProps(ctx, g.map.props, g.time);
   drawPlatforms(ctx, g.map, g.time, g.glassT);
   if (g.map.warps?.length) drawWarps(ctx, g.map.warps, g.time);
@@ -2497,13 +2502,14 @@ export function renderGame(g: Game, ctx: Ctx, vw: number, vh: number, dpr: numbe
   const castle = g.map.deco === 'castle';
   if (castle) clipAboveGround(ctx, g.map.platforms[0].y);
   for (const c of g.cats) {
+    if (!seen(c.x)) continue;
     // A frozen red guy stays on screen where it went down.
     if (c.variant === 'redguy') {
       if (c.alive || c.frozen) drawRedGuy(ctx, c);
       continue;
     }
     // Chicks, the Chicken, the little pigeon, skeletons (a pile of bones when beaten) and the dog (asleep).
-    if (drawCritter(ctx, c, g.time) || drawMonster(ctx, c, g.time) || drawGadget(ctx, c, g.time) || drawToy(ctx, c, g.time) || drawTreat(ctx, c, g.time) || drawOct30Helper(ctx, c, g.time)) continue;
+    if (drawCritter(ctx, c, g.time) || drawMonster(ctx, c, g.time) || drawGadget(ctx, c, g.time) || drawToy(ctx, c, g.time) || drawTreat(ctx, c, g.time) || drawOct30Helper(ctx, c, g.time) || drawPhylHelper(ctx, c, g.time)) continue;
     if (!c.alive) continue;
     if (c.variant === 'sbsnow' || c.variant === 'fireally') {
       drawSbAlly(ctx, c, g.time);
@@ -2520,6 +2526,7 @@ export function renderGame(g: Game, ctx: Ctx, vw: number, vh: number, dpr: numbe
   }
   for (const po of g.potions) drawPotion(ctx, po.x, po.y, g.time);
   for (const c of g.corpses) {
+    if (!seen(c.x)) continue;
     if (c.prop) drawProp(ctx, c, g.time);
     else drawCorpse(ctx, c, g.time);
   }
@@ -2537,7 +2544,7 @@ export function renderGame(g: Game, ctx: Ctx, vw: number, vh: number, dpr: numbe
   }
   if (g.phy) drawPhylBack(ctx, g, g.time);
   // Humans drawn last so they stay on top.
-  const order = g.fighters.filter((f) => f.alive).sort((a, b) => Number(a.human) - Number(b.human) || Number(b.boss) - Number(a.boss));
+  const order = g.fighters.filter((f) => f.alive && seen(f.x)).sort((a, b) => Number(a.human) - Number(b.human) || Number(b.boss) - Number(a.boss));
   for (const f of order) drawFighter(ctx, f, g.time);
   for (const b of g.bodies()) if (b.alive && b.burnT > 0) drawFlames(ctx, b, g.time);
   for (const b of g.bodies()) if (b.alive && b.poisonT > 0) drawPoison(ctx, b, g.time);

@@ -1,4 +1,4 @@
-import type { FallMode, MapDef, MatchConfig } from './game/types';
+import type { FallMode, MapDef, MatchConfig, PhylPhase } from './game/types';
 import type { Lang } from './i18n';
 import { loadChef, newChefSave, type ChefSave } from './chef/data';
 
@@ -35,9 +35,48 @@ export interface SaveData {
   sf2: boolean;
   /** Stick Chef: its own save and its own money (Chef cash), separate from the coins. */
   chef: ChefSave;
-  /** PHYLISHIEUS: the phase you are on (1 or 2), and done once phase 2 is beaten (the mode leaves, he moves to Sandbox). */
-  phyl: { phase: 1 | 2; done: boolean };
+  /**
+   * PHYLISHIEUS: the phase you are on (1, 2 or the final phase 3), the highest phase beaten,
+   * and done once the final phase is beaten (the mode leaves, he moves to Sandbox).
+   */
+  phyl: { phase: PhylPhase; done: boolean; beat: number };
+  /** Shirts, pants and shoes bought in the shop (for the profile picture). */
+  clothes: string[];
+  /** What your profile stickman wears ('none' = nothing). */
+  outfit: Outfit;
+  /** When this save was first made (ms), for the profile's "Joined". */
+  joined: number;
   updatedAt: number;
+}
+
+export interface Outfit {
+  hat: string;
+  shirt: string;
+  pants: string;
+  shoes: string;
+  /** The profile stickman's colour. */
+  color: string;
+}
+
+export const DEFAULT_OUTFIT: Outfit = { hat: 'none', shirt: 'none', pants: 'none', shoes: 'none', color: '#1e88e5' };
+
+/** Saves from before the final phase: beating phase 2 used to be the end, so those players go on to phase 3. */
+function loadPhyl(v: unknown): SaveData['phyl'] {
+  const o = (v && typeof v === 'object' ? v : {}) as Partial<SaveData['phyl']>;
+  const beat = Number.isFinite(o.beat) ? Math.max(0, Math.min(3, Math.floor(o.beat as number))) : o.done === true ? 2 : o.phase === 2 ? 1 : 0;
+  return { phase: Math.min(3, beat + 1) as PhylPhase, done: beat >= 3, beat };
+}
+
+function loadOutfit(v: unknown): Outfit {
+  const o = (v && typeof v === 'object' ? v : {}) as Partial<Outfit>;
+  const str = (x: unknown, def: string) => (typeof x === 'string' && x.length < 40 ? x : def);
+  return {
+    hat: str(o.hat, 'none'),
+    shirt: str(o.shirt, 'none'),
+    pants: str(o.pants, 'none'),
+    shoes: str(o.shoes, 'none'),
+    color: typeof o.color === 'string' && /^#[0-9a-f]{6}$/i.test(o.color) ? o.color : DEFAULT_OUTFIT.color,
+  };
 }
 
 export interface TDSave {
@@ -72,6 +111,8 @@ export interface Stats {
   mapsWon: string[];
   /** Weapons you have fought with (every one: The Collector). */
   usedWeapons: string[];
+  /** Matches played (counted from the profile update on). */
+  matches: number;
 }
 
 const KEY = 'stickman-fight-save-v1';
@@ -92,7 +133,7 @@ function defaults(): SaveData {
     customMaps: [],
     achievements: [],
     secrets: [],
-    stats: { catSnowWins: 0, mapsWon: [], usedWeapons: [] },
+    stats: { catSnowWins: 0, mapsWon: [], usedWeapons: [], matches: 0 },
     settings: { lang: thai ? 'th' : 'en', fallMode: 'ko', potions: true, musicVol: 70, sfxVol: 80, musicMute: false, sfxMute: false, killFeed: true, juice: true },
     name: '',
     localNames: [],
@@ -100,7 +141,10 @@ function defaults(): SaveData {
     zombieAlly: false,
     sf2: false,
     chef: newChefSave(),
-    phyl: { phase: 1, done: false },
+    phyl: { phase: 1, done: false, beat: 0 },
+    clothes: [],
+    outfit: { ...DEFAULT_OUTFIT },
+    joined: Date.now(),
     pendingZombie: false,
     td: tdSave(null),
     updatedAt: 0,
@@ -140,6 +184,7 @@ export function normalize(raw: unknown): SaveData {
       catSnowWins: Number.isFinite(r.stats?.catSnowWins) ? Math.max(0, Math.floor(r.stats!.catSnowWins)) : 0,
       mapsWon: strs(r.stats?.mapsWon),
       usedWeapons: strs(r.stats?.usedWeapons),
+      matches: Number.isFinite(r.stats?.matches) ? Math.max(0, Math.floor(r.stats!.matches)) : 0,
     },
     name: cleanName(r.name),
     localNames: Array.isArray(r.localNames) ? r.localNames.slice(0, 6).map(cleanName) : [],
@@ -147,7 +192,11 @@ export function normalize(raw: unknown): SaveData {
     zombieAlly: r.zombieAlly === true,
     sf2: r.sf2 === true,
     chef: loadChef(r.chef),
-    phyl: { phase: r.phyl?.phase === 2 ? 2 : 1, done: r.phyl?.done === true },
+    phyl: loadPhyl(r.phyl),
+    clothes: strs(r.clothes),
+    outfit: loadOutfit(r.outfit),
+    // Saves from before the profile: the first time this device opens the game with it.
+    joined: Number.isFinite(r.joined) && (r.joined as number) > 0 ? (r.joined as number) : Date.now(),
     pendingZombie: r.pendingZombie === true,
     td: tdSave(r.td),
     updatedAt: Number.isFinite(r.updatedAt) ? (r.updatedAt as number) : 0,

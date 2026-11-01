@@ -1,6 +1,7 @@
-import type { Fighter } from './entities';
+import type { Cat, Fighter } from './entities';
 import type { Game } from './game';
-import { PHYL, PHY_POSES, cornerW, type Hazard, type PhylState } from './phyl';
+import { stickBody } from './monsters';
+import { PHYL, PHY_POSES, cornerW, covered, type Hazard, type PhylState } from './phyl';
 import { t } from '../i18n';
 
 type Ctx = CanvasRenderingContext2D;
@@ -150,6 +151,108 @@ export function drawPhylWorld(ctx: Ctx, g: Game, time: number) {
   const p = g.phy!;
   for (const h of p.hz) drawHazard(ctx, h, time);
   if (p.st === 'bomb' && p.boss.alive) drawBigBomb(ctx, p, time);
+  if (p.skyWarnT > 0 || p.skyFlash > 0) drawSkyLaser(ctx, g, p, time);
+}
+
+/**
+ * The final phase's sky laser over what you can see: thin red lines while it warns, then white-hot beams.
+ * Each beam stops at the first thing in its way, so the shadows under platforms show where to hide.
+ */
+function drawSkyLaser(ctx: Ctx, g: Game, p: PhylState, time: number) {
+  const z = g.cam.zoom || 1;
+  const x0 = g.cam.x - g.view.w / 2 / z - 40;
+  const x1 = g.cam.x + g.view.w / 2 / z + 40;
+  const top = g.cam.y - g.view.h / 2 / z - 40;
+  const step = 22;
+  const plats = g.map.platforms.filter((q, i) => q.kind !== 'lava' && g.solid(i) && q.x + q.w > x0 && q.x < x1);
+  const warn = p.skyWarnT > 0;
+  const k = warn ? 1 - p.skyWarnT / PHYL.skyWarn : 0;
+  for (let x = Math.floor(x0 / step) * step; x < x1; x += step) {
+    const mid = x + step / 2;
+    let stop = g.map.h + 200;
+    for (const q of plats) if (mid > q.x && mid < q.x + q.w && q.y < stop && q.y + q.h > top) stop = q.y;
+    if (stop <= top) continue;
+    if (warn) {
+      const a = (0.15 + 0.45 * k) * (0.6 + 0.4 * Math.abs(Math.sin(time * 18 + x * 0.05)));
+      ctx.fillStyle = `rgba(255,23,68,${a})`;
+      ctx.fillRect(mid - 1.5, top, 3, stop - top);
+    } else {
+      const a = Math.min(1, p.skyFlash * 1.3);
+      const gr = ctx.createLinearGradient(0, top, 0, stop);
+      gr.addColorStop(0, `rgba(234,128,252,${a})`);
+      gr.addColorStop(1, `rgba(255,255,255,${a})`);
+      ctx.fillStyle = gr;
+      ctx.fillRect(x, top, step + 1, stop - top);
+    }
+  }
+}
+
+/** PHYSICERTAS: his minions. A stickman in a dark torn robe with one big glowing eye and a page-blade. */
+export function drawPhylHelper(ctx: Ctx, c: Cat, time: number): boolean {
+  if (c.variant !== 'physi') return false;
+  if (!c.alive) return true;
+  ctx.save();
+  ctx.translate(c.x, c.y);
+  const col = c.hurtFlash > 0 ? '#ffffff' : '#311b92';
+  const { head, hand, d } = stickBody(ctx, c, time, col, 5, 0.25, false);
+  const r = c.h * 0.13;
+  // Torn robe
+  ctx.fillStyle = '#1a0033';
+  ctx.globalAlpha = 0.9;
+  ctx.beginPath();
+  ctx.moveTo(head.x - 5, head.y + r);
+  ctx.lineTo(head.x + 5, head.y + r);
+  ctx.lineTo(head.x + 15, -8);
+  for (let i = 0; i < 5; i++) ctx.lineTo(head.x + 15 - (i + 0.5) * 6, -2 - (i % 2) * 8);
+  ctx.lineTo(head.x - 15, -8);
+  ctx.closePath();
+  ctx.fill();
+  ctx.globalAlpha = 1;
+  // Hood
+  ctx.fillStyle = '#12001f';
+  ctx.beginPath();
+  ctx.arc(head.x, head.y, r * 1.35, Math.PI, 0);
+  ctx.lineTo(head.x + r * 1.35, head.y + r * 0.6);
+  ctx.lineTo(head.x - r * 1.35, head.y + r * 0.6);
+  ctx.closePath();
+  ctx.fill();
+  // One big glowing eye
+  ctx.fillStyle = '#e040fb';
+  ctx.shadowColor = '#e040fb';
+  ctx.shadowBlur = 10 + Math.sin(time * 6 + c.id) * 4;
+  ctx.beginPath();
+  ctx.ellipse(head.x + d * r * 0.25, head.y + r * 0.05, r * 0.55, r * 0.38, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.shadowBlur = 0;
+  ctx.fillStyle = '#ffffff';
+  ctx.beginPath();
+  ctx.arc(head.x + d * r * 0.4, head.y + r * 0.05, r * 0.16, 0, Math.PI * 2);
+  ctx.fill();
+  // Page-blade: a long sharp page, glowing at the edge
+  ctx.save();
+  ctx.translate(hand.x, hand.y);
+  ctx.rotate(d * (c.attackT > 0.5 ? 0.3 : -0.6));
+  ctx.fillStyle = '#f3e5f5';
+  ctx.strokeStyle = '#b388ff';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(0, 2);
+  ctx.lineTo(d * 6, -30);
+  ctx.lineTo(d * 1, -34);
+  ctx.lineTo(-d * 4, 0);
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
+  ctx.restore();
+  ctx.restore();
+  // HP bar
+  const w = 36;
+  const y = c.y - c.h - 34;
+  ctx.fillStyle = 'rgba(0,0,0,0.55)';
+  ctx.fillRect(c.x - w / 2, y, w, 5);
+  ctx.fillStyle = '#b388ff';
+  ctx.fillRect(c.x - w / 2, y, w * Math.max(0, c.hp / c.maxHp), 5);
+  return true;
 }
 
 function drawHazard(ctx: Ctx, h: Hazard, time: number) {
@@ -442,10 +545,22 @@ export function drawPhylHud(ctx: Ctx, g: Game, vw: number, vh: number) {
     ctx.fillStyle = `rgba(255,255,255,${Math.min(1, p.flash)})`;
     ctx.fillRect(0, 0, vw, vh);
   }
+  if (p.skyFlash > 0) {
+    ctx.fillStyle = `rgba(255,240,255,${Math.min(0.8, p.skyFlash * 0.8)})`;
+    ctx.fillRect(0, 0, vw, vh);
+  }
   if (!p.boss.alive) return;
   let text = '';
   let color = '#ffffff';
-  if (p.st === 'bomb') {
+  if (p.skyWarnT > 0) {
+    // The sky turns red, and you see whether you are covered.
+    ctx.fillStyle = `rgba(183,28,28,${0.12 + 0.1 * Math.sin(g.time * 10)})`;
+    ctx.fillRect(0, 0, vw, vh);
+    const mine = g.focus.map((i) => g.fighters[i]).filter((f) => f?.alive);
+    const safe = mine.length > 0 && mine.every((f) => covered(g, f));
+    text = safe ? `🛡️ ${t('phySkySafe')} ${Math.ceil(p.skyWarnT)}` : `⚠️ ${t('phySkyWarn', { n: Math.ceil(p.skyWarnT) })}`;
+    color = safe ? '#69f0ae' : Math.sin(g.time * 12) > 0 ? '#ff1744' : '#ffeb3b';
+  } else if (p.st === 'bomb') {
     text = `⚠️ ${t('phyRun', { n: Math.max(0, Math.ceil(p.t)) })}`;
     color = Math.sin(g.time * 12) > 0 ? '#ff1744' : '#ffeb3b';
   } else if (p.st === 'tired') {

@@ -1,7 +1,7 @@
 import type { RealtimeChannel } from '@supabase/supabase-js';
 import { supabase } from '../cloud';
 import { TEAM_COLORS, randomBossWeapons, type FighterSpec, type MatchResult } from '../game/game';
-import { BEACH_MAP, BEACH_MODES, isBossMode, isSecret, type Controller, type Difficulty, type FallMode, type MapDef, type Mode, type OutbreakInfo } from '../game/types';
+import { BEACH_MAP, BEACH_MODES, isBossMode, isSecret, type PhylPhase, type Controller, type Difficulty, type FallMode, type MapDef, type Mode, type OutbreakInfo } from '../game/types';
 import { OUTBREAK } from '../game/outbreak';
 import { OUTBREAK_MAP } from '../game/maps';
 import { INFECTION_MAP } from '../game/infection';
@@ -21,7 +21,7 @@ const randomPick = (owned: string[]) => {
 import { HATS, hatExists, resolveHat } from '../game/hats';
 import type { Snapshot } from './snapshot';
 
-export const PROTO = 15;
+export const PROTO = 16;
 export const MIN_ROOM = 2;
 export const MAX_ROOM = 30;
 export const MAX_LOCAL = 6;
@@ -54,6 +54,8 @@ export interface Member {
   waiting?: boolean;
   /** This player's device has the zombie ally (beat wave 10 of The Outbreak). */
   zombie?: boolean;
+  /** This player's device has beaten PHYLISHIEUS's final phase (the Summoner brings PHYSICERTAS). */
+  physi?: boolean;
 }
 
 export interface RoomState {
@@ -100,7 +102,8 @@ export interface StartPayload {
   /** The Outbreak: the wave from the host's save. */
   outbreak?: OutbreakInfo;
   /** PHYLISHIEUS: the host's phase. */
-  phyl?: 1 | 2;
+  /** PHYLISHIEUS's phase. The final phase's huge map is built on each device (it's too big to send). */
+  phyl?: PhylPhase;
 }
 
 export interface NetResult {
@@ -113,7 +116,7 @@ export interface NetResult {
 }
 
 type Msg =
-  | { t: 'hello'; v: number; players: string[]; zombie?: boolean }
+  | { t: 'hello'; v: number; players: string[]; zombie?: boolean; physi?: boolean }
   | { t: 'welcome'; device: string }
   | { t: 'reject'; reason: 'full' | 'version' }
   | { t: 'lobby'; state: RoomState }
@@ -442,6 +445,7 @@ export class RoomHost extends Emitter<RoomEvents> {
             difficulty: 'medium',
             waiting: st.phase === 'playing',
             zombie: m.zombie === true,
+            physi: m.physi === true,
           });
         });
         sendJson(peer.rel, { t: 'welcome', device: peer.id });
@@ -604,6 +608,7 @@ export class RoomHost extends Emitter<RoomEvents> {
       lives: ob ? ob.lives[i] ?? OUTBREAK.lives : undefined,
       // The zombie ally: each device's own unlock (bots go with the host's).
       zombie: m.device === 'host' ? save.data.zombieAlly : !!m.zombie,
+      physi: m.device === 'host' ? save.data.phyl.done : !!m.physi,
     }));
     this.remoteCtrl.clear();
     for (const m of st.members) if (m.kind === 'human' && m.device !== 'host') this.remoteCtrl.set(m.id, { x: 0, y: 0, active: false });
@@ -716,7 +721,7 @@ export class RoomClient extends Emitter<RoomEvents> {
             rej(m.reason as JoinError);
           } else client.onMessage(m);
         };
-        sendJson(rel, { t: 'hello', v: PROTO, players: names, zombie: save.data.zombieAlly });
+        sendJson(rel, { t: 'hello', v: PROTO, players: names, zombie: save.data.zombieAlly, physi: save.data.phyl.done });
       });
       client.device = welcome;
       rel.onmessage = (ev) => client.onMessage(JSON.parse(ev.data));

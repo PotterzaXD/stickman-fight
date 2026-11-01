@@ -33,9 +33,12 @@ function safe(g: Game, i: number) {
 /** First platform under (x, y), within `depth` pixels. */
 export function platformBelow(g: Game, x: number, y: number, depth: number): Platform | null {
   let best: Platform | null = null;
-  for (const [i, p] of g.map.platforms.entries()) {
-    if (!safe(g, i)) continue;
+  // A plain loop: this runs for every bot every frame, and the final PHYLISHIEUS map has hundreds of platforms.
+  const list = g.map.platforms;
+  for (let i = 0; i < list.length; i++) {
+    const p = list[i];
     if (x < p.x || x > p.x + p.w) continue;
+    if (!safe(g, i)) continue;
     if (p.y < y - 4 || p.y > y + depth) continue;
     if (!best || p.y < best.y) best = p;
   }

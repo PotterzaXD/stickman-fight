@@ -1,7 +1,7 @@
 import { BOSS_TEAM, Game, TEAM_COLORS, type FighterSpec, type MatchResult } from '../game/game';
 import { achName, grant, hasAch, type AchievementId } from '../achievements';
 import type { Fighter } from '../game/entities';
-import { PIGEON_WEAPON, SECRET_KINDS, isSecret, isXBoss, type BossKind, type SecretKind, type XBossKind } from '../game/types';
+import { PIGEON_WEAPON, SECRET_KINDS, isSecret, isXBoss, type BossKind, type PhylPhase, type SecretKind, type XBossKind } from '../game/types';
 import { resolveHat } from '../game/hats';
 import { ALL_OWNABLE, WEAPONS, isSummonCard } from '../game/weapons';
 import { BUILTIN_MAPS, GUARDIAN_MAPS, OUTBREAK_MAP } from '../game/maps';
@@ -19,7 +19,7 @@ import { startLoop } from './loop';
 import { go, register } from './router';
 import { afterWave, livesOf, outbreakInfo, outbreakTitle } from './outbreak';
 import { RUSH } from '../game/oct22';
-import { TOME_MAP } from '../game/phyl';
+import { phylMapFor } from '../game/phyl';
 import { goThroughPortal } from './portal';
 
 function buildSpecs(match: MatchConfig): FighterSpec[] {
@@ -48,6 +48,7 @@ function buildSpecs(match: MatchConfig): FighterSpec[] {
     lives: ob ? livesOf(ob, i) : undefined,
     // Beat wave 10 of The Outbreak: the Summoner brings a zombie ally too.
     zombie: save.data.zombieAlly,
+    physi: save.data.phyl.done,
   }));
 }
 
@@ -68,6 +69,8 @@ export function bossNames(): Record<BossKind, string> {
     robo: t('robo_name'),
     phyl1: t('phyl1_name'),
     phyl2: t('phyl2_name'),
+    phyl3: t('phyl3_name'),
+    golem: t('golem_name'),
   };
 }
 
@@ -88,7 +91,7 @@ export const PIGEON_COINS = 5000;
 export const SECRET_COINS: Record<SecretKind, number> = { queen: 4000, tide: 5000, guardian: 6000 };
 export const XBOSS_COINS: Record<XBossKind, number> = { elephant: 5000, scarecrow: 2000, robo: 3000 };
 /** PHYLISHIEUS: phase 1 and phase 2. */
-export const PHYL_COINS: Record<1 | 2, number> = { 1: 10000, 2: 20000 };
+export const PHYL_COINS: Record<PhylPhase, number> = { 1: 10000, 2: 20000, 3: 40000 };
 const SECRET_ICON: Record<SecretKind, string> = { queen: '❄️', tide: '🌊', guardian: '🌲' };
 /** Grandfather Cat wins on a snow map that wake the Snow Queen. */
 const QUEEN_CAT_WINS = 3;
@@ -140,7 +143,8 @@ export function matchFacts(game: Game, r: Pick<MatchResult, 'winners' | 'winnerT
 }
 
 function bossKind(f: Fighter): BossKind {
-  if (f.phyl) return f.phyl === 2 ? 'phyl2' : 'phyl1';
+  if (f.phyl) return f.phyl === 3 ? 'phyl3' : f.phyl === 2 ? 'phyl2' : 'phyl1';
+  if (f.golem) return 'golem';
   return f.secret ?? f.xboss ?? (f.mascot ? 'mascot' : f.cat ? 'cat' : f.buffalo ? 'buffalo' : f.fish ? 'fish' : f.pigeon ? 'pigeon' : 'boss');
 }
 
@@ -155,7 +159,7 @@ export interface RewardInfo {
   /** Boss Fight on the Beach (the bosses were on your side). */
   beachBoss?: boolean;
   /** PHYLISHIEUS: the phase that was fought. */
-  phylPhase?: 1 | 2;
+  phylPhase?: PhylPhase;
   facts?: MatchFacts;
 }
 
@@ -211,12 +215,18 @@ function wakeSecrets(r: RewardInfo): SecretKind[] {
   return fresh;
 }
 
+/** One more match played (for the profile). */
+export function countMatch() {
+  save.update((d) => d.stats.matches++);
+}
+
 /**
  * Give this device its coins after a match (and The Grandfather Cat Treasure the first time
  * Grandfather Cat is beaten), plus any achievements. Returns the lines to show on the result screen.
  */
 export function giveReward(r: RewardInfo): HTMLElement[] {
   const { mode, won, bosses } = r;
+  countMatch();
   if (r.facts) save.update((d) => (d.stats.usedWeapons = Array.from(new Set([...d.stats.usedWeapons, ...r.facts!.weapons]))));
   if (mode === 'sandbox') {
     // Sandbox never changes your coins (but achievements count).
@@ -264,10 +274,14 @@ export function giveReward(r: RewardInfo): HTMLElement[] {
     if (trident) d.owned.push('trident');
   });
   const pigeonNew = won && mode === 'pigeon' && !hasAch('pigeonBeat');
-  // PHYLISHIEUS: phase 1 beaten = phase 2 next. Phase 2 beaten = the mode is gone and he moves to Sandbox.
-  const phylNext = won && mode === 'phyl' ? (r.phylPhase === 2 ? 'done' : 'phase2') : null;
-  if (phylNext === 'phase2') save.update((d) => (d.phyl.phase = 2));
-  if (phylNext === 'done') save.update((d) => (d.phyl = { phase: 2, done: true }));
+  // PHYLISHIEUS: phase 1 beaten = phase 2 next, phase 2 beaten = the final phase next.
+  // The final phase beaten = the mode is gone, his map is a normal map and he (and his PHYSICERTAS) move to Sandbox.
+  const beatPhase = won && mode === 'phyl' ? r.phylPhase ?? 1 : 0;
+  const phylNext = beatPhase === 3 ? 'done' : beatPhase === 2 ? 'phase3' : beatPhase === 1 ? 'phase2' : null;
+  if (beatPhase) save.update((d) => {
+    const beat = Math.max(d.phyl.beat, beatPhase);
+    d.phyl = { beat, phase: Math.min(3, beat + 1) as PhylPhase, done: beat >= 3 };
+  });
   const fresh = grant(matchAchievements(r));
   const woke = wakeSecrets(r);
   setTimeout(() => sfx.coin(), 400);
@@ -277,7 +291,7 @@ export function giveReward(r: RewardInfo): HTMLElement[] {
   if (stick) out.push(h('p', { class: 'treasure-got' }, t('mascotStickGot')));
   if (trident) out.push(h('p', { class: 'treasure-got' }, t('tridentGot')));
   if (pigeonNew) out.push(h('p', { class: 'treasure-got' }, t('pigeonSandbox')));
-  if (phylNext) out.push(h('p', { class: 'treasure-got secret-got' }, `📖 ${t(phylNext === 'done' ? 'phylGone' : 'phylPhase2Next')}`));
+  if (phylNext) out.push(h('p', { class: 'treasure-got secret-got' }, `📖 ${t(phylNext === 'done' ? 'phylGone3' : phylNext === 'phase3' ? 'phylPhase3Next' : 'phylPhase2Next')}`));
   out.push(...achLines(fresh));
   for (const k of woke) out.push(h('p', { class: 'treasure-got secret-got' }, `${SECRET_ICON[k]} ${t('secretUnlocked', { name: bossNames()[k] })}`));
   if (woke.length) setTimeout(() => sfx.secret(), 1600);
@@ -326,7 +340,7 @@ register('play', (root, { match, fromEditor }) => {
   // The Outbreak is always at the Castle Gate.
   // Stickman Infection is always in its own big town.
   // PHYLISHIEUS: always in The Forbidden Tome Keep.
-  const map = fromEditor ?? (match.mode === 'outbreak' ? OUTBREAK_MAP : match.mode === 'infection' ? INFECTION_MAP : match.mode === 'phyl' ? TOME_MAP : allMaps(save.data.customMaps).find((m) => m.id === match.mapId) ?? allMaps([])[0]);
+  const map = fromEditor ?? (match.mode === 'outbreak' ? OUTBREAK_MAP : match.mode === 'infection' ? INFECTION_MAP : match.mode === 'phyl' ? phylMapFor(save.data.phyl.phase) : allMaps(save.data.customMaps).find((m) => m.id === match.mapId) ?? allMaps([])[0]);
   let paused = false;
   let game!: Game;
   let startCoins = 0;
@@ -369,6 +383,7 @@ register('play', (root, { match, fromEditor }) => {
 
   const showOutbreakResult = (r: MatchResult) => {
     const wave = game.ob?.wave ?? 1;
+    countMatch();
     const lines = afterWave(game, r, match.obSlot ?? 0, game.fighters.filter((f) => f.human));
     // Get Tricked counts here too.
     const tricked = grant(game.fighters.some((f) => f.human && game.tricked.has(f)) ? ['getTricked'] : []);
@@ -392,7 +407,7 @@ register('play', (root, { match, fromEditor }) => {
   const phylButtons = (r: MatchResult) => {
     if (match.mode !== 'phyl' || !r.humanWon) return null;
     if (save.data.phyl.done) return h('div', { class: 'row gap center' }, h('button', { class: 'btn big primary', onclick: () => go('menu') }, `🏠 ${t('menu')}`));
-    return h('div', { class: 'row gap center' }, h('button', { class: 'btn big primary', onclick: () => go('lobby', { mode: 'phyl' }) }, `📖 ${t('phylToPhase2')}`));
+    return h('div', { class: 'row gap center' }, h('button', { class: 'btn big primary', onclick: () => go('lobby', { mode: 'phyl' }) }, `📖 ${t(save.data.phyl.phase === 3 ? 'phylToPhase3' : 'phylToPhase2')}`));
   };
 
   const showResult = (r: MatchResult) => {

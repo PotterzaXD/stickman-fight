@@ -109,10 +109,12 @@ export interface SlotConfig {
 }
 
 /** Bosses you can add in Sandbox. */
-export type BossKind = 'boss' | 'cat' | 'mascot' | 'buffalo' | 'fish' | 'pigeon' | XBossKind | SecretKind | PhylKind;
-/** PHYLISHIEUS in Sandbox (once both phases are beaten): phase 1 and phase 2 are separate bosses. */
-export type PhylKind = 'phyl1' | 'phyl2';
-export const PHYL_KINDS: PhylKind[] = ['phyl1', 'phyl2'];
+export type BossKind = 'boss' | 'cat' | 'mascot' | 'buffalo' | 'fish' | 'pigeon' | XBossKind | SecretKind | PhylKind | 'golem';
+/** PHYLISHIEUS in Sandbox: phase 1 and phase 2 (once phase 2 is beaten) and the final phase 3 (once it is beaten) are separate bosses. */
+export type PhylKind = 'phyl1' | 'phyl2' | 'phyl3';
+export const PHYL_KINDS: PhylKind[] = ['phyl1', 'phyl2', 'phyl3'];
+export type PhylPhase = 1 | 2 | 3;
+export const phylKindPhase = (k: PhylKind): PhylPhase => (k === 'phyl3' ? 3 : k === 'phyl2' ? 2 : 1);
 export const isPhylKind = (k: string): k is PhylKind => (PHYL_KINDS as string[]).includes(k);
 
 export interface SandboxBoss {
@@ -126,9 +128,9 @@ export interface SandboxBoss {
 /** Helpers you can drop into Sandbox: every helper any weapon or the Summoner can call. A chick slot is 10 chicks. */
 export type HelperKind = 'cat' | 'fish' | 'memory' | 'soldier' | 'snowman' | 'sbsnow' | 'fireally' | 'redguy' | 'chicken' | 'chick' | 'lilpigeon' | 'skeleton' | 'dog' | 'retro' | 'bee' | 'ninja' | 'zombie'
   | 'babyele' | 'drone' | 'penguin' | 'knight' | 'frog' | 'ghost' | 'ginger' | 'cupcake' | 'chef'
-  | 'unicorn' | 'dino' | 'wizard' | 'panda';
+  | 'unicorn' | 'dino' | 'wizard' | 'panda' | 'physi';
 /** The zombie ally is only here once you have beaten wave 10 of The Outbreak (see `zombieAlly` in the save). */
-export const HELPER_KINDS: HelperKind[] = ['cat', 'fish', 'memory', 'soldier', 'snowman', 'sbsnow', 'fireally', 'redguy', 'chicken', 'chick', 'lilpigeon', 'skeleton', 'dog', 'retro', 'bee', 'ninja', 'zombie', 'babyele', 'drone', 'penguin', 'knight', 'frog', 'ghost', 'ginger', 'cupcake', 'chef', 'unicorn', 'dino', 'wizard', 'panda'];
+export const HELPER_KINDS: HelperKind[] = ['cat', 'fish', 'memory', 'soldier', 'snowman', 'sbsnow', 'fireally', 'redguy', 'chicken', 'chick', 'lilpigeon', 'skeleton', 'dog', 'retro', 'bee', 'ninja', 'zombie', 'babyele', 'drone', 'penguin', 'knight', 'frog', 'ghost', 'ginger', 'cupcake', 'chef', 'unicorn', 'dino', 'wizard', 'panda', 'physi'];
 /** The Outbreak's zombies and the Zombie Boss, for Sandbox (they fight for whichever team you put them on). */
 export type SbZombieKind = 'znormal' | 'zshooter' | 'zmini' | 'zbig' | 'zrunner' | 'zexploder' | 'zboss';
 export const SB_ZOMBIE_KINDS: SbZombieKind[] = ['znormal', 'zshooter', 'zmini', 'zbig', 'zrunner', 'zexploder', 'zboss'];

@@ -1,7 +1,8 @@
 import './style.css';
 import { initCloud } from './cloud';
 import { initFriends } from './friends';
-import { decodeMap } from './game/maps';
+import { decodeMap, setUnlockedMaps } from './game/maps';
+import { TOME_MAP } from './game/phyl';
 import { t } from './i18n';
 import { save } from './save';
 import { sfx } from './sfx';
@@ -19,6 +20,7 @@ import './ui/roomScreen';
 import './ui/netplay';
 import './ui/friends';
 import './ui/achievements';
+import './ui/profile';
 import './ui/sandbox';
 import './ui/stickbrawl';
 import './ui/worst';
@@ -37,6 +39,10 @@ setSongListener((id) => {
   const song = SONGS[id];
   if (song) songCard(song.name, song.cover, t('nowPlaying'));
 });
+// Beat PHYLISHIEUS's final phase: his map is a normal map.
+const syncMaps = () => setUnlockedMaps(save.data.phyl.done ? [TOME_MAP] : []);
+syncMaps();
+save.onChange(syncMaps);
 initRouter(app);
 
 // Keep the page language and coin chips in sync with the save.

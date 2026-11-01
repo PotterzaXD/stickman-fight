@@ -1,4 +1,6 @@
-import { currentUser, cloudEnabled, onUserChange } from '../cloud';
+import { outfitIcon } from './icons';
+import { profileName } from './profile';
+import { onUserChange } from '../cloud';
 import { BOT_COLORS, Game, type FighterSpec } from '../game/game';
 import { BUILTIN_MAPS } from '../game/maps';
 import type { Difficulty } from '../game/types';
@@ -76,11 +78,10 @@ register('menu', (root) => {
     return game;
   });
 
-  const account = h('button', { class: 'chip', onclick: () => go('settings') });
+  // Your name at the top right opens your profile.
+  const account = h('button', { class: 'chip profile-chip', onclick: () => go('profile') });
   const paintAccount = () => {
-    const u = currentUser();
-    account.textContent = u ? `👤 ${u.name.split(' ')[0]}` : '👤';
-    account.style.display = cloudEnabled || u ? '' : 'none';
+    account.replaceChildren(outfitIcon(save.data.outfit, 22, 30), h('span', {}, profileName()));
   };
   paintAccount();
   onUserChange(paintAccount);

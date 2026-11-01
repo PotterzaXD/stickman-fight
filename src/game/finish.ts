@@ -374,6 +374,7 @@ export function helperCorpse(c: Cat): Corpse | null {
     case 'knight':
     case 'chef':
     case 'wizard':
+    case 'physi':
     case 'sbsnow':
     case 'fireally':
     case 'ninja':

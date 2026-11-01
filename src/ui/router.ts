@@ -15,6 +15,7 @@ export interface Routes {
   netplay: undefined;
   friends: undefined;
   achievements: undefined;
+  profile: undefined;
   sandbox: undefined;
   stickbrawl: undefined;
   worst: undefined;

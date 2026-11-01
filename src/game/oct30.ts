@@ -1,6 +1,6 @@
 import { ballisticAngle } from './ai';
 import {
-  BABY_ELE, Body, CHEF, CUPCAKE, Cat, DINO, DRONE, FROG, Fighter, GHOST, GINGER, KNIGHT, PANDA, PENGUIN, RETRO, SB_ALLY, UNICORN, WIZARD, ZOMBIE_ALLY,
+  BABY_ELE, Body, CHEF, CUPCAKE, Cat, DINO, DRONE, FROG, Fighter, GHOST, GINGER, KNIGHT, PANDA, PENGUIN, PHYSI, RETRO, SB_ALLY, UNICORN, WIZARD, ZOMBIE_ALLY,
   type CatVariant, type Projectile,
 } from './entities';
 import type { Game } from './game';
@@ -165,6 +165,7 @@ export const HELPER_STATS: Partial<Record<CatVariant, [number, number]>> = {
   dino: [DINO.hp, DINO.dmg],
   wizard: [WIZARD.hp, WIZARD.dmg],
   panda: [PANDA.hp, PANDA.dmg],
+  physi: [PHYSI.hp, PHYSI.dmg],
 };
 
 /** A new shot hit someone. Returns false for other shots. */
@@ -330,14 +331,17 @@ function updateWarps(g: Game) {
 // ---------- helpers ----------
 
 export function oct30Speed(c: Cat): number | null {
+  if (c.variant === 'physi') return PHYSI.speed;
   return c.variant === 'unicorn' ? UNICORN.speed : c.variant === 'dino' ? DINO.speed : c.variant === 'panda' ? PANDA.speed : c.variant === 'wizard' ? 280 : null;
 }
 
 export function oct30Reach(c: Cat): number | null {
+  if (c.variant === 'physi') return c.w / 2 + 28;
   return c.variant === 'unicorn' ? c.w / 2 + 14 : c.variant === 'dino' ? c.w / 2 + 16 : c.variant === 'panda' ? c.w / 2 + 6 : c.variant === 'wizard' ? c.w / 2 + 14 : null;
 }
 
 export function oct30AttackGap(c: Cat): number | null {
+  if (c.variant === 'physi') return PHYSI.every;
   return c.variant === 'unicorn' ? UNICORN.every : c.variant === 'dino' ? DINO.every : c.variant === 'panda' ? PANDA.every : c.variant === 'wizard' ? 1.2 : null;
 }
 
@@ -381,6 +385,8 @@ export function summonOct30(g: Game, f: Fighter, inward: number) {
     const [hp, dmg] = HELPER_STATS[v]!;
     g.summonOne(f, v, hp, dmg, inward * dx);
   }
+  // Once PHYLISHIEUS's final phase is beaten: two PHYSICERTAS.
+  if (f.physiAlly) g.callCats(f, { count: 2, hp: PHYSI.hp, dmg: PHYSI.dmg, max: 2 }, 'physi');
 }
 
 // ---------- bots ----------
