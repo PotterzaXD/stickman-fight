@@ -67,6 +67,8 @@ export abstract class Body {
   /** Bubble Wand: seconds left floating in a bubble (pops for damage at the end). */
   bubbleT = 0;
   bubbleSrc: Body | null = null;
+  /** PHYLISHIEUS final phase: this one already got its ×10 HP. */
+  x10 = false;
   abstract readonly kind: 'fighter' | 'snowman' | 'cat';
 
   constructor(x: number, y: number, w: number, h: number, hp: number, team: number, color: string) {
