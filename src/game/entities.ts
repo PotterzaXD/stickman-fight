@@ -164,6 +164,8 @@ export class Fighter extends Body {
   lives = 5;
   /** The Summoner also calls a zombie ally (you beat wave 10 of The Outbreak). */
   zombieAlly = false;
+  /** The Summoner also calls two PHYSICERTAS (beat PHYLISHIEUS's final phase). */
+  physiAlly = false;
   /** Lollipop's Sugar Rush: seconds left of running faster. */
   sugarT = 0;
   /** Pistol: shots left before it reloads. */
@@ -378,7 +380,8 @@ export type CatVariant =
   | 'babyele' | 'drone' | 'penguin'
   | 'knight' | 'frog' | 'ghost'
   | 'ginger' | 'cupcake' | 'chef'
-  | 'unicorn' | 'dino' | 'wizard' | 'panda';
+  | 'unicorn' | 'dino' | 'wizard' | 'panda'
+  | 'physi';
 /** The Outbreak's zombies (on the zombies' side). */
 export type ZombieKind = 'znormal' | 'zshooter' | 'zmini' | 'zbig' | 'zrunner' | 'zexploder' | 'zboss';
 export const ZOMBIE_KINDS: ZombieKind[] = ['znormal', 'zshooter', 'zmini', 'zbig', 'zrunner', 'zexploder', 'zboss'];
@@ -391,6 +394,7 @@ export const CAT_VARIANTS: CatVariant[] = [
   'knight', 'frog', 'ghost',
   'ginger', 'cupcake', 'chef',
   'unicorn', 'dino', 'wizard', 'panda',
+  'physi',
 ];
 /** Helpers that don't vanish when beaten: they stay where they went down (the red guy frozen, skeletons as bones, the dog asleep) until their weapon or the Summoner brings them back. */
 export const REVIVES = (v: CatVariant) => v === 'redguy' || v === 'skeleton' || v === 'dog';
@@ -448,6 +452,8 @@ export const CHEF = { hp: 350, dmg: 15, pie: 22, every: 1.8 };
 export const UNICORN = { hp: 300, dmg: 26, speed: 400, every: 0.9, chargeEvery: 3 };
 export const DINO = { hp: 550, dmg: 36, speed: 260, every: 1.3 };
 export const WIZARD = { hp: 300, dmg: 12, bolt: 26, every: 1.6 };
+/** PHYSICERTAS: PHYLISHIEUS's minions in his final phase (and yours, from the Summoner and Sandbox, once he is beaten). */
+export const PHYSI = { hp: 1000, dmg: 20, speed: 330, every: 0.8 };
 export const PANDA = { hp: 450, dmg: 20, speed: 230, every: 1, rollEvery: 3.5 };
 /** The October 22 weapons. Booger: 30 a flick, 30 a throw. Racket: a tennis ball that bounces. Lollipop: Sugar Rush (faster and heals).
  * Scythe: Reap, a big sweep that heals you for half of what it hits. Pillow: Pillow Fight, a burst of feathers that puts everyone close to sleep. */
@@ -507,10 +513,10 @@ export class Cat extends Body {
     // Stickman-sized: soldiers and the Stick Brawl allies. The red guy is as small as in WORST Stickman Fighter.
     // Chicks are tiny, the Chicken is half a stickman, the little pigeon is smaller than a stickman.
     // Zombies and ninjas are stickmen too; the mini zombie is small, the big one and the Zombie Boss are huge.
-    const stick = variant === 'soldier' || variant === 'sbsnow' || variant === 'fireally' || variant === 'skeleton' || variant === 'ninja' || variant === 'zombie' || variant === 'znormal' || variant === 'zshooter' || variant === 'zrunner' || variant === 'zexploder';
+    const stick = variant === 'soldier' || variant === 'sbsnow' || variant === 'fireally' || variant === 'skeleton' || variant === 'ninja' || variant === 'zombie' || variant === 'znormal' || variant === 'zshooter' || variant === 'zrunner' || variant === 'zexploder' || variant === 'physi';
     const [w, h] =
       variant === 'memory' ? [46, 128] : stick ? [30, 80] : variant === 'redguy' ? [16, 43] : variant === 'retro' ? [30, 60] : variant === 'bee' ? [16, 14] : variant === 'zmini' ? [20, 48] : variant === 'zbig' ? [52, 120] : variant === 'zboss' ? [80, 190] : variant === 'babyele' ? [56, 50] : variant === 'drone' ? [34, 18] : variant === 'penguin' ? [28, 40] : variant === 'knight' ? [34, 86] : variant === 'frog' ? [34, 26] : variant === 'ghost' ? [34, 44] : variant === 'ginger' ? [30, 56] : variant === 'cupcake' ? [28, 28] : variant === 'chef' || variant === 'wizard' ? [30, 80] : variant === 'unicorn' ? [52, 48] : variant === 'dino' ? [46, 56] : variant === 'panda' ? [44, 42] : variant === 'chick' ? [16, 16] : variant === 'chicken' ? [38, 42] : variant === 'lilpigeon' ? [28, 32] : variant === 'dog' ? [46, 34] : [34, 30];
-    super(x, y, w, h, hp, owner.team, variant === 'sbsnow' ? '#bdeeff' : variant === 'fireally' ? '#ff7a1a' : variant === 'redguy' ? '#f66' : variant === 'skeleton' ? '#eeeeee' : variant === 'retro' ? '#111111' : variant === 'babyele' ? '#b0bec5' : variant === 'penguin' ? '#263238' : variant === 'frog' ? '#66bb6a' : variant === 'ghost' ? '#eceff1' : variant === 'ginger' ? '#b9773a' : variant === 'cupcake' ? '#f48fb1' : variant === 'unicorn' ? '#fafafa' : variant === 'dino' ? '#66bb6a' : variant === 'wizard' ? '#5e35b1' : variant === 'panda' ? '#fafafa' : isZombie(variant) || variant === 'zombie' ? '#7cb342' : owner.color);
+    super(x, y, w, h, hp, owner.team, variant === 'physi' ? '#311b92' : variant === 'sbsnow' ? '#bdeeff' : variant === 'fireally' ? '#ff7a1a' : variant === 'redguy' ? '#f66' : variant === 'skeleton' ? '#eeeeee' : variant === 'retro' ? '#111111' : variant === 'babyele' ? '#b0bec5' : variant === 'penguin' ? '#263238' : variant === 'frog' ? '#66bb6a' : variant === 'ghost' ? '#eceff1' : variant === 'ginger' ? '#b9773a' : variant === 'cupcake' ? '#f48fb1' : variant === 'unicorn' ? '#fafafa' : variant === 'dino' ? '#66bb6a' : variant === 'wizard' ? '#5e35b1' : variant === 'panda' ? '#fafafa' : isZombie(variant) || variant === 'zombie' ? '#7cb342' : owner.color);
     this.owner = owner;
     this.touchDmg = touchDmg;
     this.facing = owner.facing;

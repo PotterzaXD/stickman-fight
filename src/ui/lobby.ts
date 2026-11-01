@@ -21,7 +21,10 @@ export const MAX_BOSSES = 3;
 /** Stickman Infection and PHYLISHIEUS take up to 30 bots. */
 export const BIG_BOTS = 30;
 /** Bots allowed in this mode (the Pigeon fits up to 30 fighters). */
-export const maxBots = (mode: Mode, humans: number) => (mode === 'pigeon' ? PIGEON_MAX - humans : mode === 'infection' || mode === 'phyl' ? BIG_BOTS : MAX_BOTS);
+/** PHYLISHIEUS's final phase: ×10 the bots (300). */
+export const PHYL3_BOTS = BIG_BOTS * 10;
+export const maxBots = (mode: Mode, humans: number) =>
+  mode === 'pigeon' ? PIGEON_MAX - humans : mode === 'phyl' && save.data.phyl.phase === 3 ? PHYL3_BOTS : mode === 'infection' || mode === 'phyl' ? BIG_BOTS : MAX_BOTS;
 
 /** Hat picker for a slot: players pick from their hats, bots can also get a random one. */
 export function hatSelect(s: SlotConfig, bot: boolean) {
@@ -360,7 +363,7 @@ register('lobby', (root, arg) => {
         h('div', { class: 'segs' }, modeBtn('infection', '🦠'), modeBtn('events', '🌪️')),
         h('p', { class: 'muted' }, t(`${m.mode}Desc` as Key)),
         isSecret(m.mode) || isXBoss(m.mode) ? h('small', { class: 'muted' }, `🪙🏆 ${t(`${m.mode}Reward` as Key)}`) : null,
-        m.mode === 'phyl' ? h('p', { class: 'phyl-phase' }, `📖 ${t('phylPhase', { n: save.data.phyl.phase })} · 🪙🏆 ${t(save.data.phyl.phase === 2 ? 'phylReward2' : 'phylReward1')}`) : null,
+        m.mode === 'phyl' ? h('p', { class: 'phyl-phase' }, `📖 ${save.data.phyl.phase === 3 ? t('phyl3_name') : t('phylPhase', { n: save.data.phyl.phase })} · 🪙🏆 ${t(`phylReward${save.data.phyl.phase}` as Key)}`) : null,
         m.mode === 'buffalo' ? h('small', { class: 'muted' }, `🪙🏆 ${t('buffaloReward')}`) : null,
         m.mode === 'pigeon' ? h('small', { class: 'muted' }, `🪙🏆 ${t('pigeonReward')}`) : null,
         m.mode === 'rush' ? h('small', { class: 'muted' }, `🪙🏆 ${t('rushReward')}`) : null,
@@ -383,7 +386,7 @@ register('lobby', (root, arg) => {
       m.mode === 'infection'
         ? h('section', {}, h('h3', {}, `${t('map')}: ${t('m.town')}`), h('small', { class: 'muted' }, t('infMapNote')))
         : m.mode === 'phyl'
-        ? h('section', {}, h('h3', {}, `${t('map')}: ${t('m.tomekeep')}`), h('small', { class: 'muted' }, t('phylMapNote')))
+        ? h('section', {}, h('h3', {}, `${t('map')}: ${t(save.data.phyl.phase === 3 ? 'm.phylfinal' : 'm.tomekeep')}`), h('small', { class: 'muted' }, t(save.data.phyl.phase === 3 ? 'phylFinalMapNote' : 'phylMapNote')))
         : h('section', {}, h('h3', {}, t('map')), h('div', { class: 'map-row' }, ...mapCards)),
       h(
         'section',
@@ -419,6 +422,21 @@ register('lobby', (root, arg) => {
               },
               `${t('addBot')} ${bots}/${maxBots(m.mode, humans)}`,
             ),
+            // Room for hundreds of bots: add them ten at a time.
+            maxBots(m.mode, humans) > BIG_BOTS
+              ? h(
+                  'button',
+                  {
+                    class: 'btn small',
+                    disabled: bots >= maxBots(m.mode, humans),
+                    onclick: () => {
+                      for (let k = 0; k < 10 && m.slots.filter((s) => s.kind === 'bot').length < maxBots(m.mode, humans); k++) m.slots.push({ kind: 'bot', weapon: 'random', team: leastTeam(), difficulty: 'medium' });
+                      render();
+                    },
+                  },
+                  `${t('addBot')} +10`,
+                )
+              : null,
           ),
         ),
         humans === 0 && m.slots.length ? h('p', { class: 'muted' }, `👀 ${t('watchOnly')}`) : null,

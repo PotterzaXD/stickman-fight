@@ -1,3 +1,4 @@
+import { phylMapFor } from '../game/phyl';
 import { Game, type MatchResult } from '../game/game';
 import { JoystickManager } from '../game/input';
 import { t } from '../i18n';
@@ -134,7 +135,7 @@ register('netplay', (root) => {
     hideOverlay();
     sticks?.destroy();
     acc = 0;
-    game = new Game(start.map, start.specs, {
+    game = new Game(start.mode === 'phyl' ? phylMapFor(start.phyl ?? 1) : start.map, start.specs, {
       mode: start.mode,
       fallMode: start.fallMode,
       maxSnowmen: ONLINE_SNOWMEN,

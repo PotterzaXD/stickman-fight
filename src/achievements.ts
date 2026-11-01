@@ -34,10 +34,17 @@ export const ACHIEVEMENTS = [
   'rushDone',
   'lastLife',
 ] as const;
-export type AchievementId = (typeof ACHIEVEMENTS)[number];
+/** PHYLISHIEUS badges: one for each phase beaten. They don't count toward the 28 that wake him up. */
+export const PHYL_BADGES = ['phylBeat1', 'phylBeat2', 'phylBeat3'] as const;
+export type BadgeId = (typeof PHYL_BADGES)[number];
+export type AchievementId = (typeof ACHIEVEMENTS)[number] | BadgeId;
+/** Everything on the Achievements screen (the 28 plus the badges). */
+export const ALL_ACH: AchievementId[] = [...ACHIEVEMENTS, ...PHYL_BADGES];
+export const achTotal = () => ALL_ACH.length;
+export const achHave = () => ALL_ACH.filter((id) => save.data.achievements.includes(id)).length;
 
 /** PHYLISHIEUS wakes up once every achievement is done, and leaves for good (to Sandbox) once phase 2 is beaten. */
-export const achDoneCount = () => ACHIEVEMENTS.filter((id) => save.data.achievements.includes(id)).length;
+export const achDoneCount = () => (ACHIEVEMENTS as readonly string[]).filter((id) => save.data.achievements.includes(id)).length;
 export const phylOpen = () => achDoneCount() >= ACHIEVEMENTS.length && !save.data.phyl.done;
 /** Locked: still shows as ??? (until the mode is gone). */
 export const phylLocked = () => achDoneCount() < ACHIEVEMENTS.length && !save.data.phyl.done;
@@ -58,6 +65,8 @@ export function grant(ids: AchievementId[]): AchievementId[] {
   const want = [...ids];
   if (ALL_OWNABLE.every((w) => save.data.owned.includes(w.id))) want.push('allWeapons');
   if (FIGHT_WEAPONS.every((id) => save.data.stats.usedWeapons.includes(id))) want.push('collector2');
+  // A badge for every PHYLISHIEUS phase beaten (also for saves from before the badges).
+  PHYL_BADGES.forEach((id, i) => save.data.phyl.beat > i && want.push(id));
   const fresh = Array.from(new Set(want)).filter((id) => !hasAch(id));
   if (fresh.length) save.update((d) => d.achievements.push(...fresh));
   return fresh;

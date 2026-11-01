@@ -215,7 +215,16 @@ The final boss, shown as ??? in the boss list until you have all 28 achievements
 - After the first round he says "YOU ALL SHOULD DIE." and drops a 500,000 damage bomb. Only the two glowing bottom corners are safe. Then the Tome Golem rises to fight on your side.
 - Then he gets tired and comes down for 8 seconds: that is the only time you can hit him. He goes back up at 50,000 HP, and at 25,000 HP he says "WHY ARE YOU STILL HERE?" and destroys the Golem.
 - At 0 HP: "THIS IS NOT THE END." (+10,000 coins), and you go back to his menu for **phase 2**: 100,000 HP, "YOU THOUGHT I WAS DEAD?", and he adds chasing spell books, lasers and floor shockwaves, and drops the bomb a second time at half HP.
-- Beat phase 2 (+20,000 coins) and the mode leaves the menu for good. Phase 1 and phase 2 then show up in Sandbox as two separate bosses.
+- Beat phase 2 (+20,000 coins) and the **final phase** comes next. Phase 1 and phase 2 then show up in Sandbox as two separate bosses.
+- **Final phase:** 125,000 HP, fought on **The Endless Tome Realm**: every map in the game joined in one long row (about 63,000 px, no purple portal) in the Tome Keep's look. He waits at the far left and you start at the far right (about 2.5 minutes of walking). Offline you can bring up to 300 bots (10× the usual 30; online rooms stay at 30). He keeps all of phase 2's attacks except the bomb, and there is no Tome Golem.
+  - **Sky laser:** every 45 seconds the sky turns red for 5 seconds, then a laser hits the WHOLE map for 1,000,000 damage. Only standing under a platform or block (anything over your head) saves you. Bots run for cover too.
+  - **PHYSICERTAS:** his minions (player-sized, 1,000 HP, 20 damage a hit). He drops 1 to 3 next to one of you about every 40 seconds, at most 6 at a time.
+  - Beat it (+40,000 coins): the mode leaves the menu for good, The Forbidden Tome Keep becomes a normal map, the final phase and the Tome Golem show up in Sandbox, and PHYSICERTAS join Sandbox's helpers and the Summoner (2 of them).
+- **Badges:** one for beating each phase (3 in all). They don't count toward the 28 achievements that wake him up.
+
+## Profile
+
+Tap your name at the top right of the menu. Your profile shows your stickman (top left) wearing the hat, shirt, pants and shoes you picked, when you joined (your Google sign-up date, or the first day on this device), how many friends you have (needs Google sign-in), matches played (counted from this update) and achievements (out of 31). Shirts, pants and shoes (8 of each) are sold in the Shop next to the hats. They only show on your profile, not in matches.
 
 Random weapons never give a bot a summon card (players can still pick one). Stickman Infection takes up to 30 bots (online: up to 8 people, and bots fill the rest of the room).
 

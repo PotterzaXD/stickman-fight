@@ -1,3 +1,4 @@
+import { drawOutfit, type Look } from '../game/clothes';
 import { drawBackground, drawPlatforms, drawWeaponShape } from '../game/render';
 import type { MapDef } from '../game/types';
 import type { WeaponId } from '../game/weapons';
@@ -6,6 +7,14 @@ import { drawHat } from '../game/hats';
 
 /** How far each gun reaches back behind the hand (stock or grip), in weapon units. */
 const GUN_BACK: Partial<Record<WeaponId, number>> = { shotgun: 34, sniper: 31, pistol: 11, gun67: 9, watergun: 9 };
+
+/** A stickman wearing an outfit (profile picture and the clothes shop). */
+export function outfitIcon(look: Look, w = 64, h = w): HTMLCanvasElement {
+  const { c, ctx } = canvas(w, h);
+  const sc = Math.min(w / 70, h / 110);
+  drawOutfit(ctx, look, w / 2, h - 6 * sc, sc);
+  return c;
+}
 
 function canvas(w: number, h: number) {
   const c = document.createElement('canvas');

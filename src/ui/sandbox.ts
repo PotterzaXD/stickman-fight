@@ -1,7 +1,7 @@
 import { SB_ROCK_AT, TEAM_COLORS } from '../game/game';
 import { playMusic } from '../music';
-import { BABY_ELE, BEES, CHEF, CUPCAKE, GINGER, FROG, GHOST, KNIGHT, CHICK, CHICKEN, DOG, DRONE, LIL_PIGEON, MEMORY_ALLY, NINJAS, PENGUIN, PIGEON_HP, RED_GUY, RETRO, SB_ALLY, SECRET_HP, SKELETON, SNOWMAN_HP, SOLDIER_HP, XBOSS_HP, ZOMBIES, ZOMBIE_ALLY, UNICORN, DINO, WIZARD, PANDA } from '../game/entities';
-import { PHYL_KINDS, isPhylKind } from '../game/types';
+import { BABY_ELE, BEES, CHEF, CUPCAKE, GINGER, FROG, GHOST, KNIGHT, CHICK, CHICKEN, DOG, DRONE, LIL_PIGEON, MEMORY_ALLY, NINJAS, PENGUIN, PIGEON_HP, RED_GUY, RETRO, SB_ALLY, SECRET_HP, SKELETON, SNOWMAN_HP, SOLDIER_HP, XBOSS_HP, ZOMBIES, ZOMBIE_ALLY, UNICORN, DINO, WIZARD, PANDA, PHYSI } from '../game/entities';
+import { PHYL_KINDS, isPhylKind, phylKindPhase } from '../game/types';
 import { PHYL } from '../game/phyl';
 import { HELPER_KINDS, SB_CHICKS, SB_ZOMBIE_KINDS, SECRET_KINDS, XBOSS_KINDS, isSbZombie, type HelperKind, type SandboxHelper, type SbZombieKind } from '../game/types';
 import { hasAch } from '../achievements';
@@ -28,17 +28,17 @@ const MAX_SB_CLONES = 10;
 const MAX_SB_ZOMBIES = 30;
 
 const POWERS = [25, 50, 100, 200, 500, 1000];
-const BOSS_HP: Record<BossKind, number> = { boss: 5000, cat: 10000, mascot: 50000, buffalo: 8000, fish: 9999, pigeon: PIGEON_HP, ...SECRET_HP, ...XBOSS_HP, phyl1: PHYL.hp[1], phyl2: PHYL.hp[2] };
-export const BOSS_ICON: Record<BossKind, string> = { boss: '👹', cat: '🐱', mascot: '⚪', buffalo: '🐃', fish: '🐟', pigeon: '🐦', queen: '❄️', tide: '🌊', guardian: '🌲', elephant: '🐘', scarecrow: '🌾', robo: '🤖', phyl1: '📖', phyl2: '📕' };
+const BOSS_HP: Record<BossKind, number> = { boss: 5000, cat: 10000, mascot: 50000, buffalo: 8000, fish: 9999, pigeon: PIGEON_HP, ...SECRET_HP, ...XBOSS_HP, phyl1: PHYL.hp[1], phyl2: PHYL.hp[2], phyl3: PHYL.hp[3], golem: PHYL.golemHp };
+export const BOSS_ICON: Record<BossKind, string> = { boss: '👹', cat: '🐱', mascot: '⚪', buffalo: '🐃', fish: '🐟', pigeon: '🐦', queen: '❄️', tide: '🌊', guardian: '🌲', elephant: '🐘', scarecrow: '🌾', robo: '🤖', phyl1: '📖', phyl2: '📕', phyl3: '📜', golem: '🗿' };
 const HELPER_ICON: Record<HelperKind | SbZombieKind, string> = {
   cat: '🐱', fish: '🐟', memory: '💭', soldier: '💂', snowman: '☃️', sbsnow: '⛄', fireally: '🔥', redguy: '🟥', chicken: '🐔', chick: '🐥', lilpigeon: '🐦', skeleton: '💀', dog: '🐕', retro: '👾', bee: '🐝', ninja: '🥷', zombie: '🧟',
-  babyele: '🐘', drone: '🛸', penguin: '🐧', knight: '🛡️', frog: '🐸', ghost: '👻', ginger: '🍪', cupcake: '🧁', chef: '👨‍🍳', unicorn: '🦄', dino: '🦖', wizard: '🧙', panda: '🐼',
+  babyele: '🐘', drone: '🛸', penguin: '🐧', knight: '🛡️', frog: '🐸', ghost: '👻', ginger: '🍪', cupcake: '🧁', chef: '👨‍🍳', unicorn: '🦄', dino: '🦖', wizard: '🧙', panda: '🐼', physi: '👁️',
   znormal: '🧟', zshooter: '🤢', zmini: '🧒', zbig: '🦍', zrunner: '🏃', zexploder: '💥', zboss: '👑',
 };
 const HELPER_HP: Record<HelperKind | SbZombieKind, number> = {
   cat: 100, fish: 50, memory: MEMORY_ALLY.hp, soldier: SOLDIER_HP, snowman: SNOWMAN_HP, sbsnow: SB_ALLY.hp, fireally: SB_ALLY.hp, redguy: RED_GUY.hp,
   chicken: CHICKEN.hp, chick: CHICK.hp, lilpigeon: LIL_PIGEON.hp, skeleton: SKELETON.hp, dog: DOG.hp, retro: RETRO.hp, bee: BEES.hp, ninja: NINJAS.hp, zombie: ZOMBIE_ALLY.hp,
-  babyele: BABY_ELE.hp, drone: DRONE.hp, penguin: PENGUIN.hp, knight: KNIGHT.hp, frog: FROG.hp, ghost: GHOST.hp, ginger: GINGER.hp, cupcake: CUPCAKE.hp, chef: CHEF.hp, unicorn: UNICORN.hp, dino: DINO.hp, wizard: WIZARD.hp, panda: PANDA.hp,
+  babyele: BABY_ELE.hp, drone: DRONE.hp, penguin: PENGUIN.hp, knight: KNIGHT.hp, frog: FROG.hp, ghost: GHOST.hp, ginger: GINGER.hp, cupcake: CUPCAKE.hp, chef: CHEF.hp, unicorn: UNICORN.hp, dino: DINO.hp, wizard: WIZARD.hp, panda: PANDA.hp, physi: PHYSI.hp,
   znormal: ZOMBIES.znormal.hp, zshooter: ZOMBIES.zshooter.hp, zmini: ZOMBIES.zmini.hp, zbig: ZOMBIES.zbig.hp, zrunner: ZOMBIES.zrunner.hp, zexploder: ZOMBIES.zexploder.hp, zboss: ZOMBIES.zboss.hp,
 };
 /** Helpers that count toward the helper limit (chicks don't, zombies have their own). */
@@ -52,7 +52,9 @@ export function sandboxCrowd(m: MatchConfig): number {
 /** The Pigeon shows up in Sandbox after you beat it once. */
 const pigeonOpen = () => hasAch('pigeonBeat');
 /** The zombie ally shows up after you beat wave 10 of The Outbreak. */
-const helperOpen = (k: HelperKind | SbZombieKind) => k !== 'zombie' || save.data.zombieAlly;
+const helperOpen = (k: HelperKind | SbZombieKind) => (k !== 'zombie' || save.data.zombieAlly) && (k !== 'physi' || save.data.phyl.done);
+/** PHYLISHIEUS in Sandbox: phases 1 and 2 once phase 2 is beaten; the final phase and the Tome Golem once the final phase is beaten. */
+const bossOpen = (k: BossKind) => (isPhylKind(k) ? save.data.phyl.beat >= phylKindPhase(k) && save.data.phyl.beat >= 2 : k === 'golem' ? save.data.phyl.done : true);
 
 function defaultSandbox(): MatchConfig {
   return {
@@ -69,7 +71,7 @@ register('sandbox', (root) => {
   const m: MatchConfig = structuredClone(save.data.lastSandbox ?? defaultSandbox());
   m.mode = 'sandbox';
   m.extraBosses ??= [];
-  m.extraBosses = m.extraBosses.filter((b) => b.kind in BOSS_HP && (!(SECRET_KINDS as string[]).includes(b.kind) || save.data.secrets.includes(b.kind)) && (b.kind !== 'pigeon' || pigeonOpen()) && (!isPhylKind(b.kind) || save.data.phyl.done));
+  m.extraBosses = m.extraBosses.filter((b) => b.kind in BOSS_HP && (!(SECRET_KINDS as string[]).includes(b.kind) || save.data.secrets.includes(b.kind)) && (b.kind !== 'pigeon' || pigeonOpen()) && bossOpen(b.kind));
   m.helpers = (m.helpers ?? []).filter((x) => (HELPER_KINDS.includes(x.kind as HelperKind) || isSbZombie(x.kind)) && helperOpen(x.kind));
   m.clones = (m.clones ?? []).filter((i) => Number.isInteger(i) && i >= 0 && i < m.slots.length);
   if (!maps.some((x) => x.id === m.mapId)) m.mapId = 'arena';
@@ -380,8 +382,9 @@ register('sandbox', (root) => {
           // Secret bosses stay hidden until you unlock them.
           ...SECRET_KINDS.filter((k) => save.data.secrets.includes(k)).map(addBoss),
           ...XBOSS_KINDS.map(addBoss),
-          // PHYLISHIEUS moves here once both of his phases are beaten.
-          ...(save.data.phyl.done ? PHYL_KINDS.map(addBoss) : []),
+          // PHYLISHIEUS moves here phase by phase (and the Tome Golem with his final phase).
+          ...PHYL_KINDS.filter(bossOpen).map(addBoss),
+          bossOpen('golem') ? addBoss('golem') : null,
         ),
         h('div', { class: `slots tidy ${m.ffa ? 'cols-boss-ffa' : 'cols-boss'}` }, ...bossRows),
       ),

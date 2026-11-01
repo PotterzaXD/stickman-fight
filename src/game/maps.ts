@@ -719,8 +719,14 @@ export function pickSpawns(map: MapDef, count: number): Vec[] {
   return chosen;
 }
 
+/** Maps you unlock (The Forbidden Tome Keep, once PHYLISHIEUS's final phase is beaten). */
+const UNLOCKED_MAPS: MapDef[] = [];
+export function setUnlockedMaps(list: MapDef[]) {
+  UNLOCKED_MAPS.splice(0, UNLOCKED_MAPS.length, ...list);
+}
+
 export function allMaps(custom: MapDef[]): MapDef[] {
-  return [...BUILTIN_MAPS, ...custom];
+  return [...BUILTIN_MAPS, ...UNLOCKED_MAPS, ...custom];
 }
 
 export function encodeMap(m: MapDef): string {
@@ -796,8 +802,8 @@ const SEAM = 160;
  * Side by side the floors line up at the bottom and a bridge crosses each gap (with a bounce pad when one side is much higher).
  * In 2 by 2, a lift goes up from each bottom map into the map above it.
  */
-export function connectMaps(list: MapDef[], layout: ConnectLayout, name: string): MapDef {
-  const maps = list.slice(0, CONNECT_MAX);
+export function connectMaps(list: MapDef[], layout: ConnectLayout, name: string, max = CONNECT_MAX): MapDef {
+  const maps = list.slice(0, max);
   const cols = layout === 'grid' && maps.length > 2 ? 2 : maps.length;
   const rows = Math.ceil(maps.length / cols);
   const colW = Array.from({ length: cols }, (_, c) => Math.max(...maps.filter((_, i) => i % cols === c).map((m) => m.w)));

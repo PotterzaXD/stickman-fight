@@ -4,7 +4,8 @@ import { t, type Key } from '../i18n';
 import { save } from '../save';
 import { sfx } from '../sfx';
 import { confirmBox, h, toast } from './dom';
-import { hatIcon, weaponIcon } from './icons';
+import { hatIcon, outfitIcon, weaponIcon } from './icons';
+import { CLOTHES, type ClothSlot } from '../game/clothes';
 import { HATS } from '../game/hats';
 import { coinChip } from './menu';
 import { go, register } from './router';
@@ -13,7 +14,36 @@ register('shop', (root) => {
   const grid = h('div', { class: 'shop-grid' });
   const head = h('header', { class: 'page-head' });
   const tabs = h('div', { class: 'segs shop-tabs' });
-  let tab: 'weapons' | 'hats' = 'weapons';
+  let tab: 'weapons' | 'hats' | ClothSlot = 'weapons';
+
+  /** Shirts, pants and shoes: for your profile stickman (they don't show in matches). */
+  const clothCards = (slot: ClothSlot) =>
+    CLOTHES.filter((x) => x.slot === slot).map((x) => {
+      const name = t(`cloth.${x.id}` as Key);
+      const have = save.data.clothes.includes(x.id);
+      const afford = save.data.coins >= x.price;
+      const buy = async () => {
+        if (!afford) return toast(t('notEnough'));
+        if (!(await confirmBox(t('confirmBuy', { name, price: x.price }), t('buy'), t('back')))) return;
+        if (save.data.coins < x.price) return toast(t('notEnough'));
+        save.update((d) => {
+          d.coins -= x.price;
+          if (!d.clothes.includes(x.id)) d.clothes.push(x.id);
+          // Wear it right away.
+          d.outfit[slot] = x.id;
+        });
+        sfx.coin();
+        toast(t('bought', { name }));
+        render();
+      };
+      return h(
+        'div',
+        { class: `shop-card ${have ? 'have' : ''}` },
+        h('div', { class: 'shop-icon' }, outfitIcon({ hat: 'none', shirt: 'none', pants: 'none', shoes: 'none', color: '#9e9e9e', [slot]: x.id }, 64, 84)),
+        h('h3', {}, name),
+        have ? h('span', { class: 'badge' }, `✔ ${t('owned')}`) : h('button', { class: `btn ${afford ? 'primary' : ''}`, onclick: buy }, `🪙 ${x.price}`),
+      );
+    });
 
   /** The hat shop: buy hats, then pick them for players and bots in Play. */
   const hatCards = () =>
@@ -49,6 +79,9 @@ register('shop', (root) => {
         [
           ['weapons', `⚔️ ${t('weaponsTab')}`],
           ['hats', `🎩 ${t('hatsTab')}`],
+          ['shirt', `👕 ${t('cloth.shirts')}`],
+          ['pants', `👖 ${t('cloth.pantss')}`],
+          ['shoes', `👟 ${t('cloth.shoess')}`],
         ] as const
       ).map(([id, label]) =>
         h(
@@ -64,6 +97,10 @@ register('shop', (root) => {
         ),
       ),
     );
+    if (tab === 'shirt' || tab === 'pants' || tab === 'shoes') {
+      grid.replaceChildren(h('p', { class: 'muted shop-note' }, t('clothesNote')), ...clothCards(tab));
+      return;
+    }
     if (tab === 'hats') {
       grid.replaceChildren(h('p', { class: 'muted shop-note' }, t('hatsNote')), ...hatCards());
       return;

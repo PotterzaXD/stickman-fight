@@ -40,7 +40,7 @@ import {
 } from './entities';
 import { MELEE_FINISH, PROJ_FINISH, helperCorpse, makeCorpse, updateCorpses, type Corpse, type Finish } from './finish';
 import { THEMES, pickSpawns } from './maps';
-import { HELPER_KINDS, PIGEON_WEAPON, SB_CHICKS, isPhylKind, isSbZombie, isXBoss, type OutbreakInfo, type SandboxHelper } from './types';
+import { HELPER_KINDS, PIGEON_WEAPON, SB_CHICKS, isPhylKind, isSbZombie, isXBoss, phylKindPhase, type OutbreakInfo, type SandboxHelper } from './types';
 import { updateElephant, scarecrowSkill, roboSkill, steerCrow } from './bosses';
 import { OutbreakState, startOutbreak, outbreakWinner, updateOutbreak, updateRise, updateZombieBosses, zombieBoom } from './outbreak';
 import { feedCount, type FeedKind } from './killfeed';
@@ -49,11 +49,11 @@ import { BOOGER, CHEF, CUPCAKE, FROG, GHOST, GINGER, KNIGHT, LOLLIPOP } from './
 import { oct23AttackGap, oct23Bit, oct23Hit, oct23Skill, oct23Splat, summonOct23, updateOct23 } from './oct23';
 import { infectHit, infectionWinner, startInfection, turnZombie, updateInfection, type InfectionState } from './infection';
 import { startEvents, updateEvents, type EventsState } from './events';
-import { makePhyl, phylCanDie, phylClientTick, phylDodge, phylGuard, updatePhyl, type PhylState } from './phyl';
+import { FINAL_MAP_ID, finalSpawns, makeGolem, makePhyl, phylCanDie, phylClientTick, phylDodge, phylGuard, updatePhyl, type PhylState } from './phyl';
 import { HELPER_STATS, meleeForce, oct30AttackGap, oct30Hit, oct30Skill, oct30Splat, pierces, summonOct30, updateOct30, wake } from './oct30';
 import { helperArmour, oct22AttackGap, oct22Hit, oct22Skill, rushWinner, startRush, startStock, stockWinner, tennisBounce, updateRush, type RushState } from './oct22';
 import { Juice, wallPush } from './juice';
-import { BEACH_MAP, BEACH_MODES, isBossMode, isSecret, type BossKind, type Difficulty, type FallMode, type MapDef, type Mode, type Platform, type SandboxBoss } from './types';
+import { BEACH_MAP, BEACH_MODES, isBossMode, isSecret, type BossKind, type Difficulty, type FallMode, type MapDef, type Mode, type PhylPhase, type Platform, type SandboxBoss } from './types';
 import { SHOP_WEAPONS, isSummonCard, weapon, type WeaponId } from './weapons';
 import type { Key } from '../i18n';
 import { sfx } from '../sfx';
@@ -82,6 +82,8 @@ export interface FighterSpec {
   lives?: number;
   /** The Summoner also calls a zombie ally (beat wave 10 of The Outbreak). */
   zombie?: boolean;
+  /** The Summoner also calls two PHYSICERTAS (beat PHYLISHIEUS's final phase). */
+  physi?: boolean;
 }
 
 export interface MatchResult {
@@ -127,7 +129,7 @@ export interface GameOpts {
   /** Screen juice (Settings): hit-stop, slow motion and flashes. Default on. */
   juice?: boolean;
   /** PHYLISHIEUS: which phase (1 or 2), and the Tome Golem's name in this device's language. */
-  phylPhase?: 1 | 2;
+  phylPhase?: PhylPhase;
   golemName?: string;
 }
 
@@ -435,7 +437,7 @@ export class Game {
     this.gravity = GRAVITY * (THEMES[map.theme]?.gravity ?? 1);
     this.potionsOn = !!opts.potions && !opts.demo;
     if (opts.golemName) this.golemName = opts.golemName;
-    const spawns = pickSpawns(map, specs.length + (opts.mode === 'boss' ? 1 : 0));
+    const spawns = map.id === FINAL_MAP_ID ? finalSpawns(map, specs.map((x) => x.human)) : pickSpawns(map, specs.length + (opts.mode === 'boss' ? 1 : 0));
     specs.forEach((s, i) => {
       const sp = spawns[i];
       // The Pigeon: everyone holds a shotgun.
@@ -443,6 +445,7 @@ export class Game {
       const f = new Fighter({ name: s.name, color: s.color, team: s.team, human: s.human, weapons: [weapon(wid)], x: sp.x, y: sp.y - 2, hp: s.hp, hat: s.hat });
       if (s.power) f.power = s.power / 100;
       f.zombieAlly = !!s.zombie;
+      f.physiAlly = !!s.physi;
       // The Outbreak: out of lives = out for good (they watch the rest).
       if (s.lives !== undefined) {
         f.lives = s.lives;
@@ -569,9 +572,14 @@ export class Game {
 
   /** Put a boss on the k-th widest platform (Buffalo, the Fishy boss, and Sandbox bosses). */
   addBoss(kind: BossKind, name: string, team: number, k: number, hp?: number): Fighter {
-    if (isPhylKind(kind)) return makePhyl(this, kind === 'phyl2' ? 2 : 1, name, team, hp);
+    if (isPhylKind(kind)) return makePhyl(this, phylKindPhase(kind), name, team, hp);
     const wide = [...this.map.platforms].filter((p) => p.kind !== 'lava' && p.kind !== 'spikes').sort((p, q) => q.w - p.w);
     const top = wide.length ? wide[k % wide.length] : null;
+    if (kind === 'golem') {
+      const gol = makeGolem(name, team, top ? top.x + top.w / 2 : this.map.w / 2, (top?.y ?? this.map.h / 2) - 300, hp);
+      this.fighters.push(gol);
+      return gol;
+    }
     const weapons =
       kind === 'cat'
         ? ['soup', 'catcall']
@@ -599,7 +607,7 @@ export class Game {
     const color = {
       boss: '#263238', cat: '#ff9800', mascot: '#ffffff', buffalo: '#5d4037', fish: '#1e88e5', pigeon: '#90a4ae', queen: '#81d4fa', tide: '#0277bd', guardian: '#558b2f',
       elephant: '#9aa0a6', scarecrow: '#c49a5a', robo: '#78909c',
-    }[kind];
+    }[kind as string] ?? '#263238';
     const f = new Fighter({
       name,
       color,
@@ -3387,6 +3395,11 @@ export class Game {
     const big = this.inf || this.phy || this.map.w * this.map.h > 4000 * 2200;
     const mine = big ? this.focus.map((i) => this.fighters[i]).filter((f) => f?.alive) : [];
     if (mine.length) list = mine;
+    // PHYLISHIEUS's final phase is far too long to see at once: once your own stickmen are down, watch one of your side.
+    else if (this.phy && this.map.w > 12000) {
+      const ally = this.fighters.find((f) => f.alive && !f.boss && f.team !== this.phy!.boss.team);
+      list = ally ? [ally] : [this.phy.boss];
+    }
     if (!list.length) list = this.snowmen;
     let minX: number, maxX: number, minY: number, maxY: number;
     if (list.length) {
