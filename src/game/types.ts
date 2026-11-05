@@ -23,7 +23,7 @@ export interface Intent {
 }
 
 export type Difficulty = 'easy' | 'medium' | 'hard';
-export type Mode = 'ffa' | 'team' | 'boss' | 'cat' | 'mascot' | 'buffalo' | 'pigeon' | 'sandbox' | 'outbreak' | 'hill' | 'race' | 'stock' | 'rush' | 'infection' | 'events' | 'phyl' | XBossKind | SecretKind;
+export type Mode = 'ffa' | 'team' | 'boss' | 'cat' | 'mascot' | 'buffalo' | 'pigeon' | 'sandbox' | 'outbreak' | 'hill' | 'race' | 'stock' | 'rush' | 'infection' | 'events' | 'phyl' | 'me' | 'survival' | XBossKind | SecretKind;
 
 /** The October 20 bosses: the Magical Elephant (flies with its big ears), the Giant Scarecrow and Robo Stick. */
 export type XBossKind = 'elephant' | 'scarecrow' | 'robo';
@@ -36,7 +36,7 @@ export const SECRET_KINDS: SecretKind[] = ['queen', 'tide', 'guardian'];
 export const isSecret = (m: string): m is SecretKind => (SECRET_KINDS as string[]).includes(m);
 
 /** Boss Fight, Boss Rush, Grandfather Cat, the Mascot, Buffalo, the Pigeon and the secret bosses: everyone teams up against the boss. */
-export const isBossMode = (m: Mode) => m === 'boss' || m === 'rush' || m === 'cat' || m === 'mascot' || m === 'buffalo' || m === 'pigeon' || m === 'phyl' || isXBoss(m) || isSecret(m);
+export const isBossMode = (m: Mode) => m === 'boss' || m === 'rush' || m === 'cat' || m === 'mascot' || m === 'buffalo' || m === 'pigeon' || m === 'phyl' || m === 'me' || isXBoss(m) || isSecret(m);
 /** The Pigeon: up to this many fighters, everyone holds a shotgun, and KO'd fighters come back. */
 export const PIGEON_MAX = 30;
 export const PIGEON_WEAPON = 'shotgun';
@@ -44,7 +44,7 @@ export const PIGEON_WEAPON = 'shotgun';
 export const BEACH_MODES: Mode[] = ['ffa', 'team', 'boss'];
 export const BEACH_MAP = 'beach';
 export type FallMode = 'ko' | 'bounce';
-export type ThemeId = 'day' | 'sunset' | 'night' | 'snow' | 'lava' | 'space' | 'beach' | 'war' | 'jungle' | 'haunted' | 'candy' | 'farm' | 'graveyard' | 'inferno' | 'pirate' | 'desert' | 'stage' | 'portal' | 'kitchen' | 'dessert' | 'infect' | 'tome';
+export type ThemeId = 'day' | 'sunset' | 'night' | 'snow' | 'lava' | 'space' | 'beach' | 'war' | 'jungle' | 'haunted' | 'candy' | 'farm' | 'graveyard' | 'inferno' | 'pirate' | 'desert' | 'stage' | 'portal' | 'kitchen' | 'dessert' | 'infect' | 'tome' | 'doom' | 'plane';
 
 /** Special blocks from the map editor. No kind = a normal platform. Sandbags stop bullets. Bounce pads launch you, ice is slippery, spikes hurt.
  * Walls are solid from every side: you can stand on top, but you can't walk through, jump up through, or hop over them. */
@@ -58,6 +58,10 @@ export interface Platform {
   kind?: BlockKind;
   /** Moving platform: slides `dx`, `dy` away and back every `period` seconds (`phase` 0-1 = where it starts). */
   move?: { dx: number; dy: number; period: number; phase?: number };
+  /** Tower of Doom: falls apart if you stand on it too long (comes back later). */
+  crumble?: boolean;
+  /** Drawn by its map instead (the Plane's crash site ground). */
+  hidden?: boolean;
   /** Not part of the map: an Ice Cream ice spike (on top of a head or beside someone) that melts away. */
   temp?: 'head' | 'side';
 }
@@ -79,6 +83,10 @@ export interface MapDef {
   portals?: { x: number; y: number; r: number }[];
   /** Map editor portals: they link up in pairs (1 with 2, 3 with 4...). Walk into one and you come out of the other. */
   warps?: Vec[];
+  /** Very tall (Tower of Doom): the camera follows your own stickmen. */
+  tall?: boolean;
+  /** The Plane: spawns outside (on the roof) instead of inside. */
+  spawnsOut?: Vec[];
   /** Things to look at that you can't stand on (Stickman Infection's town: trees, lamps, cars, houses...). */
   props?: MapProp[];
 }
@@ -109,7 +117,7 @@ export interface SlotConfig {
 }
 
 /** Bosses you can add in Sandbox. */
-export type BossKind = 'boss' | 'cat' | 'mascot' | 'buffalo' | 'fish' | 'pigeon' | XBossKind | SecretKind | PhylKind | 'golem';
+export type BossKind = 'boss' | 'cat' | 'mascot' | 'buffalo' | 'fish' | 'pigeon' | XBossKind | SecretKind | PhylKind | 'golem' | 'me';
 /** PHYLISHIEUS in Sandbox: phase 1 and phase 2 (once phase 2 is beaten) and the final phase 3 (once it is beaten) are separate bosses. */
 export type PhylKind = 'phyl1' | 'phyl2' | 'phyl3';
 export const PHYL_KINDS: PhylKind[] = ['phyl1', 'phyl2', 'phyl3'];
@@ -159,6 +167,10 @@ export interface MatchConfig {
   ffa?: boolean;
   /** The Outbreak: which save (0-2) this wave belongs to. */
   obSlot?: number;
+  /** The Plane: start outside on the roof. */
+  planeOut?: boolean;
+  /** PHYLISHIEUS refight with the Tome Key: the phase picked (1, 2 or the final phase 3). */
+  phylPhase?: PhylPhase;
 }
 
 /** The Outbreak: one wave of zombies. */

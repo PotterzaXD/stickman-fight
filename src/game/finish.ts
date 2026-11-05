@@ -128,6 +128,8 @@ export const PROJ_FINISH: Partial<Record<ProjKind, Finish>> = {
   frisbee: 'fling',
   blanket: 'trip',
   magic: 'pop',
+  mattress: 'trip',
+  aphone: 'fling',
 };
 
 /** One flying body part (shotgun point blank: blown to pieces). */

@@ -141,6 +141,13 @@ register('settings', (root) => {
         h(
           'section',
           {},
+          h('h3', {}, `🙈 ${t('hideBossBars')}`),
+          seg(s.hideBossBars ? 'on' : 'off', [['on', t('on')], ['off', t('off')]], (v) => (save.data.settings.hideBossBars = v === 'on')),
+          h('p', { class: 'muted small' }, t('hideBossBarsDesc')),
+        ),
+        h(
+          'section',
+          {},
           h('h3', {}, `💥 ${t('juice')}`),
           seg(s.juice !== false ? 'on' : 'off', [['on', t('on')], ['off', t('off')]], (v) => (save.data.settings.juice = v === 'on')),
           h('p', { class: 'muted small' }, t('juiceDesc')),

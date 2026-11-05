@@ -18,6 +18,10 @@ import { save } from '../save';
 import { STOCK_LIVES } from './oct22';
 import { drawIceSpike, drawPortal, drawTreatDeco, drawTreat, drawTreatProjectile, drawTreatWeapon } from './treats';
 import { drawBlackout, drawEventsHud, drawEventsWorld, drawFunDeco, drawInfectionHud, drawProps } from './funDraw';
+import { evOn } from './events';
+import { SURV_TEAM } from './survival';
+import { drawCrashGround, drawCrashSky, drawNov05Deco, drawNov05Hud, drawSurvivalHud, drawSurvivalWorld, drawNov05MapBack, drawNov05MapFront } from './nov05MapsDraw';
+import { drawNov05Over, drawNov05Projectile, drawNov05Weapon } from './nov05Draw';
 import { drawOct30Helper, drawOct30Over, drawOct30Projectile, drawOct30Weapon, drawWarps } from './oct30Draw';
 import { clipAboveGround, drawCastle, drawToy, drawToyProjectile, drawToyWeapon, drawWall, swingArm, walkLegs } from './toys';
 
@@ -169,7 +173,7 @@ export function drawBackground(ctx: Ctx, map: MapDef, vw: number, vh: number, ca
       ctx.arc(fx, fy, 8 + ph * 60, 0, Math.PI * 2);
       ctx.fill();
     }
-  } else if (!drawExtraDeco(ctx, th.deco, vw, vh, par, time) && !drawCritterDeco(ctx, th.deco, vw, vh, par, time) && !drawMonsterDeco(ctx, th.deco, vw, vh, par, time) && !drawGadgetDeco(ctx, th.deco, vw, vh, par, time) && !drawTreatDeco(ctx, th.deco, vw, vh, par, time) && !drawFunDeco(ctx, th.deco, vw, vh, par, time) && !drawPhylDeco(ctx, th.deco, vw, vh, par, time)) {
+  } else if (!drawExtraDeco(ctx, th.deco, vw, vh, par, time) && !drawCritterDeco(ctx, th.deco, vw, vh, par, time) && !drawMonsterDeco(ctx, th.deco, vw, vh, par, time) && !drawGadgetDeco(ctx, th.deco, vw, vh, par, time) && !drawTreatDeco(ctx, th.deco, vw, vh, par, time) && !drawFunDeco(ctx, th.deco, vw, vh, par, time) && !drawPhylDeco(ctx, th.deco, vw, vh, par, time) && !drawNov05Deco(ctx, th.deco, vw, vh, par, time)) {
     for (let i = 0; i < 40; i++) {
       const x = ((hash(i) * vw - par) % vw + vw) % vw;
       const y = vh - (((hash(i + 7) * vh + time * (40 + hash(i) * 60)) % vh) + vh) % vh;
@@ -397,15 +401,19 @@ export function drawPlatforms(ctx: Ctx, map: MapDef, time = 0, glassT?: number[]
     ctx.fillStyle = g;
     ctx.fillRect(-3000, map.h + 160, map.w + 6000, 3000);
   }
+  // Tower of Doom's wall and the Plane's body.
+  drawNov05MapBack(ctx, map, time);
   // The Portal map's portal, behind everyone.
   for (const p of purplePortals(map)) drawPortal(ctx, p, time);
   for (const [i, p] of map.platforms.entries()) {
     // Ice Cream's ice spikes are drawn on their own (see renderGame).
-    if (p.temp) continue;
+    if (p.temp || p.hidden) continue;
     if (p.kind) {
       drawBlock(ctx, p, time, glassT?.[i] ?? 0);
       continue;
     }
+    // Tower of Doom: a crumbled floor is gone for a while.
+    if (p.crumble && (glassT?.[i] ?? 0) > 0) continue;
     ctx.fillStyle = th.plat;
     roundRect(ctx, p.x, p.y, p.w, p.h, Math.min(10, p.h / 2));
     ctx.fill();
@@ -417,6 +425,17 @@ export function drawPlatforms(ctx: Ctx, map: MapDef, time = 0, glassT?: number[]
     roundRect(ctx, p.x, p.y, p.w, p.h, Math.min(10, p.h / 2));
     ctx.stroke();
     if (p.move) drawMover(ctx, p, time);
+    if (p.crumble) {
+      ctx.strokeStyle = 'rgba(0,0,0,0.55)';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      for (let x = p.x + 30; x < p.x + p.w - 20; x += 60) {
+        ctx.moveTo(x, p.y + 2);
+        ctx.lineTo(x + 10, p.y + p.h * 0.5);
+        ctx.lineTo(x + 2, p.y + p.h - 2);
+      }
+      ctx.stroke();
+    }
   }
   // The Castle Gate: the players' castle on top of its big wall.
   if (map.deco === 'castle') {
@@ -956,7 +975,7 @@ export function drawWeaponShape(ctx: Ctx, id: WeaponId, len: number, s: number, 
       ctx.fill();
       break;
     default:
-      if (!drawExtraWeapon(ctx, id, len, s, ready, performance.now() / 1000) && !drawCritterWeapon(ctx, id, len, s, ready, performance.now() / 1000) && !drawMonsterWeapon(ctx, id, len, s, ready, performance.now() / 1000) && !drawGadgetWeapon(ctx, id, len, s, ready, performance.now() / 1000) && !drawToyWeapon(ctx, id, len, s, ready, performance.now() / 1000) && !drawTreatWeapon(ctx, id, len, s, ready, performance.now() / 1000)) drawOct30Weapon(ctx, id, len, s, ready, performance.now() / 1000);
+      if (!drawExtraWeapon(ctx, id, len, s, ready, performance.now() / 1000) && !drawCritterWeapon(ctx, id, len, s, ready, performance.now() / 1000) && !drawMonsterWeapon(ctx, id, len, s, ready, performance.now() / 1000) && !drawGadgetWeapon(ctx, id, len, s, ready, performance.now() / 1000) && !drawToyWeapon(ctx, id, len, s, ready, performance.now() / 1000) && !drawTreatWeapon(ctx, id, len, s, ready, performance.now() / 1000) && !drawNov05Weapon(ctx, id, len, s, ready)) drawOct30Weapon(ctx, id, len, s, ready, performance.now() / 1000);
   }
 }
 
@@ -2104,7 +2123,7 @@ function drawSnowman(ctx: Ctx, m: Snowman) {
 }
 
 function drawProjectile(ctx: Ctx, p: Projectile, time: number) {
-  if (drawExtraProjectile(ctx, p, time) || drawCritterProjectile(ctx, p, time) || drawMonsterProjectile(ctx, p, time) || drawGadgetProjectile(ctx, p, time) || drawToyProjectile(ctx, p, time) || drawTreatProjectile(ctx, p) || drawOct30Projectile(ctx, p, time)) return;
+  if (drawExtraProjectile(ctx, p, time) || drawCritterProjectile(ctx, p, time) || drawMonsterProjectile(ctx, p, time) || drawGadgetProjectile(ctx, p, time) || drawToyProjectile(ctx, p, time) || drawTreatProjectile(ctx, p) || drawOct30Projectile(ctx, p, time) || drawNov05Projectile(ctx, p)) return;
   switch (p.kind) {
     case 'nerf': {
       // Foam dart: blue body, orange tip
@@ -2474,6 +2493,7 @@ function drawProjectile(ctx: Ctx, p: Projectile, time: number) {
 export function renderGame(g: Game, ctx: Ctx, vw: number, vh: number, dpr: number) {
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   drawBackground(ctx, g.map, vw, vh, g.cam.x, g.time);
+  drawCrashSky(ctx, g, vw, vh);
 
   // Screen juice: the camera kicks in a little on a KO.
   const z = g.cam.zoom * (1 + g.juice.kick);
@@ -2487,6 +2507,7 @@ export function renderGame(g: Game, ctx: Ctx, vw: number, vh: number, dpr: numbe
   const cull = g.map.w > 8000;
   const seen = (x: number) => !cull || (x > vx0 && x < vx1);
   if (g.map.props) drawProps(ctx, g.map.props, g.time);
+  drawCrashGround(ctx, g);
   drawPlatforms(ctx, g.map, g.time, g.glassT);
   if (g.map.warps?.length) drawWarps(ctx, g.map.warps, g.time);
   for (const s of g.iceSpikes) drawIceSpike(ctx, s);
@@ -2549,6 +2570,9 @@ export function renderGame(g: Game, ctx: Ctx, vw: number, vh: number, dpr: numbe
   for (const b of g.bodies()) if (b.alive && b.burnT > 0) drawFlames(ctx, b, g.time);
   for (const b of g.bodies()) if (b.alive && b.poisonT > 0) drawPoison(ctx, b, g.time);
   drawOct30Over(ctx, g.bodies(), g.fighters, g.time);
+  drawNov05Over(ctx, g.bodies(), g.time);
+  drawNov05MapFront(ctx, g, g.time);
+  if (g.surv) drawSurvivalWorld(ctx, g.surv, g.time);
   if (g.ev) drawEventsWorld(ctx, g, g.time);
   if (g.phy) drawPhylWorld(ctx, g, g.time);
   for (const p of g.projectiles) drawProjectile(ctx, p, g.time);
@@ -2595,11 +2619,19 @@ export function renderGame(g: Game, ctx: Ctx, vw: number, vh: number, dpr: numbe
   // Boss health bars across the top (one per boss)
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   if (g.blizzard) drawBlizzard(ctx, g.blizzard, vw, vh, g.time);
-  if (g.ev?.cur === 'blackout') drawBlackout(ctx, g, vw, vh);
+  if (evOn(g.ev, 'blackout')) drawBlackout(ctx, g, vw, vh);
   if (g.ev) drawEventsHud(ctx, g.ev, vw);
+  if (g.surv) {
+    const s = g.surv;
+    const left = s.toSpawn + g.fighters.filter((f) => f.alive && f.team === SURV_TEAM).length;
+    drawSurvivalHud(ctx, s, left, vw, { wave: t('svWave', { n: s.wave }), brk: t('svBreak'), best: t('svBest', { n: Math.max(save.data.survival.best, s.cleared) }) });
+  }
   if (g.inf) drawInfectionHud(ctx, g, vw);
   if (g.phy) drawPhylHud(ctx, g, vw, vh);
-  if (g.ob) drawOutbreakSky(ctx, g.ob, vw, vh, g.cats.find((c) => c.alive && c.variant === 'zboss') ?? null);
+  drawNov05Hud(ctx, g, vw, vh);
+  // Settings: Don't show bosses' health bar.
+  const hideBars = !g.demo && save.data.settings.hideBossBars === true;
+  if (g.ob) drawOutbreakSky(ctx, g.ob, vw, vh, hideBars ? null : g.cats.find((c) => c.alive && c.variant === 'zboss') ?? null);
   if (g.hill) {
     const h = g.hill;
     const rows = g.fighters.filter((f) => !f.cloneOf && !f.boss).map((f) => ({ name: f.name, color: f.color, s: h.score.get(f.team) ?? 0 }));
@@ -2619,7 +2651,7 @@ export function renderGame(g: Game, ctx: Ctx, vw: number, vh: number, dpr: numbe
   // (On the Beach, bosses on your side that went down in the cutscene drop off the list.)
   // The Pigeon has no bar: nobody gets to see how much of its 500,000 HP is left.
   // Boss Rush only shows the boss that is up.
-  const bars = g.bosses.filter((b) => (b.alive || (b.team === BOSS_TEAM && !g.rush)) && !b.pigeon);
+  const bars = hideBars ? [] : g.bosses.filter((b) => (b.alive || (b.team === BOSS_TEAM && !g.rush)) && !b.pigeon);
   for (const [k, boss] of bars.entries()) {
     const w = Math.min(520, vw * 0.5);
     const x = vw / 2 - w / 2;
@@ -2637,7 +2669,7 @@ export function renderGame(g: Game, ctx: Ctx, vw: number, vh: number, dpr: numbe
   }
 
   // The kill feed can be turned off in Settings.
-  if (save.data.settings.killFeed !== false) drawFeed(g, ctx, vw, 58 + bars.length * 26 + (g.ob && g.cats.some((c) => c.alive && c.variant === 'zboss') ? 26 : 0));
+  if (save.data.settings.killFeed !== false) drawFeed(g, ctx, vw, 58 + bars.length * 26 + (g.ob && !hideBars && g.cats.some((c) => c.alive && c.variant === 'zboss') ? 26 : 0));
 
   // Big words across the screen (the Beach and its cutscene)
   if (g.caption) {

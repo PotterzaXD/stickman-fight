@@ -347,8 +347,9 @@ export function drawEventsWorld(ctx: Ctx, g: Game, time: number) {
 
 /** Blackout: the screen goes dark, with a little light around each stickman. */
 export function drawBlackout(ctx: Ctx, g: Game, vw: number, vh: number) {
-  const ev = g.ev!;
-  const fade = Math.min(1, (ev.dur - ev.t) / 0.6, ev.t / 0.6);
+  const a = g.ev!.act.find((x) => x.id === 'blackout');
+  if (!a) return;
+  const fade = Math.min(1, (a.dur - a.t) / 0.6, a.t / 0.6);
   const z = g.cam.zoom;
   ctx.save();
   ctx.globalAlpha = 0.94 * fade;
@@ -367,31 +368,32 @@ export function drawBlackout(ctx: Ctx, g: Game, vw: number, vh: number) {
   ctx.restore();
 }
 
-/** The banner: what is going on and for how long, or when the next one comes. */
+/** The banners: what is going on and for how long (one under the other), and when the next one comes. */
 export function drawEventsHud(ctx: Ctx, ev: EventsState, vw: number) {
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
-  if (!ev.cur) {
-    const text = `🌪️ ${t('evNext', { n: Math.ceil(ev.next) })}`;
-    ctx.font = FONT(800, 15);
-    const w = ctx.measureText(text).width + 24;
-    ctx.fillStyle = 'rgba(0,0,0,0.5)';
+  let y = 52;
+  for (const a of ev.act) {
+    const text = `${EVENT_ICON[a.id]} ${t(`ev.${a.id}`)}  ${Math.ceil(a.t)}`;
+    ctx.font = FONT(900, 18);
+    const w = Math.max(180, ctx.measureText(text).width + 30);
+    ctx.fillStyle = 'rgba(74,20,140,0.85)';
     ctx.beginPath();
-    ctx.roundRect(vw / 2 - w / 2, 52, w, 26, 13);
+    ctx.roundRect(vw / 2 - w / 2, y, w, 34, 17);
     ctx.fill();
+    ctx.fillStyle = '#ffd740';
+    ctx.fillRect(vw / 2 - w / 2 + 14, y + 28, (w - 28) * Math.max(0, a.t / a.dur), 3);
     ctx.fillStyle = '#ffffff';
-    ctx.fillText(text, vw / 2, 65);
-    return;
+    ctx.fillText(text, vw / 2, y + 16);
+    y += 40;
   }
-  const text = `${EVENT_ICON[ev.cur]} ${t(`ev.${ev.cur}`)}  ${Math.ceil(ev.t)}`;
-  ctx.font = FONT(900, 18);
-  const w = Math.max(180, ctx.measureText(text).width + 30);
-  ctx.fillStyle = 'rgba(74,20,140,0.85)';
+  const text = `🌪️ ${t('evNext', { n: Math.ceil(ev.next) })}`;
+  ctx.font = FONT(800, 15);
+  const w = ctx.measureText(text).width + 24;
+  ctx.fillStyle = 'rgba(0,0,0,0.5)';
   ctx.beginPath();
-  ctx.roundRect(vw / 2 - w / 2, 52, w, 34, 17);
+  ctx.roundRect(vw / 2 - w / 2, y, w, 26, 13);
   ctx.fill();
-  ctx.fillStyle = '#ffd740';
-  ctx.fillRect(vw / 2 - w / 2 + 14, 80, (w - 28) * Math.max(0, ev.t / ev.dur), 3);
   ctx.fillStyle = '#ffffff';
-  ctx.fillText(text, vw / 2, 68);
+  ctx.fillText(text, vw / 2, y + 13);
 }

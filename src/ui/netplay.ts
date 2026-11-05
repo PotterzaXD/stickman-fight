@@ -109,13 +109,14 @@ register('netplay', (root) => {
         fish: !!r.fish,
         beachBoss: game.beach && r.mode === 'boss',
         phylPhase: game.phy?.phase,
+        surv: game.surv ? { wave: game.surv.cleared, coins: game.surv.coins } : undefined,
         solo: others.length === 1 && localIdx.includes(game.fighters.indexOf(others[0])),
         facts: matchFacts(game, r, localIdx.map((i) => game.fighters[i]), startCoins),
       });
       if (won) sfx.win();
       jingle(won ? 'victory' : 'defeat');
     } else jingle('victory');
-    const ranked = game.fighters.filter((f) => !f.cloneOf).sort((a, b) => Number(b.alive) - Number(a.alive) || b.kos - a.kos);
+    const ranked = game.fighters.filter((f) => !f.cloneOf && !f.foe).sort((a, b) => Number(b.alive) - Number(a.alive) || b.kos - a.kos);
     overlay.replaceChildren(
       h(
         'div',
@@ -148,6 +149,7 @@ register('netplay', (root) => {
       outbreak: start.outbreak,
       phylPhase: start.phyl,
       golemName: t('golem_name'),
+      foeName: t('svFoe'),
       // Screen juice would make the host's match wait; online keeps the normal screen shake.
       juice: false,
     });

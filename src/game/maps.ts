@@ -1,10 +1,11 @@
+import { PLANE_MAP, TOWER_DOOM } from './nov05Maps';
 import type { BlockKind, MapDef, Platform, ThemeId, Vec } from './types';
 
 export interface Theme {
   sky: [string, string];
   plat: string;
   top: string;
-  deco: 'clouds' | 'stars' | 'snow' | 'embers' | 'space' | 'beach' | 'war' | 'jungle' | 'haunted' | 'candy' | 'farm' | 'graveyard' | 'inferno' | 'pirate' | 'desert' | 'stage' | 'portal' | 'kitchen' | 'dessert' | 'infect' | 'tome';
+  deco: 'clouds' | 'stars' | 'snow' | 'embers' | 'space' | 'beach' | 'war' | 'jungle' | 'haunted' | 'candy' | 'farm' | 'graveyard' | 'inferno' | 'pirate' | 'desert' | 'stage' | 'portal' | 'kitchen' | 'dessert' | 'infect' | 'tome' | 'doom' | 'plane';
   /** Gravity multiplier (space: low gravity, you jump higher and fall slower). */
   gravity?: number;
 }
@@ -32,10 +33,12 @@ export const THEMES: Record<ThemeId, Theme> = {
   dessert: { sky: ['#fce4ec', '#e1f5fe'], plat: '#a1662f', top: '#f8bbd0', deco: 'dessert' },
   infect: { sky: ['#2a2244', '#e0876a'], plat: '#5d5d63', top: '#7cb342', deco: 'infect' },
   tome: { sky: ['#0a0414', '#2d0f3f'], plat: '#3e2a1f', top: '#8e5cc4', deco: 'tome' },
+  doom: { sky: ['#1b0f2a', '#5b2a2a'], plat: '#4e4a47', top: '#8d8278', deco: 'doom' },
+  plane: { sky: ['#4fa8e8', '#d7f0ff'], plat: '#cfd8dc', top: '#eceff1', deco: 'plane' },
 };
 
 /** Append only (shared map links send the index). */
-export const THEME_IDS: ThemeId[] = ['day', 'sunset', 'night', 'snow', 'lava', 'space', 'beach', 'war', 'jungle', 'haunted', 'candy', 'farm', 'graveyard', 'inferno', 'pirate', 'desert', 'stage', 'portal', 'kitchen', 'dessert', 'infect', 'tome'];
+export const THEME_IDS: ThemeId[] = ['day', 'sunset', 'night', 'snow', 'lava', 'space', 'beach', 'war', 'jungle', 'haunted', 'candy', 'farm', 'graveyard', 'inferno', 'pirate', 'desert', 'stage', 'portal', 'kitchen', 'dessert', 'infect', 'tome', 'doom', 'plane'];
 
 const P = (x: number, y: number, w: number, h = 24): Platform => ({ x, y, w, h });
 /** Special block: concrete, lava or glass. */
@@ -637,6 +640,9 @@ export const BUILTIN_MAPS: MapDef[] = [
     ],
     spawns: [],
   },
+  // November 5
+  TOWER_DOOM,
+  PLANE_MAP,
 ];
 
 /**

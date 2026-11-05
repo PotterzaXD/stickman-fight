@@ -4,6 +4,7 @@ import { zombieBoom } from './outbreak';
 import { inZone } from './hill';
 import { frogHop, oct22Reach, oct22Speed, updateGhost, wallDetour } from './oct22';
 import { ICE_SPIKE, PIE, oct23Helper, oct23Reach, oct23Speed } from './oct23';
+import { nov05BotSkill } from './nov05';
 import { oct30BotSkill, oct30Helper, oct30Reach, oct30Speed } from './oct30';
 import type { Difficulty, Intent, Platform } from './types';
 
@@ -422,7 +423,7 @@ export class BotBrain {
           if ((f.fishNext === 0 && dist < 820) || (f.fishNext === 1 && dist < 950) || (f.fishNext === 2 && dist < 420)) angle = Math.atan2(dy, dx);
           break;
       }
-      if (angle === null) angle = oct30BotSkill(f, i, dx, dy, dist) ?? null;
+      if (angle === null) angle = oct30BotSkill(f, i, dx, dy, dist) ?? nov05BotSkill(f, i, dx, dy, dist) ?? null;
       if (angle !== null) {
         it.skill = angle + err;
         it.skillSlot = i;

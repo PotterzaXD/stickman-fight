@@ -21,7 +21,7 @@ const randomPick = (owned: string[]) => {
 import { HATS, hatExists, resolveHat } from '../game/hats';
 import type { Snapshot } from './snapshot';
 
-export const PROTO = 16;
+export const PROTO = 17;
 export const MIN_ROOM = 2;
 export const MAX_ROOM = 30;
 export const MAX_LOCAL = 6;
@@ -595,7 +595,7 @@ export class RoomHost extends Emitter<RoomEvents> {
     const specs: NetSpec[] = st.members.map((m, i) => ({
       name: m.name,
       color: st.mode === 'team' ? TEAM_COLORS[m.team] : ONLINE_COLORS[i % ONLINE_COLORS.length],
-      team: st.mode === 'team' ? m.team : isBossMode(st.mode) || ob ? 0 : i,
+      team: st.mode === 'team' ? m.team : isBossMode(st.mode) || ob || st.mode === 'survival' ? 0 : i,
       human: m.kind === 'human',
       weapon: m.weapon === 'random' ? randomPick(st.hostWeapons) : m.weapon,
       difficulty: m.difficulty,

@@ -9,7 +9,7 @@ export interface SaveData {
   hats: string[];
   customMaps: MapDef[];
   /** potions: healing potions drop in matches (on by default). Music and sound volumes are 0-100. */
-  settings: { lang: Lang; fallMode: FallMode; potions: boolean; musicVol: number; sfxVol: number; musicMute: boolean; sfxMute: boolean; killFeed: boolean; juice: boolean };
+  settings: { lang: Lang; fallMode: FallMode; potions: boolean; musicVol: number; sfxVol: number; musicMute: boolean; sfxMute: boolean; killFeed: boolean; juice: boolean; hideBossBars: boolean };
   lastMatch?: MatchConfig;
   /** The last Sandbox setup. */
   lastSandbox?: MatchConfig;
@@ -39,7 +39,13 @@ export interface SaveData {
    * PHYLISHIEUS: the phase you are on (1, 2 or the final phase 3), the highest phase beaten,
    * and done once the final phase is beaten (the mode leaves, he moves to Sandbox).
    */
-  phyl: { phase: PhylPhase; done: boolean; beat: number };
+  phyl: { phase: PhylPhase; done: boolean; beat: number; key: boolean };
+  /** Beat the boss with your own name (it opens once PHYLISHIEUS's final phase is beaten; then it's in Sandbox). */
+  meBeat: boolean;
+  /** Survival (fun mode): the best wave reached. */
+  survival: { best: number };
+  /** 1D: its own coins and weapons, separate from the normal game. */
+  oneD: OneDSave;
   /** Shirts, pants and shoes bought in the shop (for the profile picture). */
   clothes: string[];
   /** What your profile stickman wears ('none' = nothing). */
@@ -47,6 +53,14 @@ export interface SaveData {
   /** When this save was first made (ms), for the profile's "Joined". */
   joined: number;
   updatedAt: number;
+}
+
+export interface OneDSave {
+  coins: number;
+  owned: string[];
+  /** The weapon you fight with. */
+  weapon: string;
+  wins: number;
 }
 
 export interface Outfit {
@@ -64,7 +78,20 @@ export const DEFAULT_OUTFIT: Outfit = { hat: 'none', shirt: 'none', pants: 'none
 function loadPhyl(v: unknown): SaveData['phyl'] {
   const o = (v && typeof v === 'object' ? v : {}) as Partial<SaveData['phyl']>;
   const beat = Number.isFinite(o.beat) ? Math.max(0, Math.min(3, Math.floor(o.beat as number))) : o.done === true ? 2 : o.phase === 2 ? 1 : 0;
-  return { phase: Math.min(3, beat + 1) as PhylPhase, done: beat >= 3, beat };
+  return { phase: Math.min(3, beat + 1) as PhylPhase, done: beat >= 3, beat, key: o.key === true && beat >= 3 };
+}
+
+/** 1D: the sword is free; the spear, hammer and axe are bought with 1D coins. */
+export const ONE_D_FREE = 'sword';
+export function loadOneD(v: unknown): OneDSave {
+  const o = (v && typeof v === 'object' ? v : {}) as Partial<OneDSave>;
+  const owned = Array.from(new Set([ONE_D_FREE, ...(Array.isArray(o.owned) ? o.owned.filter((x) => typeof x === 'string') : [])]));
+  return {
+    coins: Number.isFinite(o.coins) ? Math.max(0, Math.floor(o.coins as number)) : 0,
+    owned,
+    weapon: typeof o.weapon === 'string' && owned.includes(o.weapon) ? o.weapon : ONE_D_FREE,
+    wins: Number.isFinite(o.wins) ? Math.max(0, Math.floor(o.wins as number)) : 0,
+  };
 }
 
 function loadOutfit(v: unknown): Outfit {
@@ -134,14 +161,17 @@ function defaults(): SaveData {
     achievements: [],
     secrets: [],
     stats: { catSnowWins: 0, mapsWon: [], usedWeapons: [], matches: 0 },
-    settings: { lang: thai ? 'th' : 'en', fallMode: 'ko', potions: true, musicVol: 70, sfxVol: 80, musicMute: false, sfxMute: false, killFeed: true, juice: true },
+    settings: { lang: thai ? 'th' : 'en', fallMode: 'ko', potions: true, musicVol: 70, sfxVol: 80, musicMute: false, sfxMute: false, killFeed: true, juice: true, hideBossBars: false },
     name: '',
     localNames: [],
     outbreak: [null, null, null],
     zombieAlly: false,
     sf2: false,
     chef: newChefSave(),
-    phyl: { phase: 1, done: false, beat: 0 },
+    phyl: { phase: 1, done: false, beat: 0, key: false },
+    meBeat: false,
+    survival: { best: 0 },
+    oneD: loadOneD(null),
     clothes: [],
     outfit: { ...DEFAULT_OUTFIT },
     joined: Date.now(),
@@ -175,6 +205,7 @@ export function normalize(raw: unknown): SaveData {
       sfxMute: typeof r.settings?.sfxMute === 'boolean' ? r.settings.sfxMute : !oldSound,
       killFeed: r.settings?.killFeed !== false,
       juice: r.settings?.juice !== false,
+      hideBossBars: r.settings?.hideBossBars === true,
     },
     lastMatch: r.lastMatch,
     lastSandbox: r.lastSandbox,
@@ -193,6 +224,9 @@ export function normalize(raw: unknown): SaveData {
     sf2: r.sf2 === true,
     chef: loadChef(r.chef),
     phyl: loadPhyl(r.phyl),
+    meBeat: r.meBeat === true,
+    survival: { best: Number.isFinite(r.survival?.best) ? Math.max(0, Math.floor(r.survival!.best)) : 0 },
+    oneD: loadOneD(r.oneD),
     clothes: strs(r.clothes),
     outfit: loadOutfit(r.outfit),
     // Saves from before the profile: the first time this device opens the game with it.

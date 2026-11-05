@@ -62,6 +62,11 @@ export abstract class Body {
   downT = 0;
   /** Blanket: seconds left asleep under a blanket (a hit wakes them up). */
   sleepT = 0;
+  /** Mattress: seconds left crushed under it (10), the next choke tick, who threw it and the damage each tick. */
+  mattT = 0;
+  mattTick = 0;
+  mattSrc: Body | null = null;
+  mattDmg = 10;
   /** Map editor portals: seconds before this body can go through a portal again. */
   warpT = 0;
   /** Bubble Wand: seconds left floating in a bubble (pops for damage at the end). */
@@ -131,6 +136,8 @@ export class Fighter extends Body {
   name: string;
   human: boolean;
   boss: boolean;
+  /** The boss with your name: the weapons it may pick from, seconds to the next swap, dodge cooldown and its hover bob. */
+  me: { owned: string[]; swapT: number; dodgeCd: number; bob: number } | null = null;
   /** Grandfather Cat (drawn with cat ears and whiskers). */
   cat: boolean;
   /** The white Mascot boss (no eyes). */
@@ -162,6 +169,12 @@ export class Fighter extends Body {
   elTick = 0;
   /** The Outbreak: the zombies' hidden leader (never on screen, only owns the zombies). */
   horde = false;
+  /** Survival: one of the enemy stickmen. */
+  foe = false;
+  /** Survival upgrades: heal from damage dealt, damage taken, and skill cooldowns. */
+  steal = 0;
+  armor = 1;
+  coolMul = 1;
   /** The Outbreak: lives left (going down costs one; at 0 you are out for good). */
   lives = 5;
   /** The Summoner also calls a zombie ally (you beat wave 10 of The Outbreak). */
@@ -576,7 +589,9 @@ export type ProjKind =
   | 'plunger'
   | 'frisbee'
   | 'blanket'
-  | 'magic';
+  | 'magic'
+  | 'mattress'
+  | 'aphone';
 
 /** Thrown weapons that fly out and come back to the hand. */
 export const returns = (k: ProjKind) => k === 'boomerang' || k === 'axe' || k === 'six7' || k === 'yoyo';

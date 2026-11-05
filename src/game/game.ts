@@ -48,8 +48,12 @@ import { HillState, hillWinner, raceKo, raceWinner, startHill, startRace, update
 import { BOOGER, CHEF, CUPCAKE, FROG, GHOST, GINGER, KNIGHT, LOLLIPOP } from './entities';
 import { oct23AttackGap, oct23Bit, oct23Hit, oct23Skill, oct23Splat, summonOct23, updateOct23 } from './oct23';
 import { infectHit, infectionWinner, startInfection, turnZombie, updateInfection, type InfectionState } from './infection';
-import { startEvents, updateEvents, type EventsState } from './events';
+import { makeMe, meDodge, meFly } from './meBoss';
+import { startSurvival, survivalWinner, updateSurvival, type SurvState } from './survival';
+import { planeOut, spawnsFor, startDoom, startPlane, updateDoom, updatePlane, type DoomState, type PlaneState } from './nov05Maps';
+import { evOn, startEvents, updateEvents, type EventsState } from './events';
 import { FINAL_MAP_ID, finalSpawns, makeGolem, makePhyl, phylCanDie, phylClientTick, phylDodge, phylGuard, updatePhyl, type PhylState } from './phyl';
+import { nov05Force, nov05Hit, nov05Skill, nov05Splat, updateNov05 } from './nov05';
 import { HELPER_STATS, meleeForce, oct30AttackGap, oct30Hit, oct30Skill, oct30Splat, pierces, summonOct30, updateOct30, wake } from './oct30';
 import { helperArmour, oct22AttackGap, oct22Hit, oct22Skill, rushWinner, startRush, startStock, stockWinner, tennisBounce, updateRush, type RushState } from './oct22';
 import { Juice, wallPush } from './juice';
@@ -98,6 +102,14 @@ export interface MatchResult {
   waveCleared?: boolean;
 }
 
+/** The boss with your name: your name, colour, hat and the weapons you own. */
+export interface MeLook {
+  name: string;
+  color: string;
+  hat: string;
+  owned: string[];
+}
+
 export interface GameOpts {
   mode: Mode;
   fallMode: FallMode;
@@ -128,6 +140,12 @@ export interface GameOpts {
   outbreak?: OutbreakInfo;
   /** Screen juice (Settings): hit-stop, slow motion and flashes. Default on. */
   juice?: boolean;
+  /** The boss with your name: what it looks like and the weapons it may use. */
+  me?: MeLook;
+  /** The Plane: start outside on the roof instead of in the cabin. */
+  outside?: boolean;
+  /** Survival: what the enemy stickmen are called. */
+  foeName?: string;
   /** PHYLISHIEUS: which phase (1 or 2), and the Tome Golem's name in this device's language. */
   phylPhase?: PhylPhase;
   golemName?: string;
@@ -420,6 +438,13 @@ export class Game {
   /** PHYLISHIEUS: his attacks, the bomb and the Tome Golem (null when he isn't in the match). */
   phy: PhylState | null = null;
   golemName = 'Tome Golem';
+  /** Tower of Doom's bricks, lightning and lava, and the Plane (flying, diving or crashed). Null on other maps. */
+  doom: DoomState | null = null;
+  plane: PlaneState | null = null;
+  /** Survival: the wave, the break and the upgrade orbs (null in other modes). */
+  surv: SurvState | null = null;
+  /** The boss with your name (Sandbox can add it too). */
+  meLook: MeLook | null = null;
   /** The fighters this device plays (Stickman Infection's big town: the camera follows them). */
   focus: number[] = [];
 
@@ -429,6 +454,7 @@ export class Game {
     this.platBase = map.platforms.map((p) => ({ x: p.x, y: p.y }));
     map = this.map;
     this.mode = opts.mode;
+    this.meLook = opts.me ?? null;
     this.fallMode = opts.fallMode;
     this.demo = !!opts.demo;
     this.maxSnowmen = opts.maxSnowmen ?? MAX_SNOWMEN;
@@ -437,7 +463,9 @@ export class Game {
     this.gravity = GRAVITY * (THEMES[map.theme]?.gravity ?? 1);
     this.potionsOn = !!opts.potions && !opts.demo;
     if (opts.golemName) this.golemName = opts.golemName;
-    const spawns = map.id === FINAL_MAP_ID ? finalSpawns(map, specs.map((x) => x.human)) : pickSpawns(map, specs.length + (opts.mode === 'boss' ? 1 : 0));
+    const spawns = map.id === FINAL_MAP_ID ? finalSpawns(map, specs.map((x) => x.human)) : pickSpawns(spawnsFor(map, !!opts.outside), specs.length + (opts.mode === 'boss' ? 1 : 0));
+    if (map.id === 'doom') startDoom(this);
+    if (map.id === 'plane') startPlane(this);
     specs.forEach((s, i) => {
       const sp = spawns[i];
       // The Pigeon: everyone holds a shotgun.
@@ -523,6 +551,7 @@ export class Game {
     if (isSecret(opts.mode)) this.addBoss(opts.mode, names[opts.mode] ?? opts.bossName ?? 'Boss', BOSS_TEAM, 0);
     if (opts.mode === 'pigeon') this.addBoss('pigeon', names.pigeon ?? opts.bossName ?? 'Pigeon', BOSS_TEAM, 0);
     if (isXBoss(opts.mode)) this.addBoss(opts.mode, names[opts.mode] ?? opts.bossName ?? 'Boss', BOSS_TEAM, 0);
+    if (opts.mode === 'me' && opts.me) makeMe(this, opts.me.name, opts.me.color, opts.me.hat, opts.me.owned, BOSS_TEAM);
     if (opts.mode === 'phyl') makePhyl(this, opts.phylPhase ?? 1, opts.bossName ?? 'PHYLISHIEUS', BOSS_TEAM);
     // Sandbox: any bosses, on any team, with any HP. Free For All: everyone on their own team.
     (opts.extraBosses ?? []).forEach((b, k) => {
@@ -562,6 +591,10 @@ export class Game {
     if (this.mode === 'rush' && !this.demo) startRush(this, names);
     if (this.mode === 'infection') startInfection(this);
     if (this.mode === 'events') startEvents(this);
+    if (this.mode === 'survival') {
+      this.rushNames = names;
+      startSurvival(this, opts.foeName ?? 'Raider');
+    }
     this.juice.on = !this.demo && opts.juice !== false;
     // Sandbox: crowded from the start, so the rock music starts right away.
     if (this.mode === 'sandbox' && !this.demo && this.crowd() > SB_ROCK_AT) {
@@ -573,6 +606,7 @@ export class Game {
   /** Put a boss on the k-th widest platform (Buffalo, the Fishy boss, and Sandbox bosses). */
   addBoss(kind: BossKind, name: string, team: number, k: number, hp?: number): Fighter {
     if (isPhylKind(kind)) return makePhyl(this, phylKindPhase(kind), name, team, hp);
+    if (kind === 'me') return makeMe(this, this.meLook?.name ?? name, this.meLook?.color ?? '#1e88e5', this.meLook?.hat ?? 'none', this.meLook?.owned ?? ['sword'], team, hp);
     const wide = [...this.map.platforms].filter((p) => p.kind !== 'lava' && p.kind !== 'spikes').sort((p, q) => q.w - p.w);
     const top = wide.length ? wide[k % wide.length] : null;
     if (kind === 'golem') {
@@ -836,6 +870,13 @@ export class Game {
   }
 
   /** Can you stand on platform i? (Broken glass is gone for a while.) */
+  /** Add a platform during the match (the Plane's crash site). */
+  addPlatform(p: Platform) {
+    this.map.platforms.push(p);
+    this.platBase.push({ x: p.x, y: p.y });
+    this.glassT.push(0);
+  }
+
   solid(i: number) {
     return !(this.glassT[i] > 0);
   }
@@ -968,6 +1009,7 @@ export class Game {
     for (const b of this.bodies()) if (b.slowT > 0) b.slowT -= dt;
     updateOct23(this, dt);
     updateOct30(this, dt);
+    updateNov05(this, dt);
     this.updateBubbles(dt);
     this.markSurvivors();
     if (this.cut) this.updateCutscene(dt);
@@ -977,6 +1019,9 @@ export class Game {
     if (this.hill) updateHill(this, dt);
     if (this.inf && !this.over) updateInfection(this, dt);
     if (this.ev && !this.over) updateEvents(this, dt);
+    if (this.surv && !this.over) updateSurvival(this, dt);
+    if (this.doom) updateDoom(this, dt);
+    if (this.plane) updatePlane(this, dt);
     if (this.phy && !this.over) updatePhyl(this, dt);
     if ((this.hill || this.race || this.inf || this.mode === 'stock') && !this.over) updateRespawns(this, dt);
     if (this.rush && !this.over) updateRush(this, dt);
@@ -1069,6 +1114,8 @@ export class Game {
     if (f.phyl) return;
 
     let it = f.human ? f.humanIntent(dt) : f.brain!.think(dt, f, this);
+    // The boss with your name flies.
+    if (f.me) meFly(this, f, it, dt);
     // Bots dodge his meteors, swords and the bomb.
     if (this.phy && !f.human) it = phylDodge(this, f, it);
     // Cutscene: nobody moves on their own.
@@ -1119,7 +1166,7 @@ export class Game {
 
     if (it.skill !== null) this.useSkill(f, it.skillSlot, it.skill);
 
-    this.stepBody(f, dt, f.dashT > 0 ? 0.15 : 1);
+    this.stepBody(f, dt, f.me ? 0 : f.dashT > 0 ? 0.15 : 1);
     // Skills break glass: the sword's dash and the spear's thrust.
     if (f.dashT > 0) f.weapons.forEach((w, i) => w.id === 'sword' && this.breakGlassAt(f.tip(i).x, f.tip(i).y, 14, f));
     if (f.thrustT > 0) this.breakGlassAt(f.tip(f.thrustSlot).x, f.tip(f.thrustSlot).y, 10, f);
@@ -1184,7 +1231,7 @@ export class Game {
   /** Standing on an ice block? */
   onIce(b: Body) {
     // Random Events: Slippery Ice turns every floor to ice.
-    if (this.ev?.cur === 'ice') return b.onGround;
+    if (evOn(this.ev, 'ice')) return b.onGround;
     return b.onGround && b.standOn >= 0 && this.map.platforms[b.standOn]?.kind === 'ice';
   }
 
@@ -1304,6 +1351,8 @@ export class Game {
   /** Returns true if the hit landed (not blocked by a shield). */
   damage(target: Body, amount: number, src: Body | null, kx: number, ky: number, how?: Finish): boolean {
     if (!target.alive || amount <= 0) return false;
+    // The boss with your name is very good at dodging.
+    if (meDodge(this, target, kx, ky)) return false;
     // PHYLISHIEUS can only be hurt while he is tired on the ground.
     if (this.phy && target instanceof Fighter && target.phyl) {
       amount = phylGuard(this, target, amount);
@@ -1313,6 +1362,8 @@ export class Game {
     const by = src instanceof Snowman || src instanceof Cat ? src.owner : src;
     if (by instanceof Fighter) amount *= by.power;
     amount *= helperArmour(target);
+    // Survival upgrades: armour.
+    if (target instanceof Fighter) amount *= target.armor;
     amount = Math.round(amount);
     if (target instanceof Fighter && by instanceof Fighter && by !== target) {
       target.lastHitBy = by;
@@ -1334,6 +1385,8 @@ export class Game {
       ky *= 0.25;
     }
     target.hp -= amount;
+    // Survival upgrades: lifesteal.
+    if (by instanceof Fighter && by.steal > 0 && by !== target && by.alive) by.hp = Math.min(by.maxHp, by.hp + amount * by.steal);
     if (target instanceof Fighter) target.dmgTaken += amount;
     if (by instanceof Fighter && by !== target) {
       by.streak++;
@@ -1523,7 +1576,7 @@ export class Game {
           f.hitCd.set(e.id, this.time + (dash || thrust ? 0.5 : 0.35));
           const dir = sign(e.x - f.x) || f.facing;
           // Mega Punch sends them flying.
-          const force = glove ? 2.4 : dash || thrust ? 1.4 : meleeForce(def.id);
+          const force = glove ? 2.4 : dash || thrust ? 1.4 : nov05Force(def.id) ?? meleeForce(def.id);
           const hit = this.damage(e, dmg, f, dir * (220 + dmg * 8) * force, -(260 + dmg * 5) * force, MELEE_FINISH[def.id]);
           if (hit && e.alive && def.id === 'firesword') this.setBurn(e, FIRE_SWORD.burnS, FIRE_SWORD.burn, f);
           if (hit && e.alive && def.id === 'dart') this.setPoison(e, f);
@@ -1535,7 +1588,7 @@ export class Game {
   useSkill(f: Fighter, i: number, angle: number) {
     const def = f.weapons[i];
     if (!def || !f.alive || f.cds[i] > 0 || f.boomerangOut[i] || f.stun > 0.3 || f.shielding) return;
-    f.cds[i] = def.cooldown;
+    f.cds[i] = def.cooldown * f.coolMul;
     const s = f.scale;
     const m = f.dmgMult;
     const cos = Math.cos(angle);
@@ -1864,7 +1917,7 @@ export class Game {
         this.text(f.x, f.y - f.h - 30, '🔥 FWOOSH!', '#ff9100', 24);
         break;
       default:
-        if (!oct22Skill(this, f, i, angle) && !oct23Skill(this, f, i, angle)) oct30Skill(this, f, i, angle);
+        if (!oct22Skill(this, f, i, angle) && !oct23Skill(this, f, i, angle) && !oct30Skill(this, f, i, angle)) nov05Skill(this, f, i, angle);
         break;
       case 'stick':
       case 'mascotstick': {
@@ -2819,9 +2872,9 @@ export class Game {
     const scale = owner instanceof Fighter ? owner.scale : 1;
     const big = kind === 'boomerang' || kind === 'bomb' || kind === 'axe' || kind === 'fireball' || kind === 'six7' || kind === 'soup' || kind === 'hay';
     const r =
-      { arrow: 5, snowball: 11, minisnow: 8, boomerang: 16, bomb: 11, axe: 22, shuriken: 8, laser: 6, fireball: 14, six7: 24, poop: 10, soup: 14, icebolt: 9, banana: 10, fireslash: 34, dart: 6, memorybox: 12, rocket: 10, wave: 60, shard: 10, crash: 80, vine: 14, nerf: 6, bullet67: 7, water: 7, bubble: 18, yoyo: 13, fishthrow: 14, allyfire: 12, egg: 10, gum: 11, crow: 14, hay: 34, goo: 10, sound: 40, pebble: 6, flame: 14, booger: 9, tennis: 9, pie: 13, ketchup: 7, popcorn: 7, plane: 12, slipper: 12, balloon: 12, plunger: 9, frisbee: 16, blanket: 22, magic: 10 }[kind] *
+      { arrow: 5, snowball: 11, minisnow: 8, boomerang: 16, bomb: 11, axe: 22, shuriken: 8, laser: 6, fireball: 14, six7: 24, poop: 10, soup: 14, icebolt: 9, banana: 10, fireslash: 34, dart: 6, memorybox: 12, rocket: 10, wave: 60, shard: 10, crash: 80, vine: 14, nerf: 6, bullet67: 7, water: 7, bubble: 18, yoyo: 13, fishthrow: 14, allyfire: 12, egg: 10, gum: 11, crow: 14, hay: 34, goo: 10, sound: 40, pebble: 6, flame: 14, booger: 9, tennis: 9, pie: 13, ketchup: 7, popcorn: 7, plane: 12, slipper: 12, balloon: 12, plunger: 9, frisbee: 16, blanket: 22, magic: 10, mattress: 26, aphone: 9 }[kind] *
       (big || kind === 'fireslash' ? scale : 1);
-    const life = { arrow: 2, snowball: 3, minisnow: 3, boomerang: 3.5, bomb: 1.5, axe: 3.5, shuriken: 2, laser: 0.7, fireball: 2, six7: 3.5, poop: 3, soup: 3, icebolt: 2, banana: 3, fireslash: 0.7, dart: 2, memorybox: 0.35, rocket: 2, wave: 1.7, shard: 1.6, crash: 1.9, vine: 0.42, nerf: 2, bullet67: 1.2, water: 0.9, bubble: 2.6, yoyo: 3.5, fishthrow: 3, allyfire: 2, egg: 2.5, gum: 2.5, crow: 3.5, hay: 2.4, goo: 2.5, sound: 0.45, pebble: 2, flame: 0.5, booger: 2.5, tennis: 3.5, pie: 2.5, ketchup: 1.2, popcorn: 1.5, plane: 2.2, slipper: 2.5, balloon: 2.5, plunger: 1.5, frisbee: 1.1, blanket: 2.5, magic: 1.6 }[kind];
+    const life = { arrow: 2, snowball: 3, minisnow: 3, boomerang: 3.5, bomb: 1.5, axe: 3.5, shuriken: 2, laser: 0.7, fireball: 2, six7: 3.5, poop: 3, soup: 3, icebolt: 2, banana: 3, fireslash: 0.7, dart: 2, memorybox: 0.35, rocket: 2, wave: 1.7, shard: 1.6, crash: 1.9, vine: 0.42, nerf: 2, bullet67: 1.2, water: 0.9, bubble: 2.6, yoyo: 3.5, fishthrow: 3, allyfire: 2, egg: 2.5, gum: 2.5, crow: 3.5, hay: 2.4, goo: 2.5, sound: 0.45, pebble: 2, flame: 0.5, booger: 2.5, tennis: 3.5, pie: 2.5, ketchup: 1.2, popcorn: 1.5, plane: 2.2, slipper: 2.5, balloon: 2.5, plunger: 1.5, frisbee: 1.1, blanket: 2.5, magic: 1.6, mattress: 2.5, aphone: 2.5 }[kind];
     this.projectiles.push({
       kind,
       x,
@@ -2979,7 +3032,7 @@ export class Game {
           oct30Hit(this, p, e, dir);
           continue;
         }
-        if (oct22Hit(this, p, e, dir) || oct23Hit(this, p, e, dir) || oct30Hit(this, p, e, dir)) {
+        if (oct22Hit(this, p, e, dir) || oct23Hit(this, p, e, dir) || oct30Hit(this, p, e, dir) || nov05Hit(this, p, e, dir)) {
           // Booger, tennis ball, pie, ketchup, popcorn and the October 30 shots (see oct22.ts, oct23.ts and oct30.ts).
         } else if (p.kind === 'fireball') this.explode(p, 120 * p.scale, true);
         else if (p.kind === 'bomb') this.explode(p);
@@ -3078,7 +3131,7 @@ export class Game {
             p.dead = true;
             break;
           }
-          if (tennisBounce(p, pl) || oct23Splat(this, p, pl) || oct30Splat(this, p, pl)) break;
+          if (tennisBounce(p, pl) || oct23Splat(this, p, pl) || oct30Splat(this, p, pl) || nov05Splat(this, p, pl)) break;
           if (p.kind === 'booger') {
             this.burst(p.x, Math.min(p.y, pl.y), '#9ccc65', 6, 160);
             p.dead = true;
@@ -3135,6 +3188,7 @@ export class Game {
         if (p.kind === 'fireball') this.explode(p, 120 * p.scale, true);
         if (p.kind === 'rocket') this.explode(p, 150 * p.scale);
         if (p.kind === 'soup') this.splash(p);
+        nov05Splat(this, p, null);
         this.finishProj(p);
         continue;
       }
@@ -3230,7 +3284,8 @@ export class Game {
       if (b.y < m.h + 300 && b.x > -700 && b.x < m.w + 700) continue;
       // Helpers (snowmen, cats, fish, soldiers, the Recall Memory boss) fall just like stickmen.
       if (b instanceof Fighter && b.boss) this.bounce(b, 250);
-      else if (this.fallMode === 'ko') this.kill(b, null, 'void');
+      // The Plane: whoever jumps out is out of the match.
+      else if (this.fallMode === 'ko' || planeOut(this)) this.kill(b, null, 'void');
       else this.bounce(b, 25);
     }
   }
@@ -3262,6 +3317,7 @@ export class Game {
     const alive = this.fighters.filter((f) => f.alive);
     if (this.cut) return { decided: false, team: null };
     if (this.ob) return outbreakWinner(this);
+    if (this.surv) return survivalWinner(this);
     if (this.inf) return infectionWinner(this);
     if (this.hill) return hillWinner(this);
     if (this.race) return raceWinner(this);
@@ -3392,7 +3448,7 @@ export class Game {
     let list: Body[] = this.fighters.filter((f) => f.alive);
     // Stickman Infection's town is too big to see at once: follow this device's own stickmen.
     // So are the Forbidden Tome Keep and Giant (or connected) maps from the map editor.
-    const big = this.inf || this.phy || this.map.w * this.map.h > 4000 * 2200;
+    const big = this.inf || this.phy || this.map.tall || this.map.w * this.map.h > 4000 * 2200;
     const mine = big ? this.focus.map((i) => this.fighters[i]).filter((f) => f?.alive) : [];
     if (mine.length) list = mine;
     // PHYLISHIEUS's final phase is far too long to see at once: once your own stickmen are down, watch one of your side.
