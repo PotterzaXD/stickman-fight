@@ -9,6 +9,7 @@ export type WeaponId = 'sword' | 'spear' | 'hammer' | 'bow' | 'boomerang' | 'bom
   | 'booger' | 'racket' | 'lollipop' | 'scythe' | 'pillow'
   | 'pie' | 'icecream' | 'rollingpin' | 'spatula' | 'ketchup' | 'popcorn'
   | 'broom' | 'paperplane' | 'slipper' | 'waterballoon' | 'plunger' | 'fan' | 'frisbee' | 'morningstar' | 'blanket'
+  | 'mattress' | 'aphone'
   | SummonCardId;
 
 /** Summon cards (October 30): one for every helper that had no weapon of its own to call it. */
@@ -111,7 +112,7 @@ export const WEAPONS: WeaponDef[] = [
   // Pistol: 1 second between shots, then a 3 second reload after 5 shots.
   { id: 'pistol', price: 150, length: 34, damage: 8, turn: 15, cooldown: 1, ranged: true },
   { id: 'gun67', price: 500, length: 50, damage: 12, turn: 13, cooldown: 10, ranged: true },
-  { id: 'summoner', price: 4000, length: 62, damage: 15, turn: 12, cooldown: 25, ranged: true },
+  { id: 'summoner', price: 4500, length: 62, damage: 15, turn: 12, cooldown: 25, ranged: true },
   { id: 'bravery', price: 800, length: 110, damage: 24, turn: 12, cooldown: 20, ranged: false },
   { id: 'pan', price: 300, length: 52, damage: 28, turn: 14, cooldown: 4, ranged: false },
   { id: 'watergun', price: 200, length: 42, damage: 6, turn: 14, cooldown: 3, ranged: true },
@@ -164,6 +165,10 @@ export const WEAPONS: WeaponDef[] = [
   { id: 'morningstar', price: 200, length: 74, damage: 34, turn: 8, cooldown: 6, ranged: false },
   // The Blanket: 20 a hit, and a hit sends them flying far. Throw it (50): whoever it lands on lies down asleep under it until somebody hits them.
   { id: 'blanket', price: 300, length: 50, damage: 20, turn: 13, cooldown: 5, ranged: true },
+  // November 5 update. The Mattress: 22 a hit; throw it on a group (20 each) and they are stuck under it 5 s, then choke for 10 a second for 5 s.
+  { id: 'mattress', price: 400, length: 56, damage: 22, turn: 12, cooldown: 6, ranged: true },
+  // The APhone: 30 a hit; throw it for 60 and they burn, or it explodes (30) if it misses.
+  { id: 'aphone', price: 500, length: 30, damage: 30, turn: 15, cooldown: 4, ranged: true },
   ...SUMMON_CARDS.map((c): WeaponDef => ({ id: c.id, price: c.price, length: 34, damage: 10, turn: 14, cooldown: c.cd, ranged: true })),
 ];
 

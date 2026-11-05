@@ -1,5 +1,5 @@
 import { BOSS_TEAM, Game, TEAM_COLORS, type FighterSpec, type MatchResult } from '../game/game';
-import { achName, grant, hasAch, type AchievementId } from '../achievements';
+import { achName, checkKey, grant, hasAch, hasKey, type AchievementId } from '../achievements';
 import type { Fighter } from '../game/entities';
 import { PIGEON_WEAPON, SECRET_KINDS, isSecret, isXBoss, type BossKind, type PhylPhase, type SecretKind, type XBossKind } from '../game/types';
 import { resolveHat } from '../game/hats';
@@ -14,12 +14,13 @@ import { t, teamName } from '../i18n';
 import { save } from '../save';
 import { sfx } from '../sfx';
 import { h, toast } from './dom';
-import { slotLooks } from './lobby';
+import { localName, slotLooks } from './lobby';
 import { startLoop } from './loop';
 import { go, register } from './router';
 import { afterWave, livesOf, outbreakInfo, outbreakTitle } from './outbreak';
 import { RUSH } from '../game/oct22';
 import { phylMapFor } from '../game/phyl';
+import { ME } from '../game/meBoss';
 import { goThroughPortal } from './portal';
 
 function buildSpecs(match: MatchConfig): FighterSpec[] {
@@ -36,7 +37,7 @@ function buildSpecs(match: MatchConfig): FighterSpec[] {
     // Sandbox: team colours, so you can see who is on which side.
     // Free for all: everyone on their own team, in their own colour.
     color: sandbox && !match.ffa ? TEAM_COLORS[s.team] ?? TEAM_COLORS[0] : looks[i].color,
-    team: sandbox && match.ffa ? i : match.mode === 'team' || sandbox ? s.team : isBossMode(match.mode) || ob ? 0 : i,
+    team: sandbox && match.ffa ? i : match.mode === 'team' || sandbox ? s.team : isBossMode(match.mode) || ob || match.mode === 'survival' ? 0 : i,
     human: s.kind === 'human',
     // The Pigeon: everyone holds a shotgun.
     weapon: match.mode === 'pigeon' ? PIGEON_WEAPON : s.weapon === 'random' ? pool[Math.floor(Math.random() * pool.length)] : s.weapon,
@@ -71,6 +72,7 @@ export function bossNames(): Record<BossKind, string> {
     phyl2: t('phyl2_name'),
     phyl3: t('phyl3_name'),
     golem: t('golem_name'),
+    me: localName(0),
   };
 }
 
@@ -78,6 +80,7 @@ export function bossNameFor(mode: Mode): string {
   if (isSecret(mode) || isXBoss(mode) || mode === 'mascot' || mode === 'cat' || mode === 'buffalo' || mode === 'pigeon') return bossNames()[mode];
   if (mode === 'outbreak') return t('obZombies');
   if (mode === 'phyl') return t('phyl_name');
+  if (mode === 'me') return localName(0);
   return t('boss_name');
 }
 
@@ -145,6 +148,7 @@ export function matchFacts(game: Game, r: Pick<MatchResult, 'winners' | 'winnerT
 function bossKind(f: Fighter): BossKind {
   if (f.phyl) return f.phyl === 3 ? 'phyl3' : f.phyl === 2 ? 'phyl2' : 'phyl1';
   if (f.golem) return 'golem';
+  if (f.me) return 'me';
   return f.secret ?? f.xboss ?? (f.mascot ? 'mascot' : f.cat ? 'cat' : f.buffalo ? 'buffalo' : f.fish ? 'fish' : f.pigeon ? 'pigeon' : 'boss');
 }
 
@@ -160,6 +164,8 @@ export interface RewardInfo {
   beachBoss?: boolean;
   /** PHYLISHIEUS: the phase that was fought. */
   phylPhase?: PhylPhase;
+  /** Survival: waves cleared and the coins they paid. */
+  surv?: { wave: number; coins: number };
   facts?: MatchFacts;
 }
 
@@ -239,10 +245,14 @@ export function giveReward(r: RewardInfo): HTMLElement[] {
   }
   // On the Beach your bosses were on your side: beating the Fishy boss is what pays.
   const beachBoss = mode === 'boss' && !!r.beachBoss;
-  let coins = !won
+  let coins = mode === 'survival'
+    ? r.surv?.coins ?? 0
+    : !won
     ? 1
     : mode === 'phyl'
     ? PHYL_COINS[r.phylPhase ?? 1]
+    : mode === 'me'
+    ? ME.coins
     : isSecret(mode)
     ? SECRET_COINS[mode]
     : isXBoss(mode)
@@ -274,13 +284,21 @@ export function giveReward(r: RewardInfo): HTMLElement[] {
     if (trident) d.owned.push('trident');
   });
   const pigeonNew = won && mode === 'pigeon' && !hasAch('pigeonBeat');
+  // Survival: a new best wave.
+  const survBest = mode === 'survival' && (r.surv?.wave ?? 0) > save.data.survival.best;
+  if (survBest) save.update((d) => (d.survival.best = r.surv!.wave));
+  // The boss with your name: beaten once = it's in Sandbox.
+  const meNew = won && mode === 'me' && !save.data.meBeat;
+  if (meNew) save.update((d) => (d.meBeat = true));
   // PHYLISHIEUS: phase 1 beaten = phase 2 next, phase 2 beaten = the final phase next.
   // The final phase beaten = the mode is gone, his map is a normal map and he (and his PHYSICERTAS) move to Sandbox.
+  // A refight with the Tome Key pays the same, but doesn't move the story on.
+  const refight = save.data.phyl.done;
   const beatPhase = won && mode === 'phyl' ? r.phylPhase ?? 1 : 0;
-  const phylNext = beatPhase === 3 ? 'done' : beatPhase === 2 ? 'phase3' : beatPhase === 1 ? 'phase2' : null;
+  const phylNext = refight ? null : beatPhase === 3 ? 'done' : beatPhase === 2 ? 'phase3' : beatPhase === 1 ? 'phase2' : null;
   if (beatPhase) save.update((d) => {
     const beat = Math.max(d.phyl.beat, beatPhase);
-    d.phyl = { beat, phase: Math.min(3, beat + 1) as PhylPhase, done: beat >= 3 };
+    d.phyl = { beat, phase: Math.min(3, beat + 1) as PhylPhase, done: beat >= 3, key: d.phyl.key };
   });
   const fresh = grant(matchAchievements(r));
   const woke = wakeSecrets(r);
@@ -290,9 +308,13 @@ export function giveReward(r: RewardInfo): HTMLElement[] {
   if (treasure) out.push(h('p', { class: 'treasure-got' }, t('treasureGot')));
   if (stick) out.push(h('p', { class: 'treasure-got' }, t('mascotStickGot')));
   if (trident) out.push(h('p', { class: 'treasure-got' }, t('tridentGot')));
+  if (mode === 'survival') out.push(h('p', { class: 'treasure-got' }, `🛡️ ${t(survBest ? 'svNewBest' : 'svBest', { n: save.data.survival.best })}`));
   if (pigeonNew) out.push(h('p', { class: 'treasure-got' }, t('pigeonSandbox')));
+  if (meNew) out.push(h('p', { class: 'treasure-got secret-got' }, `🪞 ${t('meSandbox', { name: localName(0) })}`));
   if (phylNext) out.push(h('p', { class: 'treasure-got secret-got' }, `📖 ${t(phylNext === 'done' ? 'phylGone3' : phylNext === 'phase3' ? 'phylPhase3Next' : 'phylPhase2Next')}`));
   out.push(...achLines(fresh));
+  // Everything done: the Tome Key (PHYLISHIEUS refights and 1D).
+  if (checkKey()) out.push(h('p', { class: 'treasure-got secret-got' }, `🗝️ ${t('keyGot')}`));
   for (const k of woke) out.push(h('p', { class: 'treasure-got secret-got' }, `${SECRET_ICON[k]} ${t('secretUnlocked', { name: bossNames()[k] })}`));
   if (woke.length) setTimeout(() => sfx.secret(), 1600);
   return out;
@@ -309,6 +331,8 @@ export function resultTitle(r: Pick<MatchResult, 'mode' | 'winnerTeam' | 'winner
   if (beach && r.mode === 'boss') return t('fishDefeated');
   if (isSecret(r.mode) || isXBoss(r.mode)) return t(r.winnerTeam === BOSS_TEAM ? 'secretWon' : 'secretDefeated', { name: bossNames()[r.mode] });
   if (r.mode === 'phyl') return r.winnerTeam === BOSS_TEAM ? t('phylWon') : t('phylDefeated');
+  if (r.mode === 'survival') return t('svOver');
+  if (r.mode === 'me') return t(r.winnerTeam === BOSS_TEAM ? 'secretWon' : 'secretDefeated', { name: localName(0) });
   if (r.mode === 'buffalo') return r.winnerTeam === BOSS_TEAM ? t('buffaloWon') : t('buffaloDefeated');
   if (r.mode === 'pigeon') return t('pigeonDefeated');
   if (r.mode === 'rush') return t(r.winnerTeam === BOSS_TEAM ? 'rushLost' : 'rushWon');
@@ -329,6 +353,8 @@ export function matchTrack(game: Game): TrackId {
   if (game.mode === 'pigeon' || game.bosses.some((b) => b.pigeon)) return 'pigeon';
   if (game.mode === 'outbreak') return 'outbreak';
   if (game.mode === 'infection') return 'infect';
+  if (game.mode === 'survival') return 'survival';
+  if (game.map.id === 'doom' || game.map.id === 'plane') return game.map.id;
   if (game.mode === 'elephant' || game.bosses.some((b) => b.xboss === 'elephant')) return 'elephant';
   if (game.mode === 'sandbox' && game.rock) return 'rock';
   if (isBossMode(game.mode) || (game.mode === 'sandbox' && game.bosses.length)) return 'boss';
@@ -340,7 +366,9 @@ register('play', (root, { match, fromEditor }) => {
   // The Outbreak is always at the Castle Gate.
   // Stickman Infection is always in its own big town.
   // PHYLISHIEUS: always in The Forbidden Tome Keep.
-  const map = fromEditor ?? (match.mode === 'outbreak' ? OUTBREAK_MAP : match.mode === 'infection' ? INFECTION_MAP : match.mode === 'phyl' ? phylMapFor(save.data.phyl.phase) : allMaps(save.data.customMaps).find((m) => m.id === match.mapId) ?? allMaps([])[0]);
+  // PHYLISHIEUS: the story phase, or the one picked for a Tome Key refight.
+  const phylPhase = (save.data.phyl.done && hasKey() ? match.phylPhase : undefined) ?? save.data.phyl.phase;
+  const map = fromEditor ?? (match.mode === 'outbreak' ? OUTBREAK_MAP : match.mode === 'infection' ? INFECTION_MAP : match.mode === 'phyl' ? phylMapFor(phylPhase) : allMaps(save.data.customMaps).find((m) => m.id === match.mapId) ?? allMaps([])[0]);
   let paused = false;
   let game!: Game;
   let startCoins = 0;
@@ -406,6 +434,8 @@ register('play', (root, { match, fromEditor }) => {
   /** PHYLISHIEUS: after phase 1, back to his preparation menu for phase 2. After phase 2 the mode is gone. */
   const phylButtons = (r: MatchResult) => {
     if (match.mode !== 'phyl' || !r.humanWon) return null;
+    // Refights with the Tome Key: fight again or go back.
+    if (save.data.phyl.done && match.phylPhase && hasKey()) return null;
     if (save.data.phyl.done) return h('div', { class: 'row gap center' }, h('button', { class: 'btn big primary', onclick: () => go('menu') }, `🏠 ${t('menu')}`));
     return h('div', { class: 'row gap center' }, h('button', { class: 'btn big primary', onclick: () => go('lobby', { mode: 'phyl' }) }, `📖 ${t(save.data.phyl.phase === 3 ? 'phylToPhase3' : 'phylToPhase2')}`));
   };
@@ -422,12 +452,13 @@ register('play', (root, { match, fromEditor }) => {
       fish: r.fish,
       beachBoss: game.beach && r.mode === 'boss',
       phylPhase: game.phy?.phase,
+      surv: game.surv ? { wave: game.surv.cleared, coins: game.surv.coins } : undefined,
       solo: humans.length === 1 && humans[0].human,
       facts: matchFacts(game, r, game.fighters.filter((f) => f.human), startCoins),
     });
     // Watching bots counts as a win for the music.
     jingle(r.humanWon || !r.hadHumans ? 'victory' : 'defeat');
-    const ranked = game.fighters.filter((f) => !f.cloneOf).sort((a, b) => Number(b.alive) - Number(a.alive) || b.kos - a.kos);
+    const ranked = game.fighters.filter((f) => !f.cloneOf && !f.foe).sort((a, b) => Number(b.alive) - Number(a.alive) || b.kos - a.kos);
     overlay.replaceChildren(
       h(
         'div',
@@ -463,8 +494,11 @@ register('play', (root, { match, fromEditor }) => {
       ffa: match.mode === 'sandbox' && !!match.ffa,
       outbreak: outbreak && obSave ? outbreakInfo(obSave) : undefined,
       juice: save.data.settings.juice,
-      phylPhase: save.data.phyl.phase,
+      phylPhase,
       golemName: t('golem_name'),
+      outside: !!match.planeOut,
+      foeName: t('svFoe'),
+      me: { name: localName(0), color: save.data.outfit.color, hat: save.data.outfit.hat, owned: save.data.owned },
     });
     game.onOver = showResult;
     // The camera follows this device's players (Stickman Infection's town is too big to fit everyone).

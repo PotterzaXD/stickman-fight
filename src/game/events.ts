@@ -3,8 +3,8 @@ import type { Game } from './game';
 import { SHOP_WEAPONS, weapon, type WeaponDef } from './weapons';
 
 /*
- * Random Events (a fun mode, offline and online): a normal fight on any map, but every 20 seconds something wild
- * happens for a few seconds. The lights go out, gravity goes low, lava rises, everyone swaps places, rocks or bombs
+ * Random Events (a fun mode, offline and online): a normal fight on any map, but every few seconds something wild
+ * happens (sometimes 2 or 3 things at once). The lights go out, gravity goes low, lava rises, everyone swaps places, rocks or bombs
  * rain down, everyone gets a random weapon, everyone gets giant or tiny or super fast, or the whole floor turns to ice.
  */
 
@@ -15,11 +15,14 @@ export const EVENT_ICON: Record<EventId, string> = {
   blackout: '🌑', lowgrav: '🌙', lava: '🌋', teleport: '🌀', rockfall: '🪨', shuffle: '🔀', giant: '🦍', tiny: '🐜', speed: '⚡', ice: '🧊', bombs: '💣',
 };
 
-/** A new event every 20 seconds (the first one comes sooner), and how long each one lasts. */
-export const EVENTS = { every: 20, first: 8, last: 10, lava: 13, shuffle: 14, swapEvery: 2.5, rockEvery: 0.18, bombEvery: 0.45, rock: 35, bomb: 45, bombR: 120 };
+/** A new batch of events every 8 seconds (the first one comes sooner), and how long each one lasts.
+ * A batch is 1 event, sometimes 2 (25%) or 3 (10%). At most 3 go on at once. */
+export const EVENTS = { every: 8, first: 3, last: 10, lava: 13, shuffle: 14, swapEvery: 2.5, rockEvery: 0.18, bombEvery: 0.45, rock: 35, bomb: 45, bombR: 120, two: 0.25, three: 0.1, max: 3 };
 const SIZE = { giant: 1.6, tiny: 0.6 };
 const FAST = 1.6;
 const LOW_GRAVITY = 0.42;
+/** Events that can't go on together. */
+const OPPOSITE: Partial<Record<EventId, EventId>> = { giant: 'tiny', tiny: 'giant' };
 
 /** A rock or a bomb falling out of the sky. */
 export interface Faller {
@@ -31,25 +34,33 @@ export interface Faller {
   rot: number;
 }
 
-export interface EventsState {
-  /** The event going on (null = none), seconds left in it and how long it lasts. */
-  cur: EventId | null;
+/** One event going on: seconds left in it, how long it lasts, and its own timer. */
+export interface ActiveEvent {
+  id: EventId;
   t: number;
   dur: number;
-  /** Seconds until the next one starts. */
+  tick: number;
+}
+
+export interface EventsState {
+  /** The events going on right now (up to 3). */
+  act: ActiveEvent[];
+  /** Seconds until the next batch starts. */
   next: number;
-  last: EventId | null;
+  last: EventId[];
   /** Rising Lava: the top of the lava. */
   lavaY: number;
   fallers: Faller[];
-  tick: number;
   /** The map's normal gravity. */
   grav: number;
 }
 
 export function startEvents(g: Game) {
-  g.ev = { cur: null, t: 0, dur: 0, next: EVENTS.first, last: null, lavaY: g.map.h + 400, fallers: [], tick: 0, grav: g.gravity };
+  g.ev = { act: [], next: EVENTS.first, last: [], lavaY: g.map.h + 400, fallers: [], grav: g.gravity };
 }
+
+/** Is this event going on? */
+export const evOn = (ev: EventsState | null | undefined, id: EventId) => !!ev?.act.some((a) => a.id === id);
 
 /** Everyone who takes part (not bosses or the Outbreak's hidden horde). */
 const players = (g: Game) => g.fighters.filter((f) => !f.boss && !f.horde);
@@ -73,10 +84,8 @@ function giveWeapons(f: Fighter, list: WeaponDef[]) {
 
 function begin(g: Game, id: EventId) {
   const ev = g.ev!;
-  ev.cur = id;
-  ev.last = id;
-  ev.dur = ev.t = id === 'lava' ? EVENTS.lava : id === 'shuffle' ? EVENTS.shuffle : EVENTS.last;
-  ev.tick = 0;
+  const dur = id === 'lava' ? EVENTS.lava : id === 'shuffle' ? EVENTS.shuffle : EVENTS.last;
+  ev.act.push({ id, t: dur, dur, tick: id === 'teleport' ? 0.6 : 0 });
   g.play('boom');
   g.shake = Math.min(18, g.shake + 6);
   if (id === 'lowgrav') g.gravity = ev.grav * LOW_GRAVITY;
@@ -89,52 +98,62 @@ function begin(g: Game, id: EventId) {
       g.burst(f.x, f.cy, '#ffd740', 10, 240);
     }
   }
-  if (id === 'teleport') ev.tick = 0.6;
 }
 
-function end(g: Game) {
+/** One event is over: undo just what it changed. */
+function end(g: Game, a: ActiveEvent) {
   const ev = g.ev!;
-  const id = ev.cur;
-  ev.cur = null;
-  ev.next = EVENTS.every - ev.dur;
-  g.gravity = ev.grav;
+  ev.act = ev.act.filter((x) => x !== a);
+  if (a.id === 'lowgrav') g.gravity = ev.grav;
+  if (a.id === 'lava') ev.lavaY = g.map.h + 400;
   for (const f of players(g)) {
-    setSize(f, 1);
-    f.speed = 380;
-    if (id === 'shuffle' && f.homeWeapons) {
+    if (a.id === 'giant' || a.id === 'tiny') setSize(f, 1);
+    if (a.id === 'speed') f.speed = 380;
+    if (a.id === 'shuffle' && f.homeWeapons) {
       giveWeapons(f, f.homeWeapons);
       f.homeWeapons = null;
     }
   }
-  ev.lavaY = g.map.h + 400;
 }
 
-/** A random event that isn't the one just before. */
-function pickEvent(last: EventId | null): EventId {
-  const pool = EVENT_IDS.filter((id) => id !== last);
-  return pool[Math.floor(Math.random() * pool.length)];
+/** A batch of 1-3 random events: none going on already, none from the last batch, no opposites together. */
+function pickEvents(ev: EventsState): EventId[] {
+  const r = Math.random();
+  const want = Math.min(EVENTS.max - ev.act.length, r < EVENTS.three ? 3 : r < EVENTS.three + EVENTS.two ? 2 : 1);
+  const out: EventId[] = [];
+  for (let k = 0; k < want; k++) {
+    const taken = [...ev.act.map((a) => a.id), ...out];
+    const pool = EVENT_IDS.filter((id) => !taken.includes(id) && !taken.some((x) => OPPOSITE[x] === id) && !ev.last.includes(id));
+    if (!pool.length) break;
+    out.push(pool[Math.floor(Math.random() * pool.length)]);
+  }
+  return out;
 }
 
 export function updateEvents(g: Game, dt: number) {
   const ev = g.ev!;
-  if (!ev.cur) {
-    ev.next -= dt;
-    if (ev.next <= 0) begin(g, pickEvent(ev.last));
-  } else {
-    ev.t -= dt;
-    during(g, ev, dt);
-    if (ev.t <= 0) end(g);
+  ev.next -= dt;
+  if (ev.next <= 0) {
+    ev.next = EVENTS.every;
+    const ids = pickEvents(ev);
+    if (ids.length) ev.last = ids;
+    for (const id of ids) begin(g, id);
+  }
+  for (const a of [...ev.act]) {
+    a.t -= dt;
+    during(g, ev, a, dt);
+    if (a.t <= 0) end(g, a);
   }
   updateFallers(g, dt);
 }
 
-function during(g: Game, ev: EventsState, dt: number) {
+function during(g: Game, ev: EventsState, a: ActiveEvent, dt: number) {
   const list = players(g);
-  switch (ev.cur) {
+  switch (a.id) {
     case 'giant':
     case 'tiny':
       // Anyone who comes back during it gets the same size.
-      for (const f of list) setSize(f, SIZE[ev.cur]);
+      for (const f of list) setSize(f, SIZE[a.id]);
       break;
     case 'speed':
       for (const f of list) {
@@ -145,25 +164,25 @@ function during(g: Game, ev: EventsState, dt: number) {
     case 'lava': {
       // Up for 5 seconds, stays a while, then goes back down over the last 3.
       const top = lavaTop(g);
-      const up = Math.min(1, (ev.dur - ev.t) / 5);
-      const down = Math.min(1, ev.t / 3);
+      const up = Math.min(1, (a.dur - a.t) / 5);
+      const down = Math.min(1, a.t / 3);
       ev.lavaY = g.map.h + 60 - (g.map.h + 60 - top) * Math.min(up, down);
       for (const b of g.bodies()) if (b.alive && b.y > ev.lavaY && b.vy >= 0) g.lavaHit(b);
       break;
     }
     case 'teleport':
-      ev.tick -= dt;
-      if (ev.tick <= 0) {
-        ev.tick = EVENTS.swapEvery;
+      a.tick -= dt;
+      if (a.tick <= 0) {
+        a.tick = EVENTS.swapEvery;
         swapPlaces(g);
       }
       break;
     case 'rockfall':
     case 'bombs':
-      ev.tick -= dt;
-      if (ev.tick <= 0) {
-        const rock = ev.cur === 'rockfall';
-        ev.tick = rock ? EVENTS.rockEvery : EVENTS.bombEvery;
+      a.tick -= dt;
+      if (a.tick <= 0) {
+        const rock = a.id === 'rockfall';
+        a.tick = rock ? EVENTS.rockEvery : EVENTS.bombEvery;
         // Mostly near the fighters, so there's always something to dodge.
         const near = list.filter((f) => f.alive);
         const at = near.length && Math.random() < 0.6 ? near[Math.floor(Math.random() * near.length)].x + (Math.random() - 0.5) * 500 : Math.random() * g.map.w;
@@ -242,8 +261,8 @@ function boom(g: Game, at: { x: number; y: number }) {
 
 /** Online: the joining devices make the sizes match the host's event (the host sends the rest). */
 export function mirrorEvent(g: Game) {
-  const id = g.ev?.cur;
-  for (const f of players(g)) setSize(f, id === 'giant' ? SIZE.giant : id === 'tiny' ? SIZE.tiny : 1);
+  const ev = g.ev;
+  for (const f of players(g)) setSize(f, evOn(ev, 'giant') ? SIZE.giant : evOn(ev, 'tiny') ? SIZE.tiny : 1);
 }
 
 /** Online: weapons after Weapon Shuffle (the host sends each fighter's weapon). */

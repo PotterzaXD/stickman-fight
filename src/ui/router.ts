@@ -30,6 +30,7 @@ export interface Routes {
   tdPlay: { mapId: string };
   chef: { tab?: 'home' | 'build' | 'staff' | 'menu' | 'reviews' } | undefined;
   chefDay: undefined;
+  oneD: undefined;
 }
 
 export type Screen<K extends keyof Routes> = (root: HTMLElement, arg: Routes[K]) => (() => void) | void;
@@ -53,7 +54,7 @@ export function go<K extends keyof Routes>(name: K, ...arg: undefined extends Ro
   root.scrollTop = 0;
   const s = screens[name] as Screen<K>;
   // Menus play the title theme; Sandbox has its own. Matches pick their own music, and Stick Brawl has none.
-  if (name !== 'play' && name !== 'netplay' && name !== 'stickbrawl' && name !== 'worst2' && name !== 'arena' && name !== 'sf2') playMusic(name === 'sandbox' ? 'sandbox' : 'menu');
+  if (name !== 'play' && name !== 'netplay' && name !== 'stickbrawl' && name !== 'worst2' && name !== 'arena' && name !== 'sf2' && name !== 'oneD') playMusic(name === 'sandbox' ? 'sandbox' : 'menu');
   sfx.transition();
   cleanup = s(root, arg[0] as Routes[K]);
 }

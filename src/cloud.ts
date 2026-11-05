@@ -63,9 +63,12 @@ function merge(local: SaveData, remote: SaveData): SaveData {
     clothes: Array.from(new Set([...local.clothes, ...remote.clothes])),
     joined: Math.min(local.joined, remote.joined),
     // PHYLISHIEUS: whichever device got further.
-    phyl: local.phyl.beat > remote.phyl.beat ? local.phyl : remote.phyl.beat > local.phyl.beat ? remote.phyl : newer.phyl,
+    phyl: { ...(local.phyl.beat > remote.phyl.beat ? local.phyl : remote.phyl.beat > local.phyl.beat ? remote.phyl : newer.phyl), key: local.phyl.key || remote.phyl.key },
+    meBeat: local.meBeat || remote.meBeat,
+    survival: { best: Math.max(local.survival.best, remote.survival.best) },
+    oneD: { ...newer.oneD, owned: Array.from(new Set([...local.oneD.owned, ...remote.oneD.owned])), wins: Math.max(local.oneD.wins, remote.oneD.wins) },
     // Volume settings belong to this device.
-    settings: { ...newer.settings, musicVol: local.settings.musicVol, sfxVol: local.settings.sfxVol, musicMute: local.settings.musicMute, sfxMute: local.settings.sfxMute, killFeed: local.settings.killFeed },
+    settings: { ...newer.settings, musicVol: local.settings.musicVol, sfxVol: local.settings.sfxVol, musicMute: local.settings.musicMute, sfxMute: local.settings.sfxMute, killFeed: local.settings.killFeed, hideBossBars: local.settings.hideBossBars },
     customMaps: [...maps.values()],
     name: newer.name || local.name || remote.name,
     zombieAlly: local.zombieAlly || remote.zombieAlly,

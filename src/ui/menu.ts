@@ -7,7 +7,7 @@ import type { Difficulty } from '../game/types';
 import { SHOP_WEAPONS } from '../game/weapons';
 import { t } from '../i18n';
 import { save } from '../save';
-import { grant } from '../achievements';
+import { checkKey, grant, hasKey } from '../achievements';
 import { h, shareLink, toast } from './dom';
 import { startLoop } from './loop';
 import { go, register } from './router';
@@ -57,6 +57,8 @@ export function shareGame() {
 register('menu', (root) => {
   // Catch up on Collector for weapons owned before achievements existed.
   grant([]);
+  // Everything done (achievements can also come from the shop): the Tome Key.
+  if (checkKey()) setTimeout(() => toast(`🗝️ ${t('keyGot')}`), 300);
   // Beat wave 10 of The Outbreak and came back to the menu: the zombie ally is unlocked.
   if (save.data.pendingZombie) {
     save.update((d) => {
@@ -117,6 +119,8 @@ register('menu', (root) => {
           h('button', { class: 'btn', onclick: () => go('achievements') }, `🏆 ${t('achievements')}`),
           h('button', { class: 'btn', onclick: () => go('maps') }, `🗺️ ${t('editor')}`),
           h('button', { class: 'btn', onclick: () => go('settings') }, `⚙️ ${t('settings')}`),
+          // The small 1D tab: only with the Tome Key.
+          hasKey() ? h('button', { class: 'btn one-d-tab', onclick: () => go('oneD') }, `🗝️ ${t('oneD')}`) : null,
         ),
         h(
           'div',

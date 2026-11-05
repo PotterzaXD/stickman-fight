@@ -3,7 +3,8 @@ import { allMaps } from '../game/maps';
 import { BEACH_MAP, BEACH_MODES, PIGEON_MAX, SECRET_KINDS, isBossMode, isSecret, isXBoss, type SecretKind, type Difficulty, type MapDef, type MatchConfig, type Mode, type SlotConfig } from '../game/types';
 import { GUARDIAN_MAPS } from '../game/maps';
 import { HATS } from '../game/hats';
-import { ACHIEVEMENTS, achDoneCount, hasAch, phylLocked, phylOpen } from '../achievements';
+import { ACHIEVEMENTS, achDoneCount, hasAch, hasKey, meOpen, phylLocked, phylOpen } from '../achievements';
+import type { PhylPhase } from '../game/types';
 import { WEAPONS } from '../game/weapons';
 import { t, teamName, type Key } from '../i18n';
 import { NAME_MAX, cleanName, save } from '../save';
@@ -23,8 +24,8 @@ export const BIG_BOTS = 30;
 /** Bots allowed in this mode (the Pigeon fits up to 30 fighters). */
 /** PHYLISHIEUS's final phase: ×10 the bots (300). */
 export const PHYL3_BOTS = BIG_BOTS * 10;
-export const maxBots = (mode: Mode, humans: number) =>
-  mode === 'pigeon' ? PIGEON_MAX - humans : mode === 'phyl' && save.data.phyl.phase === 3 ? PHYL3_BOTS : mode === 'infection' || mode === 'phyl' ? BIG_BOTS : MAX_BOTS;
+export const maxBots = (mode: Mode, humans: number, phase: PhylPhase = save.data.phyl.phase) =>
+  mode === 'me' ? 0 : mode === 'pigeon' ? PIGEON_MAX - humans : mode === 'phyl' && phase === 3 ? PHYL3_BOTS : mode === 'infection' || mode === 'phyl' || mode === 'survival' ? BIG_BOTS : MAX_BOTS;
 
 /** Hat picker for a slot: players pick from their hats, bots can also get a random one. */
 export function hatSelect(s: SlotConfig, bot: boolean) {
@@ -39,6 +40,9 @@ export function hatSelect(s: SlotConfig, bot: boolean) {
   sel.value = want === 'random' ? (bot ? 'random' : 'none') : save.data.hats.includes(want) ? want : 'none';
   return h('label', { class: 'field' }, h('small', {}, `🎩 ${t('hat')}`), sel);
 }
+
+/** PHYLISHIEUS can be fought: on the way through his story, or any time with the Tome Key. */
+const phylCan = () => phylOpen() || (save.data.phyl.done && hasKey());
 
 /** Hints for the secret bosses you haven't unlocked yet (with your progress). */
 export function secretHints(): HTMLElement | null {
@@ -166,8 +170,12 @@ register('lobby', (root, arg) => {
   if (arg?.mapId) m.mapId = arg.mapId;
   if (!maps.some((x) => x.id === m.mapId)) m.mapId = 'arena';
   m.bosses = Math.max(1, Math.min(MAX_BOSSES, m.bosses ?? 1));
-  if (m.mode === 'sandbox' || m.mode === 'outbreak' || (m.mode === 'buffalo' && !hasAch('buffalo')) || (isSecret(m.mode) && !save.data.secrets.includes(m.mode)) || (m.mode === 'phyl' && !phylOpen())) m.mode = 'ffa';
-  if (arg?.mode && (arg.mode !== 'phyl' || phylOpen())) m.mode = arg.mode;
+  if (m.mode === 'sandbox' || m.mode === 'outbreak' || (m.mode === 'buffalo' && !hasAch('buffalo')) || (isSecret(m.mode) && !save.data.secrets.includes(m.mode)) || (m.mode === 'phyl' && !phylCan()) || (m.mode === 'me' && !meOpen()) || m.mode === 'survival') m.mode = 'ffa';
+  if (arg?.mode && (arg.mode !== 'phyl' || phylCan())) m.mode = arg.mode;
+  // PHYLISHIEUS refights (Tome Key): phase 1 to start with.
+  const refight = save.data.phyl.done && hasKey();
+  if (refight) m.phylPhase ??= 1;
+  const phase = (): PhylPhase => (refight ? m.phylPhase ?? 1 : save.data.phyl.phase);
   // Stickman Infection from the fun modes page: fill up with bots so there is someone to chase.
   if (arg?.mode === 'infection') while (m.slots.length < 6) m.slots.push({ kind: 'bot', weapon: 'random', team: m.slots.length % 4, difficulty: 'medium' });
   if (m.mapId === BEACH_MAP && !BEACH_MODES.includes(m.mode)) m.mode = m.mode === 'events' ? 'ffa' : 'boss';
@@ -186,9 +194,11 @@ register('lobby', (root, arg) => {
     const n = m.slots.length;
     if (m.mode === 'mascot' && !mascotUnlocked(save.data.owned)) return t('mascotLocked', mascotProgress(save.data.owned));
     if (m.mode === 'buffalo' && !hasAch('buffalo')) return t('buffaloLocked');
-    if (m.mode === 'phyl' && !phylOpen()) return t('hint.phyl', { total: ACHIEVEMENTS.length });
+    if (m.mode === 'phyl' && !phylCan()) return t('hint.phyl', { total: ACHIEVEMENTS.length });
+    // The boss with your name: just you (one player, no bots).
+    if (m.mode === 'me') return m.slots.length === 1 && m.slots[0].kind === 'human' ? '' : t('meSolo');
     if (m.mapId === BEACH_MAP && !BEACH_MODES.includes(m.mode)) return t('beachOnly');
-    if (isBossMode(m.mode)) return n >= 1 ? '' : t('needOne');
+    if (isBossMode(m.mode) || m.mode === 'survival') return n >= 1 ? '' : t('needOne');
     if (n < 2) return t('needTwo');
     if (m.mode === 'team' && new Set(m.slots.map((s) => s.team)).size < 2) return t('needTwoTeams');
     return '';
@@ -214,8 +224,8 @@ register('lobby', (root, arg) => {
             if (m.mapId === BEACH_MAP && !BEACH_MODES.includes(mode)) return toast(t('beachOnly'));
             m.mode = mode;
             // Leaving the Pigeon: only 6 bots fit in the other modes.
-            let extra = m.slots.filter((s) => s.kind === 'bot').length - maxBots(mode, 0);
-            if (extra > 0) toast(t('botsTrimmed', { n: maxBots(mode, 0) }));
+            let extra = m.slots.filter((s) => s.kind === 'bot').length - maxBots(mode, 0, phase());
+            if (extra > 0 && mode !== 'me') toast(t('botsTrimmed', { n: maxBots(mode, 0, phase()) }));
             for (let i = m.slots.length - 1; i >= 0 && extra > 0; i--) {
               if (m.slots[i].kind !== 'bot') continue;
               m.slots.splice(i, 1);
@@ -224,7 +234,7 @@ register('lobby', (root, arg) => {
             render();
           },
         },
-        `${(mode === 'mascot' && !mascotUnlocked(save.data.owned)) || (mode === 'buffalo' && !hasAch('buffalo')) ? '🔒' : icon} ${t(mode)}`,
+        `${(mode === 'mascot' && !mascotUnlocked(save.data.owned)) || (mode === 'buffalo' && !hasAch('buffalo')) ? '🔒' : icon} ${mode === 'me' ? localName(0) : t(mode as Key)}`,
       );
 
     const mapCards = maps.map((mp) =>
@@ -354,16 +364,44 @@ register('lobby', (root, arg) => {
             h('button', { class: 'seg locked', onclick: () => toast(t(`hint.${k}` as Key)) }, `🔒 ???`),
           ),
           // PHYLISHIEUS: ??? until every achievement is done, gone once both phases are beaten.
-          phylOpen() ? modeBtn('phyl', '📖') : null,
+          phylCan() ? modeBtn('phyl', refight ? '🗝️' : '📖') : null,
+          // After PHYLISHIEUS's final phase: a boss with your own name.
+          meOpen() ? modeBtn('me', '🪞') : null,
           phylLocked()
             ? h('button', { class: 'seg locked', onclick: () => toast(`${t('hint.phyl', { total: ACHIEVEMENTS.length })} (${achDoneCount()}/${ACHIEVEMENTS.length})`) }, `🔒 ???`)
             : null,
         ),
         h('small', { class: 'seg-group' }, t('modesFun')),
-        h('div', { class: 'segs' }, modeBtn('infection', '🦠'), modeBtn('events', '🌪️')),
-        h('p', { class: 'muted' }, t(`${m.mode}Desc` as Key)),
+        h('div', { class: 'segs' }, modeBtn('infection', '🦠'), modeBtn('events', '🌪️'), modeBtn('survival', '🛡️')),
+        m.mode === 'survival' ? h('small', { class: 'muted' }, `🛡️ ${t('svBest', { n: save.data.survival.best })}`) : null,
+        h('p', { class: 'muted' }, t(`${m.mode}Desc` as Key, m.mode === 'me' ? { name: localName(0) } : undefined)),
+        m.mode === 'me' ? h('small', { class: 'muted' }, `🪙🏆 ${t('meReward')}`) : null,
+        m.mode === 'phyl' && refight
+          ? h(
+              'div',
+              { class: 'row gap wrap' },
+              h('b', {}, `🗝️ ${t('phylRefight')}`),
+              h(
+                'div',
+                { class: 'segs' },
+                ...([1, 2, 3] as PhylPhase[]).map((n) =>
+                  h(
+                    'button',
+                    {
+                      class: `seg ${phase() === n ? 'on' : ''}`,
+                      onclick: () => {
+                        m.phylPhase = n;
+                        render();
+                      },
+                    },
+                    n === 3 ? t('phyl3_name') : t('phylPhase', { n }),
+                  ),
+                ),
+              ),
+            )
+          : null,
         isSecret(m.mode) || isXBoss(m.mode) ? h('small', { class: 'muted' }, `🪙🏆 ${t(`${m.mode}Reward` as Key)}`) : null,
-        m.mode === 'phyl' ? h('p', { class: 'phyl-phase' }, `📖 ${save.data.phyl.phase === 3 ? t('phyl3_name') : t('phylPhase', { n: save.data.phyl.phase })} · 🪙🏆 ${t(`phylReward${save.data.phyl.phase}` as Key)}`) : null,
+        m.mode === 'phyl' ? h('p', { class: 'phyl-phase' }, `📖 ${phase() === 3 ? t('phyl3_name') : t('phylPhase', { n: phase() })} · 🪙🏆 ${t(`phylReward${phase()}` as Key)}`) : null,
         m.mode === 'buffalo' ? h('small', { class: 'muted' }, `🪙🏆 ${t('buffaloReward')}`) : null,
         m.mode === 'pigeon' ? h('small', { class: 'muted' }, `🪙🏆 ${t('pigeonReward')}`) : null,
         m.mode === 'rush' ? h('small', { class: 'muted' }, `🪙🏆 ${t('rushReward')}`) : null,
@@ -386,8 +424,38 @@ register('lobby', (root, arg) => {
       m.mode === 'infection'
         ? h('section', {}, h('h3', {}, `${t('map')}: ${t('m.town')}`), h('small', { class: 'muted' }, t('infMapNote')))
         : m.mode === 'phyl'
-        ? h('section', {}, h('h3', {}, `${t('map')}: ${t(save.data.phyl.phase === 3 ? 'm.phylfinal' : 'm.tomekeep')}`), h('small', { class: 'muted' }, t(save.data.phyl.phase === 3 ? 'phylFinalMapNote' : 'phylMapNote')))
-        : h('section', {}, h('h3', {}, t('map')), h('div', { class: 'map-row' }, ...mapCards)),
+        ? h('section', {}, h('h3', {}, `${t('map')}: ${t(phase() === 3 ? 'm.phylfinal' : 'm.tomekeep')}`), h('small', { class: 'muted' }, t(phase() === 3 ? 'phylFinalMapNote' : 'phylMapNote')))
+        : h(
+            'section',
+            {},
+            h('h3', {}, t('map')),
+            h('div', { class: 'map-row' }, ...mapCards),
+            // The Plane: start inside the cabin or outside on the roof.
+            m.mapId === 'plane'
+              ? h(
+                  'div',
+                  { class: 'row gap wrap' },
+                  h('b', {}, `✈️ ${t('planeSpawn')}`),
+                  h(
+                    'div',
+                    { class: 'segs' },
+                    ...([false, true] as const).map((out) =>
+                      h(
+                        'button',
+                        {
+                          class: `seg ${!!m.planeOut === out ? 'on' : ''}`,
+                          onclick: () => {
+                            m.planeOut = out;
+                            render();
+                          },
+                        },
+                        t(out ? 'planeOutside' : 'planeInside'),
+                      ),
+                    ),
+                  ),
+                )
+              : null,
+          ),
       h(
         'section',
         {},
@@ -402,7 +470,7 @@ register('lobby', (root, arg) => {
               'button',
               {
                 class: 'btn small',
-                disabled: humans >= MAX_PLAYERS || (m.mode === 'pigeon' && m.slots.length >= PIGEON_MAX),
+                disabled: humans >= MAX_PLAYERS || (m.mode === 'me' && humans >= 1) || (m.mode === 'pigeon' && m.slots.length >= PIGEON_MAX),
                 onclick: () => {
                   m.slots.push({ kind: 'human', weapon: 'sword', team: leastTeam(), difficulty: 'medium' });
                   render();
@@ -414,23 +482,23 @@ register('lobby', (root, arg) => {
               'button',
               {
                 class: 'btn small',
-                disabled: bots >= maxBots(m.mode, humans),
+                disabled: bots >= maxBots(m.mode, humans, phase()),
                 onclick: () => {
                   m.slots.push({ kind: 'bot', weapon: 'random', team: leastTeam(), difficulty: 'medium' });
                   render();
                 },
               },
-              `${t('addBot')} ${bots}/${maxBots(m.mode, humans)}`,
+              `${t('addBot')} ${bots}/${maxBots(m.mode, humans, phase())}`,
             ),
             // Room for hundreds of bots: add them ten at a time.
-            maxBots(m.mode, humans) > BIG_BOTS
+            maxBots(m.mode, humans, phase()) > BIG_BOTS
               ? h(
                   'button',
                   {
                     class: 'btn small',
-                    disabled: bots >= maxBots(m.mode, humans),
+                    disabled: bots >= maxBots(m.mode, humans, phase()),
                     onclick: () => {
-                      for (let k = 0; k < 10 && m.slots.filter((s) => s.kind === 'bot').length < maxBots(m.mode, humans); k++) m.slots.push({ kind: 'bot', weapon: 'random', team: leastTeam(), difficulty: 'medium' });
+                      for (let k = 0; k < 10 && m.slots.filter((s) => s.kind === 'bot').length < maxBots(m.mode, humans, phase()); k++) m.slots.push({ kind: 'bot', weapon: 'random', team: leastTeam(), difficulty: 'medium' });
                       render();
                     },
                   },

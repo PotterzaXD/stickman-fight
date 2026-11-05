@@ -181,6 +181,7 @@ register('room', (root) => {
               ['outbreak', `🧟 ${t('outbreak')}`],
               ['infection', `🦠 ${t('infection')}`],
               ['events', `🌪️ ${t('events')}`],
+              ['survival', `🛡️ ${t('survival')}`],
               // Secret bosses only show once the host has unlocked them.
               ...SECRET_KINDS.filter((k) => st.hostSecrets?.includes(k)).map((k): [Mode, string] => [k, `${SECRET_ICONS[k]} ${t(k)}`]),
               // PHYLISHIEUS once the host has every achievement (and until the host beats phase 2).
@@ -197,6 +198,7 @@ register('room', (root) => {
           st.mode === 'stock' ? h('small', { class: 'muted' }, t('stockDesc')) : null,
           st.mode === 'infection' ? h('small', { class: 'muted' }, t('infectionDesc')) : null,
           st.mode === 'events' ? h('small', { class: 'muted' }, t('eventsDesc')) : null,
+          st.mode === 'survival' ? h('small', { class: 'muted' }, t('survivalDesc')) : null,
           st.mode === 'phyl' ? h('small', { class: 'muted' }, `${t('phylDesc')} 📖 ${t('phylPhase', { n: st.hostPhyl || 1 })} · 🪙🏆 ${t(st.hostPhyl === 3 ? 'phylReward3' : st.hostPhyl === 2 ? 'phylReward2' : 'phylReward1')}`) : null,
           st.mode === 'buffalo' ? h('small', { class: 'muted' }, `🪙🏆 ${t('buffaloReward')}`) : null,
           isSecret(st.mode) || isXBoss(st.mode) ? h('small', { class: 'muted' }, `🪙🏆 ${t(`${st.mode}Reward` as Key)}`) : null,

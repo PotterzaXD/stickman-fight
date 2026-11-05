@@ -6,6 +6,10 @@ import { audio, midiHz, musicLevel, musicOut, noise } from './audio';
  * always sounds the same, and every mode, map theme and secret boss has its own.
  */
 export type TrackId =
+  | 'doom'
+  | 'plane'
+  | 'survival'
+  | 'oneD'
   | 'menu'
   | 'sandbox'
   | 'rock'
@@ -129,6 +133,14 @@ const TRACKS: Record<TrackId, TrackDef> = {
   guardian: { bpm: 124, root: 57, scale: PENTA, chords: [0, 0, 3, 4], lead: 'sine', bass: 'triangle', arp: null, drums: ['k..tt..tk.t.t.tt', 'k.ttk.t.k..tt.tk'], busy: 0.55, bassRhythm: 'x..x..x.x..x....', seed: 79 },
   // The Forbidden Tome Keep: slow, dark organ-like chords
   tome: { bpm: 92, root: 50, scale: HARM, chords: [0, 5, 1, 4], lead: 'triangle', bass: 'sawtooth', arp: 'sine', drums: [HALF, 'k.......s.....t.'], busy: 0.4, bassRhythm: 'x...x...x...x.x.', seed: 83, leadOct: -1 },
+  // Tower of Doom: tense and climbing
+  doom: { bpm: 150, root: 52, scale: HARM, chords: [0, 1, 5, 4], lead: 'square', bass: 'sawtooth', arp: 'triangle', drums: [DRIVE, 'k.hks.h.k.hks.hs'], busy: 0.75, bassRhythm: 'x.xxx.xxx.xxx.xx', seed: 211 },
+  // The Plane: breezy, bouncy, a little cheeky
+  plane: { bpm: 128, root: 60, scale: PENTA, chords: [0, 4, 5, 3], lead: 'triangle', bass: 'square', arp: 'sine', drums: ['k.h.s.h.k.h.s.h.', 'k.hhs.h.k.h.s.hs'], busy: 0.6, bassRhythm: 'x...x.x.x...x.x.', seed: 223 },
+  // Survival: one wave after another
+  survival: { bpm: 140, root: 48, scale: MINOR, chords: [0, 6, 5, 4], lead: 'sawtooth', bass: 'sawtooth', arp: 'square', drums: [DRIVE, 'k.hks.hkk.hks.hs'], busy: 0.8, bassRhythm: 'xx.xxx.xxx.xxx.x', seed: 227 },
+  // 1D: tiny and plain, one note at a time
+  oneD: { bpm: 112, root: 60, scale: PENTA, chords: [0, 0, 4, 4], lead: 'square', bass: 'square', arp: null, drums: ['k...s...k...s...', 'k...s...k.k.s...'], busy: 0.35, bassRhythm: 'x...x...x...x...', seed: 229 },
   // PHYLISHIEUS: a huge, fast, scary final boss theme
   phyl: { bpm: 184, root: 50, scale: PHRYG, chords: [0, 1, 0, 6, 0, 1, 5, 4], lead: 'sawtooth', bass: 'sawtooth', arp: 'square', drums: [DRIVE, 'k.hks.hkk.hksts.'], busy: 0.9, bassRhythm: 'xxxxxxxxxxxxxxxx', seed: 89, vol: 1.1, rock: true },
 };

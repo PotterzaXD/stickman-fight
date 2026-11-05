@@ -2037,3 +2037,13 @@ button.chef-item {
     width: 100%;
   }
 }
+
+/* 1D: everything on one line */
+.one-d .page-body { gap: 12px; }
+.one-d-canvas { width: 100%; height: 180px; border-radius: 12px; background: #111; display: block; touch-action: none; }
+.one-d-pads { padding: 4px 0; }
+.one-d-pad { min-width: 64px; min-height: 52px; font-size: 22px; touch-action: none; user-select: none; }
+.one-d-result:empty { display: none; }
+.one-d-result { text-align: center; }
+.one-d-tab { opacity: 0.85; font-size: 0.85em; }
+.fun-survival { background: linear-gradient(135deg, #2e7d32, #1b5e20); }

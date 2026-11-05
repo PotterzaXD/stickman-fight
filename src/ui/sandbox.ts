@@ -1,3 +1,4 @@
+import { ME } from '../game/meBoss';
 import { SB_ROCK_AT, TEAM_COLORS } from '../game/game';
 import { playMusic } from '../music';
 import { BABY_ELE, BEES, CHEF, CUPCAKE, GINGER, FROG, GHOST, KNIGHT, CHICK, CHICKEN, DOG, DRONE, LIL_PIGEON, MEMORY_ALLY, NINJAS, PENGUIN, PIGEON_HP, RED_GUY, RETRO, SB_ALLY, SECRET_HP, SKELETON, SNOWMAN_HP, SOLDIER_HP, XBOSS_HP, ZOMBIES, ZOMBIE_ALLY, UNICORN, DINO, WIZARD, PANDA, PHYSI } from '../game/entities';
@@ -28,8 +29,8 @@ const MAX_SB_CLONES = 10;
 const MAX_SB_ZOMBIES = 30;
 
 const POWERS = [25, 50, 100, 200, 500, 1000];
-const BOSS_HP: Record<BossKind, number> = { boss: 5000, cat: 10000, mascot: 50000, buffalo: 8000, fish: 9999, pigeon: PIGEON_HP, ...SECRET_HP, ...XBOSS_HP, phyl1: PHYL.hp[1], phyl2: PHYL.hp[2], phyl3: PHYL.hp[3], golem: PHYL.golemHp };
-export const BOSS_ICON: Record<BossKind, string> = { boss: '👹', cat: '🐱', mascot: '⚪', buffalo: '🐃', fish: '🐟', pigeon: '🐦', queen: '❄️', tide: '🌊', guardian: '🌲', elephant: '🐘', scarecrow: '🌾', robo: '🤖', phyl1: '📖', phyl2: '📕', phyl3: '📜', golem: '🗿' };
+const BOSS_HP: Record<BossKind, number> = { boss: 5000, cat: 10000, mascot: 50000, buffalo: 8000, fish: 9999, pigeon: PIGEON_HP, ...SECRET_HP, ...XBOSS_HP, phyl1: PHYL.hp[1], phyl2: PHYL.hp[2], phyl3: PHYL.hp[3], golem: PHYL.golemHp, me: ME.hp };
+export const BOSS_ICON: Record<BossKind, string> = { boss: '👹', cat: '🐱', mascot: '⚪', buffalo: '🐃', fish: '🐟', pigeon: '🐦', queen: '❄️', tide: '🌊', guardian: '🌲', elephant: '🐘', scarecrow: '🌾', robo: '🤖', phyl1: '📖', phyl2: '📕', phyl3: '📜', golem: '🗿', me: '🪞' };
 const HELPER_ICON: Record<HelperKind | SbZombieKind, string> = {
   cat: '🐱', fish: '🐟', memory: '💭', soldier: '💂', snowman: '☃️', sbsnow: '⛄', fireally: '🔥', redguy: '🟥', chicken: '🐔', chick: '🐥', lilpigeon: '🐦', skeleton: '💀', dog: '🐕', retro: '👾', bee: '🐝', ninja: '🥷', zombie: '🧟',
   babyele: '🐘', drone: '🛸', penguin: '🐧', knight: '🛡️', frog: '🐸', ghost: '👻', ginger: '🍪', cupcake: '🧁', chef: '👨‍🍳', unicorn: '🦄', dino: '🦖', wizard: '🧙', panda: '🐼', physi: '👁️',
@@ -54,7 +55,7 @@ const pigeonOpen = () => hasAch('pigeonBeat');
 /** The zombie ally shows up after you beat wave 10 of The Outbreak. */
 const helperOpen = (k: HelperKind | SbZombieKind) => (k !== 'zombie' || save.data.zombieAlly) && (k !== 'physi' || save.data.phyl.done);
 /** PHYLISHIEUS in Sandbox: phases 1 and 2 once phase 2 is beaten; the final phase and the Tome Golem once the final phase is beaten. */
-const bossOpen = (k: BossKind) => (isPhylKind(k) ? save.data.phyl.beat >= phylKindPhase(k) && save.data.phyl.beat >= 2 : k === 'golem' ? save.data.phyl.done : true);
+const bossOpen = (k: BossKind) => (isPhylKind(k) ? save.data.phyl.beat >= phylKindPhase(k) && save.data.phyl.beat >= 2 : k === 'golem' ? save.data.phyl.done : k === 'me' ? save.data.meBeat : true);
 
 function defaultSandbox(): MatchConfig {
   return {

@@ -46,6 +46,16 @@ export const achHave = () => ALL_ACH.filter((id) => save.data.achievements.inclu
 /** PHYLISHIEUS wakes up once every achievement is done, and leaves for good (to Sandbox) once phase 2 is beaten. */
 export const achDoneCount = () => (ACHIEVEMENTS as readonly string[]).filter((id) => save.data.achievements.includes(id)).length;
 export const phylOpen = () => achDoneCount() >= ACHIEVEMENTS.length && !save.data.phyl.done;
+/** The Tome Key: PHYLISHIEUS's final phase beaten and every achievement (badges too). It opens PHYLISHIEUS refights and 1D, for good. */
+export const hasKey = () => save.data.phyl.key;
+/** Get the key once you've earned it. Returns true the moment it's new. */
+export function checkKey(): boolean {
+  if (save.data.phyl.key || !save.data.phyl.done || achHave() < achTotal()) return false;
+  save.update((d) => (d.phyl.key = true));
+  return true;
+}
+/** The boss with your name: once PHYLISHIEUS's final phase is beaten. */
+export const meOpen = () => save.data.phyl.done;
 /** Locked: still shows as ??? (until the mode is gone). */
 export const phylLocked = () => achDoneCount() < ACHIEVEMENTS.length && !save.data.phyl.done;
 
