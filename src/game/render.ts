@@ -22,6 +22,8 @@ import { evOn } from './events';
 import { SURV_TEAM } from './survival';
 import { drawCrashGround, drawCrashSky, drawNov05Deco, drawNov05Hud, drawSurvivalHud, drawSurvivalWorld, drawNov05MapBack, drawNov05MapFront } from './nov05MapsDraw';
 import { drawNov05Over, drawNov05Projectile, drawNov05Weapon } from './nov05Draw';
+import { drawKrakenBack, drawKrakenFront } from './krakenDraw';
+import { drawJayDress, drawJayHead, drawJayProjectile, drawJayWeapon } from './jayDraw';
 import { drawOct30Helper, drawOct30Over, drawOct30Projectile, drawOct30Weapon, drawWarps } from './oct30Draw';
 import { clipAboveGround, drawCastle, drawToy, drawToyProjectile, drawToyWeapon, drawWall, swingArm, walkLegs } from './toys';
 
@@ -373,10 +375,10 @@ function drawSpaceship(ctx: Ctx, cx: number, deck: number, time: number) {
   }
 }
 
-export function drawPlatforms(ctx: Ctx, map: MapDef, time = 0, glassT?: number[]) {
+export function drawPlatforms(ctx: Ctx, map: MapDef, time = 0, glassT?: number[], behindHull?: () => void) {
   const th = THEMES[map.theme];
   if (map.deco === 'spaceship') drawSpaceship(ctx, map.w / 2, 640, time);
-  if (map.deco === 'ship' && map.platforms[0]) drawPirateShip(ctx, map.platforms[0], map.w, map.h, time);
+  if (map.deco === 'ship' && map.platforms[0]) drawPirateShip(ctx, map.platforms[0], map.w, map.h, time, behindHull);
   if (map.theme === 'beach') {
     // The sea under the map
     const g = ctx.createLinearGradient(0, map.h + 60, 0, map.h + 500);
@@ -975,7 +977,7 @@ export function drawWeaponShape(ctx: Ctx, id: WeaponId, len: number, s: number, 
       ctx.fill();
       break;
     default:
-      if (!drawExtraWeapon(ctx, id, len, s, ready, performance.now() / 1000) && !drawCritterWeapon(ctx, id, len, s, ready, performance.now() / 1000) && !drawMonsterWeapon(ctx, id, len, s, ready, performance.now() / 1000) && !drawGadgetWeapon(ctx, id, len, s, ready, performance.now() / 1000) && !drawToyWeapon(ctx, id, len, s, ready, performance.now() / 1000) && !drawTreatWeapon(ctx, id, len, s, ready, performance.now() / 1000) && !drawNov05Weapon(ctx, id, len, s, ready)) drawOct30Weapon(ctx, id, len, s, ready, performance.now() / 1000);
+      if (!drawExtraWeapon(ctx, id, len, s, ready, performance.now() / 1000) && !drawCritterWeapon(ctx, id, len, s, ready, performance.now() / 1000) && !drawMonsterWeapon(ctx, id, len, s, ready, performance.now() / 1000) && !drawGadgetWeapon(ctx, id, len, s, ready, performance.now() / 1000) && !drawToyWeapon(ctx, id, len, s, ready, performance.now() / 1000) && !drawTreatWeapon(ctx, id, len, s, ready, performance.now() / 1000) && !drawNov05Weapon(ctx, id, len, s, ready) && !drawJayWeapon(ctx, id, len, s, ready)) drawOct30Weapon(ctx, id, len, s, ready, performance.now() / 1000);
   }
 }
 
@@ -1705,6 +1707,8 @@ function drawPoison(ctx: Ctx, b: Body, time: number) {
 
 function drawFighter(ctx: Ctx, f: Fighter, time: number) {
   if (f.phyl) return drawPhyl(ctx, f, time);
+  // The Kraken is drawn with the map (krakenDraw.ts).
+  if (f.kraken) return;
   // Knocked flat by a pie (or the Rolling Pin): the whole stickman lies on the ground, head first.
   if (f.downT > 0 && !f.boss) {
     ctx.save();
@@ -1771,6 +1775,7 @@ function drawStanding(ctx: Ctx, f: Fighter, time: number, label = true) {
   };
   strokes(8, outline);
   strokes(5, col);
+  if (f.xboss === 'jay') drawJayDress(ctx, f, neck, hip, s);
 
   // Weapons (behind head)
   for (let i = 0; i < f.weapons.length; i++) {
@@ -1834,6 +1839,7 @@ function drawStanding(ctx: Ctx, f: Fighter, time: number, label = true) {
   }
   if (f.secret) drawSecretHead(ctx, f, head[0], head[1], s, time);
   if (f.xboss) drawXBossHead(ctx, f, head[0], head[1], s, time);
+  if (f.xboss === 'jay') drawJayHead(ctx, f, head[0], head[1], s, time);
   drawHat(ctx, f.hat, head[0], head[1], s, f.facing, time);
   if (f.stun > 0.25 && !f.boss) {
     ctx.fillStyle = '#ffeb3b';
@@ -1895,7 +1901,7 @@ function drawStanding(ctx: Ctx, f: Fighter, time: number, label = true) {
 }
 
 /** A stickman's name, HP bar and skill-ready dot above its head. */
-function drawLabel(ctx: Ctx, f: Fighter, top: number) {
+export function drawLabel(ctx: Ctx, f: Fighter, top: number) {
   const x = f.x;
   {
     hpBar(ctx, x, top, 52, f.hp / f.maxHp, f.color);
@@ -2123,7 +2129,7 @@ function drawSnowman(ctx: Ctx, m: Snowman) {
 }
 
 function drawProjectile(ctx: Ctx, p: Projectile, time: number) {
-  if (drawExtraProjectile(ctx, p, time) || drawCritterProjectile(ctx, p, time) || drawMonsterProjectile(ctx, p, time) || drawGadgetProjectile(ctx, p, time) || drawToyProjectile(ctx, p, time) || drawTreatProjectile(ctx, p) || drawOct30Projectile(ctx, p, time) || drawNov05Projectile(ctx, p)) return;
+  if (drawExtraProjectile(ctx, p, time) || drawCritterProjectile(ctx, p, time) || drawMonsterProjectile(ctx, p, time) || drawGadgetProjectile(ctx, p, time) || drawToyProjectile(ctx, p, time) || drawTreatProjectile(ctx, p) || drawOct30Projectile(ctx, p, time) || drawNov05Projectile(ctx, p) || drawJayProjectile(ctx, p)) return;
   switch (p.kind) {
     case 'nerf': {
       // Foam dart: blue body, orange tip
@@ -2490,6 +2496,36 @@ function drawProjectile(ctx: Ctx, p: Projectile, time: number) {
   }
 }
 
+/** Shockwave rings, particles and floating numbers (`particles` = false: the 3D mode draws its own). */
+export function drawWorldFx(ctx: Ctx, g: Game, particles = true) {
+  for (const r of g.rings) {
+    ctx.strokeStyle = r.color;
+    ctx.globalAlpha = Math.max(0, r.life / r.max);
+    ctx.lineWidth = 6;
+    ctx.beginPath();
+    ctx.ellipse(r.x, r.y, r.r, r.r * 0.45, 0, 0, Math.PI * 2);
+    ctx.stroke();
+  }
+  ctx.globalAlpha = 1;
+  if (particles) for (const p of g.particles) {
+    ctx.globalAlpha = Math.max(0, p.life / p.max);
+    ctx.fillStyle = p.color;
+    ctx.fillRect(p.x - p.size / 2, p.y - p.size / 2, p.size, p.size);
+  }
+  ctx.globalAlpha = 1;
+  ctx.textAlign = 'center';
+  for (const t of g.texts) {
+    ctx.globalAlpha = Math.min(1, t.life * 2);
+    ctx.font = `900 ${t.size}px "Baloo 2", system-ui, sans-serif`;
+    ctx.lineWidth = 4;
+    ctx.strokeStyle = 'rgba(0,0,0,0.8)';
+    ctx.strokeText(t.text, t.x, t.y);
+    ctx.fillStyle = t.color;
+    ctx.fillText(t.text, t.x, t.y);
+  }
+  ctx.globalAlpha = 1;
+}
+
 export function renderGame(g: Game, ctx: Ctx, vw: number, vh: number, dpr: number) {
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   drawBackground(ctx, g.map, vw, vh, g.cam.x, g.time);
@@ -2508,7 +2544,7 @@ export function renderGame(g: Game, ctx: Ctx, vw: number, vh: number, dpr: numbe
   const seen = (x: number) => !cull || (x > vx0 && x < vx1);
   if (g.map.props) drawProps(ctx, g.map.props, g.time);
   drawCrashGround(ctx, g);
-  drawPlatforms(ctx, g.map, g.time, g.glassT);
+  drawPlatforms(ctx, g.map, g.time, g.glassT, g.kr ? () => drawKrakenBack(ctx, g, g.time) : undefined);
   if (g.map.warps?.length) drawWarps(ctx, g.map.warps, g.time);
   for (const s of g.iceSpikes) drawIceSpike(ctx, s);
   // King of the Hill: the zone, in the colour of whoever holds it alone.
@@ -2572,6 +2608,7 @@ export function renderGame(g: Game, ctx: Ctx, vw: number, vh: number, dpr: numbe
   drawOct30Over(ctx, g.bodies(), g.fighters, g.time);
   drawNov05Over(ctx, g.bodies(), g.time);
   drawNov05MapFront(ctx, g, g.time);
+  if (g.kr) drawKrakenFront(ctx, g, g.time);
   if (g.surv) drawSurvivalWorld(ctx, g.surv, g.time);
   if (g.ev) drawEventsWorld(ctx, g, g.time);
   if (g.phy) drawPhylWorld(ctx, g, g.time);
@@ -2589,35 +2626,15 @@ export function renderGame(g: Game, ctx: Ctx, vw: number, vh: number, dpr: numbe
   // Trapped in a bubble
   for (const b of g.bodies()) if (b.alive && b.bubbleT > 0) drawBubble(ctx, b.x, b.cy, Math.max(b.w, b.h) * 0.62 + Math.sin(g.time * 6) * 2);
 
-  for (const r of g.rings) {
-    ctx.strokeStyle = r.color;
-    ctx.globalAlpha = Math.max(0, r.life / r.max);
-    ctx.lineWidth = 6;
-    ctx.beginPath();
-    ctx.ellipse(r.x, r.y, r.r, r.r * 0.45, 0, 0, Math.PI * 2);
-    ctx.stroke();
-  }
-  ctx.globalAlpha = 1;
-  for (const p of g.particles) {
-    ctx.globalAlpha = Math.max(0, p.life / p.max);
-    ctx.fillStyle = p.color;
-    ctx.fillRect(p.x - p.size / 2, p.y - p.size / 2, p.size, p.size);
-  }
-  ctx.globalAlpha = 1;
-  ctx.textAlign = 'center';
-  for (const t of g.texts) {
-    ctx.globalAlpha = Math.min(1, t.life * 2);
-    ctx.font = `900 ${t.size}px "Baloo 2", system-ui, sans-serif`;
-    ctx.lineWidth = 4;
-    ctx.strokeStyle = 'rgba(0,0,0,0.8)';
-    ctx.strokeText(t.text, t.x, t.y);
-    ctx.fillStyle = t.color;
-    ctx.fillText(t.text, t.x, t.y);
-  }
-  ctx.globalAlpha = 1;
+  drawWorldFx(ctx, g);
 
   // Boss health bars across the top (one per boss)
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  drawHud(g, ctx, vw, vh);
+}
+
+/** Everything drawn over the world on the screen: boss bars, mode boards, the kill feed, big captions and flashes. */
+export function drawHud(g: Game, ctx: Ctx, vw: number, vh: number) {
   if (g.blizzard) drawBlizzard(ctx, g.blizzard, vw, vh, g.time);
   if (evOn(g.ev, 'blackout')) drawBlackout(ctx, g, vw, vh);
   if (g.ev) drawEventsHud(ctx, g.ev, vw);
@@ -2651,7 +2668,10 @@ export function renderGame(g: Game, ctx: Ctx, vw: number, vh: number, dpr: numbe
   // (On the Beach, bosses on your side that went down in the cutscene drop off the list.)
   // The Pigeon has no bar: nobody gets to see how much of its 500,000 HP is left.
   // Boss Rush only shows the boss that is up.
-  const bars = hideBars ? [] : g.bosses.filter((b) => (b.alive || (b.team === BOSS_TEAM && !g.rush)) && !b.pigeon);
+  // The Kraken's bar only shows once it comes up (nobody is told it is there).
+  // The bosses it dragged into the sea are gone for good (no empty bar left behind).
+  const hiddenKraken = (b: Fighter) => !!g.kr && (b.kraken ? g.kr.stage === 'wait' || g.kr.stage === 'drag' : g.kr.bossMode && !b.alive);
+  const bars = hideBars ? [] : g.bosses.filter((b) => (b.alive || (b.team === BOSS_TEAM && !g.rush)) && !b.pigeon && !hiddenKraken(b));
   for (const [k, boss] of bars.entries()) {
     const w = Math.min(520, vw * 0.5);
     const x = vw / 2 - w / 2;

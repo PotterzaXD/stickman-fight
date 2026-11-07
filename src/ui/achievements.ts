@@ -1,4 +1,4 @@
-import { ACHIEVEMENTS, PHYL_BADGES, achDesc, achHave, achHidden, achName, achTotal, grant, hasAch, type AchievementId } from '../achievements';
+import { ACHIEVEMENTS, EXTRA_ACH, PHYL_BADGES, achDesc, achHave, achHidden, achName, achTotal, grant, hasAch, type AchievementId } from '../achievements';
 import { t } from '../i18n';
 import { save } from '../save';
 import { h } from './dom';
@@ -18,7 +18,7 @@ register('achievements', (root) => {
           ? h('div', {}, h('b', {}, `??? (${t('secretAch')})`), h('p', { class: 'muted small' }, t('secretAchDesc')))
           : h('div', {}, h('b', {}, achName(id)), h('p', { class: 'muted small' }, achDesc(id))),
       );
-  const list = h('div', { class: 'ach-list' }, ...ACHIEVEMENTS.map((id) => row(id)));
+  const list = h('div', { class: 'ach-list' }, ...ACHIEVEMENTS.map((id) => row(id)), ...EXTRA_ACH.map((id) => row(id, '🐙')));
   // PHYLISHIEUS badges: they show once he has woken up (no spoilers before that).
   const woke = save.data.phyl.beat > 0 || ACHIEVEMENTS.every(hasAch);
   const badges = woke ? h('section', {}, h('h3', {}, `📖 ${t('badges')}`), h('div', { class: 'ach-list' }, ...PHYL_BADGES.map((id) => row(id, ['📖', '📕', '📜'][PHYL_BADGES.indexOf(id as never)])))) : null;

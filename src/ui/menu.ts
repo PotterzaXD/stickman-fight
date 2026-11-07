@@ -121,6 +121,8 @@ register('menu', (root) => {
           h('button', { class: 'btn', onclick: () => go('settings') }, `⚙️ ${t('settings')}`),
           // The small 1D tab: only with the Tome Key.
           hasKey() ? h('button', { class: 'btn one-d-tab', onclick: () => go('oneD') }, `🗝️ ${t('oneD')}`) : null,
+          // 3D mode: also opened by the Tome Key.
+          hasKey() ? h('button', { class: 'btn three-d-tab', onclick: () => go('threeD') }, `🧊 ${t('threeD')}`) : null,
         ),
         h(
           'div',

@@ -15,6 +15,8 @@ On a computer you can test with the keyboard: WASD is P1, the arrow keys are P2 
 
 ## Modes
 
+Play has two tabs: **⚔️ Battle** (Free For All, Teams, 3 Lives, King of the Hill, Weapon Race) and **👹 Bosses** (every boss fight). Stickman Infection, Random Events and Survival live in **Other fun modes** (and online rooms), not in Play.
+
 - **Free For All:** the last stickman standing wins.
 - **Teams:** 4 team colours. The last team standing wins.
 - **Boss Fight:** players, bots and snowmen team up against a giant stickman with 5,000 HP. It holds 2 random weapons, so it has 2 skills. You choose how many bosses to fight: 1, 2 or 3. Each boss has its own health bar.
@@ -34,6 +36,8 @@ On a computer you can test with the keyboard: WASD is P1, the arrow keys are P2 
   Buffalo unlocks when you fight the Mascot **all by yourself** (no other players or bots) and get knocked out, which also gives the **What an Buffalo** achievement. Online, the host needs it unlocked. Beating Buffalo gives **3,000 coins** every time.
 
 - **The Pigeon:** a giant pigeon with 500,000 HP. Everyone gets a Shotgun (the weapon picker is locked) and you can bring up to 30 players and bots. The pigeon hovers, then dives and pecks one fighter at a time: one peck is a KO. Knocked out fighters come back after 3 seconds, and there is no time limit, so the match only ends when the pigeon goes down. It has its own looping chiptune theme. Beating it gives **5,000 coins** every time, the **Bird Down** achievement, and adds the pigeon to Sandbox. Offline only.
+
+- **Jay mhuay:** a giant girl boss (ponytail, bow and a polka-dot dress) with 20,000 HP and 30 damage a hit. **Throw Macaroni** (every 6 s): 40 damage, then burns for 1 a second for 10 seconds. **Fried Rice with Crabs** (every 10 s): a box for 60 that bursts open where it lands. Beating her gives **1,500 coins** every time, and the first win gives **Jay's Lunch Box** (the same two skills taking turns, at half strength). She is in Sandbox too.
 
 - **Secret bosses:** there are secret bosses hidden in the game. They show as locked **🔒 ???** buttons in Play; tap one (or read the **Secret boss hints** box) for a hint on how to unlock it, with your progress where it can be counted. When you meet the conditions, they show up as new modes in Play (and online, when the host has them).
 
@@ -77,7 +81,7 @@ Winning gives 3–5 coins. When bots or the boss win, you get 1 coin. Beating th
 | Shotgun | 600 | A blast of pellets, cooldown 2 seconds. Up close (about one stickman away) it does 180, from far away 90 |
 | Pistol | 150 | Shoots nerf bullets for 10 damage. 1 second between shots, and after 5 shots it reloads for 3 seconds |
 | 67 Gun | 500 | One shot for 100 damage, cooldown 10 seconds |
-| Summoner | 1,100 | Calls 3 cats, 3 fish and 3 snowmen (all weaker than normal), the Recall Memory boss, and a spear soldier (300 HP, hits for 20) |
+| Summoner | 1,100 | Calls 3 cats, 3 fish and 3 snowmen (all weaker than normal), the Recall Memory boss, and a spear soldier (300 HP, hits for 20). In the game its description just says "Uhhh guess it." |
 | Spear of Bravery | 800 | Calls 3 spear soldiers (300 HP each, half-strength spears) |
 | Frying Pan | 300 | BONK: 40 damage and the enemy sees stars for 1.5 seconds |
 | Water Gun | 200 | Sprays water that pushes enemies far away (6 a drop) |
@@ -141,6 +145,15 @@ The Fishy boss hits with its trident for 30. Its skills take turns:
 - **Trident Strike:** 99 damage, and half the time lightning strikes for 30 more.
 
 Beating the Fishy boss gives **1,000 coins**, and the first time you beat it you get its **Trident** (just as strong as the Fishy boss's: Tidal Waves, Call Fish and Trident Strike).
+
+## The Pirate Ship and the Kraken
+
+Nothing tells you, but **The Kraken** (19,998 HP, twice the Fishy boss) lives under the **Pirate Ship**. A few seconds into Free For All, Teams or a boss fight there, it rises out of the sea behind the middle of the ship and stays there (it never walks). It can be hit any time. Its tentacles grab stickmen and slam them into the deck (160) or throw them away (100), and sometimes every tentacle comes down at once over a marked zone (280, very wide).
+
+- **Free For All / Teams:** everyone fights the Kraken together first, then the match goes back to normal.
+- **Boss fights:** the bosses get dragged down into the water first, then the Kraken comes up. Only the Kraken pays there.
+
+Beating it gives **2,000 coins** and the hidden **Release the Kraken** achievement (it doesn't count toward the Tome Key).
 
 ## Kill feed
 
@@ -221,6 +234,13 @@ The final boss, shown as ??? in the boss list until you have all 28 achievements
   - **PHYSICERTAS:** his minions (player-sized, 1,000 HP, 20 damage a hit). He drops 1 to 3 next to one of you about every 40 seconds, at most 6 at a time.
   - Beat it (+40,000 coins): the mode leaves the menu for good, The Forbidden Tome Keep becomes a normal map, the final phase and the Tome Golem show up in Sandbox, and PHYSICERTAS join Sandbox's helpers and the Summoner (2 of them).
 - **Badges:** one for beating each phase (3 in all). They don't count toward the 28 achievements that wake him up.
+
+## 3D mode
+
+Opened by the **Tome Key** (the same key as 1D): a **🧊 3D** button in the main menu's small row. It is the normal game with **exactly the same camera and point of view**, only drawn in 3D (Three.js): round shiny heads with eyes that blink and look where you aim, round arms and legs, thick blocks for platforms with real shadows, 3D weapons and shots. Its menu is a 3D version of the main menu with a 3D fight in the background.
+
+- Its own coins (**3D coins**) and its own shop with the 8 weapons from the first version: Sword and Spear free, Hammer 20, Bow 25, Boomerang 30, Bomb 35, Katana 40, Snowball 50.
+- You against 1 to 5 bots (Free For All or Teams) on the 6 maps from the first version. Win: 10 + 5 for each bot. Offline only.
 
 ## Profile
 

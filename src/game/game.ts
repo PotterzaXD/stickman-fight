@@ -54,6 +54,8 @@ import { planeOut, spawnsFor, startDoom, startPlane, updateDoom, updatePlane, ty
 import { evOn, startEvents, updateEvents, type EventsState } from './events';
 import { FINAL_MAP_ID, finalSpawns, makeGolem, makePhyl, phylCanDie, phylClientTick, phylDodge, phylGuard, updatePhyl, type PhylState } from './phyl';
 import { nov05Force, nov05Hit, nov05Skill, nov05Splat, updateNov05 } from './nov05';
+import { jayHit, jaySkill, jaySplat } from './jay';
+import { KRAKEN_MAP, krakenGuard, krakenMode, krakenWinner, makeKraken, updateKraken, type KrakenState } from './kraken';
 import { HELPER_STATS, meleeForce, oct30AttackGap, oct30Hit, oct30Skill, oct30Splat, pierces, summonOct30, updateOct30, wake } from './oct30';
 import { helperArmour, oct22AttackGap, oct22Hit, oct22Skill, rushWinner, startRush, startStock, stockWinner, tennisBounce, updateRush, type RushState } from './oct22';
 import { Juice, wallPush } from './juice';
@@ -98,6 +100,8 @@ export interface MatchResult {
   hadHumans: boolean;
   /** The Beach: the Fishy boss was beaten in this match. */
   fish: boolean;
+  /** The Pirate Ship: the Kraken was beaten in this match. */
+  kraken?: boolean;
   /** The Outbreak: the wave was cleared. */
   waveCleared?: boolean;
 }
@@ -128,6 +132,8 @@ export interface GameOpts {
   potions?: boolean;
   /** Names for each kind of boss (in this device's language). */
   bossNames?: Partial<Record<BossKind, string>>;
+  /** The Kraken's name in this device's language (it lives under the Pirate Ship). */
+  krakenName?: string;
   /** Sandbox: bosses added to the match. */
   extraBosses?: SandboxBoss[];
   /** Sandbox: helpers added to the match (cats, fish, the Recall Memory boss, spear soldiers). */
@@ -443,6 +449,8 @@ export class Game {
   plane: PlaneState | null = null;
   /** Survival: the wave, the break and the upgrade orbs (null in other modes). */
   surv: SurvState | null = null;
+  /** The Kraken under the Pirate Ship (null on other maps and in modes it skips). */
+  kr: KrakenState | null = null;
   /** The boss with your name (Sandbox can add it too). */
   meLook: MeLook | null = null;
   /** The fighters this device plays (Stickman Infection's big town: the camera follows them). */
@@ -585,6 +593,8 @@ export class Game {
       }
       else this.startFishPhase();
     }
+    // The Pirate Ship: the Kraken waits under the water (nobody is told).
+    if (map.id === KRAKEN_MAP && krakenMode(this.mode) && !this.demo) this.kr = makeKraken(this, opts.krakenName ?? 'The Kraken');
     if (this.mode === 'hill') startHill(this);
     if (this.mode === 'race') startRace(this);
     if (this.mode === 'stock') startStock(this);
@@ -637,10 +647,12 @@ export class Game {
         ? ['pitchfork']
         : kind === 'robo'
         ? ['robocannon']
+        : kind === 'jay'
+        ? ['macaroni', 'friedrice']
         : randomBossWeapons();
     const color = {
       boss: '#263238', cat: '#ff9800', mascot: '#ffffff', buffalo: '#5d4037', fish: '#1e88e5', pigeon: '#90a4ae', queen: '#81d4fa', tide: '#0277bd', guardian: '#558b2f',
-      elephant: '#9aa0a6', scarecrow: '#c49a5a', robo: '#78909c',
+      elephant: '#9aa0a6', scarecrow: '#c49a5a', robo: '#78909c', jay: '#ec407a',
     }[kind as string] ?? '#263238';
     const f = new Fighter({
       name,
@@ -1066,6 +1078,7 @@ export class Game {
     this.updatePeels(dt);
     this.updatePotions(dt);
     this.updateGlass(dt);
+    if (this.kr && !this.over) updateKraken(this, dt);
     this.checkOffMap();
     this.snowmen = this.snowmen.filter((s) => s.alive);
     // A red guy, skeleton or dog that went down stays where it is.
@@ -1110,8 +1123,8 @@ export class Game {
     }
     if (f.pigeon) return this.updatePigeon(f, dt);
     if (f.xboss === 'elephant') return updateElephant(this, f, dt);
-    // PHYLISHIEUS moves on his own (see phyl.ts).
-    if (f.phyl) return;
+    // PHYLISHIEUS moves on his own (see phyl.ts). So does the Kraken (kraken.ts).
+    if (f.phyl || f.kraken) return;
 
     let it = f.human ? f.humanIntent(dt) : f.brain!.think(dt, f, this);
     // The boss with your name flies.
@@ -1351,6 +1364,8 @@ export class Game {
   /** Returns true if the hit landed (not blocked by a shield). */
   damage(target: Body, amount: number, src: Body | null, kx: number, ky: number, how?: Finish): boolean {
     if (!target.alive || amount <= 0) return false;
+    // The Kraken can't be hurt while it is still coming up.
+    if (this.kr && !krakenGuard(this, target)) return false;
     // The boss with your name is very good at dodging.
     if (meDodge(this, target, kx, ky)) return false;
     // PHYLISHIEUS can only be hurt while he is tired on the ground.
@@ -1441,7 +1456,7 @@ export class Game {
     if (b instanceof Fighter && b.buffalo && how !== 'void') how = 'pop';
     // The Pigeon always comes down fried (any finisher but the void). The Elephant isn't a stickman either.
     if (b instanceof Fighter && b.pigeon && how !== 'void') how = 'trip';
-    if (b instanceof Fighter && b.xboss === 'elephant' && how !== 'void') how = 'pop';
+    if (b instanceof Fighter && (b.xboss === 'elephant' || b.kraken) && how !== 'void') how = 'pop';
     // The Outbreak: going down costs a life.
     if (b instanceof Fighter && (this.ob || this.mode === 'stock') && !b.horde && !b.boss) b.lives = Math.max(0, b.lives - 1);
     // Stickman Infection: a human who goes down comes back as a zombie (once the first zombie has been picked).
@@ -1917,7 +1932,7 @@ export class Game {
         this.text(f.x, f.y - f.h - 30, '🔥 FWOOSH!', '#ff9100', 24);
         break;
       default:
-        if (!oct22Skill(this, f, i, angle) && !oct23Skill(this, f, i, angle) && !oct30Skill(this, f, i, angle)) nov05Skill(this, f, i, angle);
+        if (!oct22Skill(this, f, i, angle) && !oct23Skill(this, f, i, angle) && !oct30Skill(this, f, i, angle) && !nov05Skill(this, f, i, angle)) jaySkill(this, f, i, angle);
         break;
       case 'stick':
       case 'mascotstick': {
@@ -2872,9 +2887,9 @@ export class Game {
     const scale = owner instanceof Fighter ? owner.scale : 1;
     const big = kind === 'boomerang' || kind === 'bomb' || kind === 'axe' || kind === 'fireball' || kind === 'six7' || kind === 'soup' || kind === 'hay';
     const r =
-      { arrow: 5, snowball: 11, minisnow: 8, boomerang: 16, bomb: 11, axe: 22, shuriken: 8, laser: 6, fireball: 14, six7: 24, poop: 10, soup: 14, icebolt: 9, banana: 10, fireslash: 34, dart: 6, memorybox: 12, rocket: 10, wave: 60, shard: 10, crash: 80, vine: 14, nerf: 6, bullet67: 7, water: 7, bubble: 18, yoyo: 13, fishthrow: 14, allyfire: 12, egg: 10, gum: 11, crow: 14, hay: 34, goo: 10, sound: 40, pebble: 6, flame: 14, booger: 9, tennis: 9, pie: 13, ketchup: 7, popcorn: 7, plane: 12, slipper: 12, balloon: 12, plunger: 9, frisbee: 16, blanket: 22, magic: 10, mattress: 26, aphone: 9 }[kind] *
+      { arrow: 5, snowball: 11, minisnow: 8, boomerang: 16, bomb: 11, axe: 22, shuriken: 8, laser: 6, fireball: 14, six7: 24, poop: 10, soup: 14, icebolt: 9, banana: 10, fireslash: 34, dart: 6, memorybox: 12, rocket: 10, wave: 60, shard: 10, crash: 80, vine: 14, nerf: 6, bullet67: 7, water: 7, bubble: 18, yoyo: 13, fishthrow: 14, allyfire: 12, egg: 10, gum: 11, crow: 14, hay: 34, goo: 10, sound: 40, pebble: 6, flame: 14, booger: 9, tennis: 9, pie: 13, ketchup: 7, popcorn: 7, plane: 12, slipper: 12, balloon: 12, plunger: 9, frisbee: 16, blanket: 22, magic: 10, mattress: 26, aphone: 9, macaroni: 12, ricebox: 15 }[kind] *
       (big || kind === 'fireslash' ? scale : 1);
-    const life = { arrow: 2, snowball: 3, minisnow: 3, boomerang: 3.5, bomb: 1.5, axe: 3.5, shuriken: 2, laser: 0.7, fireball: 2, six7: 3.5, poop: 3, soup: 3, icebolt: 2, banana: 3, fireslash: 0.7, dart: 2, memorybox: 0.35, rocket: 2, wave: 1.7, shard: 1.6, crash: 1.9, vine: 0.42, nerf: 2, bullet67: 1.2, water: 0.9, bubble: 2.6, yoyo: 3.5, fishthrow: 3, allyfire: 2, egg: 2.5, gum: 2.5, crow: 3.5, hay: 2.4, goo: 2.5, sound: 0.45, pebble: 2, flame: 0.5, booger: 2.5, tennis: 3.5, pie: 2.5, ketchup: 1.2, popcorn: 1.5, plane: 2.2, slipper: 2.5, balloon: 2.5, plunger: 1.5, frisbee: 1.1, blanket: 2.5, magic: 1.6, mattress: 2.5, aphone: 2.5 }[kind];
+    const life = { arrow: 2, snowball: 3, minisnow: 3, boomerang: 3.5, bomb: 1.5, axe: 3.5, shuriken: 2, laser: 0.7, fireball: 2, six7: 3.5, poop: 3, soup: 3, icebolt: 2, banana: 3, fireslash: 0.7, dart: 2, memorybox: 0.35, rocket: 2, wave: 1.7, shard: 1.6, crash: 1.9, vine: 0.42, nerf: 2, bullet67: 1.2, water: 0.9, bubble: 2.6, yoyo: 3.5, fishthrow: 3, allyfire: 2, egg: 2.5, gum: 2.5, crow: 3.5, hay: 2.4, goo: 2.5, sound: 0.45, pebble: 2, flame: 0.5, booger: 2.5, tennis: 3.5, pie: 2.5, ketchup: 1.2, popcorn: 1.5, plane: 2.2, slipper: 2.5, balloon: 2.5, plunger: 1.5, frisbee: 1.1, blanket: 2.5, magic: 1.6, mattress: 2.5, aphone: 2.5, macaroni: 2.5, ricebox: 2.5 }[kind];
     this.projectiles.push({
       kind,
       x,
@@ -3032,7 +3047,7 @@ export class Game {
           oct30Hit(this, p, e, dir);
           continue;
         }
-        if (oct22Hit(this, p, e, dir) || oct23Hit(this, p, e, dir) || oct30Hit(this, p, e, dir) || nov05Hit(this, p, e, dir)) {
+        if (oct22Hit(this, p, e, dir) || oct23Hit(this, p, e, dir) || oct30Hit(this, p, e, dir) || nov05Hit(this, p, e, dir) || jayHit(this, p, e, dir)) {
           // Booger, tennis ball, pie, ketchup, popcorn and the October 30 shots (see oct22.ts, oct23.ts and oct30.ts).
         } else if (p.kind === 'fireball') this.explode(p, 120 * p.scale, true);
         else if (p.kind === 'bomb') this.explode(p);
@@ -3131,7 +3146,7 @@ export class Game {
             p.dead = true;
             break;
           }
-          if (tennisBounce(p, pl) || oct23Splat(this, p, pl) || oct30Splat(this, p, pl) || nov05Splat(this, p, pl)) break;
+          if (tennisBounce(p, pl) || oct23Splat(this, p, pl) || oct30Splat(this, p, pl) || nov05Splat(this, p, pl) || jaySplat(this, p, pl)) break;
           if (p.kind === 'booger') {
             this.burst(p.x, Math.min(p.y, pl.y), '#9ccc65', 6, 160);
             p.dead = true;
@@ -3188,7 +3203,7 @@ export class Game {
         if (p.kind === 'fireball') this.explode(p, 120 * p.scale, true);
         if (p.kind === 'rocket') this.explode(p, 150 * p.scale);
         if (p.kind === 'soup') this.splash(p);
-        nov05Splat(this, p, null);
+        if (!nov05Splat(this, p, null)) jaySplat(this, p, null);
         this.finishProj(p);
         continue;
       }
@@ -3335,6 +3350,10 @@ export class Game {
     // Helpers that are still up (cats, snowmen, chicks...) keep their side in the match.
     // One Little Pigeon doesn't: with 250,000 HP a side left with only its pigeon would never lose.
     const helpers: Body[] = [...this.snowmen, ...this.cats].filter((h) => h.alive && !(h instanceof Cat && h.variant === 'lilpigeon'));
+    if (this.kr) {
+      const k = krakenWinner(this, helpers);
+      if (k) return k;
+    }
     if (isBossMode(this.mode)) {
       // Only the bosses you fight count (on the Beach the normal bosses were on your side).
       const bosses = this.bosses.filter((b) => b.team === BOSS_TEAM);
@@ -3383,6 +3402,7 @@ export class Game {
       humanWon: winners.some((f) => f.human) && w.team !== BOSS_TEAM,
       hadHumans: this.fighters.some((f) => f.human),
       fish: this.fishBeaten,
+      kraken: !!this.kr?.beaten,
       waveCleared: this.ob ? w.team === 0 : undefined,
     };
     if (!this.demo && this.result.humanWon) sfx.win();

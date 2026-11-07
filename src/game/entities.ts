@@ -16,7 +16,7 @@ export const BUFFALO_HP = 8000;
 export const FISH_HP = 9999;
 export const PIGEON_HP = 500000;
 /** The October 20 bosses. */
-export const XBOSS_HP: Record<XBossKind, number> = { elephant: 12500, scarecrow: 7000, robo: 9000 };
+export const XBOSS_HP: Record<XBossKind, number> = { elephant: 12500, scarecrow: 7000, robo: 9000, jay: 20000 };
 /** The secret bosses. */
 export const SECRET_HP: Record<SecretKind, number> = { queen: 12000, tide: 15000, guardian: 18000 };
 
@@ -162,6 +162,8 @@ export class Fighter extends Body {
   phyPose = 0;
   /** The giant Tome Golem that helps you against PHYLISHIEUS. */
   golem = false;
+  /** The Kraken under the Pirate Ship (not a stickman: it never moves, see kraken.ts). */
+  kraken = false;
   elState: 'fly' | 'slam' | 'rise' | 'drop' | 'spray' | 'charge' = 'fly';
   elT = 2.5;
   elMove = 0;
@@ -591,7 +593,9 @@ export type ProjKind =
   | 'blanket'
   | 'magic'
   | 'mattress'
-  | 'aphone';
+  | 'aphone'
+  | 'macaroni'
+  | 'ricebox';
 
 /** Thrown weapons that fly out and come back to the hand. */
 export const returns = (k: ProjKind) => k === 'boomerang' || k === 'axe' || k === 'six7' || k === 'yoyo';

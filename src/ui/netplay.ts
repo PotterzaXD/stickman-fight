@@ -92,7 +92,7 @@ register('netplay', (root) => {
     overlay.classList.remove('hidden');
   };
 
-  const showResult = (r: Pick<MatchResult, 'mode' | 'winnerTeam' | 'winners'> & { fish?: boolean }) => {
+  const showResult = (r: Pick<MatchResult, 'mode' | 'winnerTeam' | 'winners'> & { fish?: boolean; kraken?: boolean }) => {
     menuOpen = true;
     if (r.mode === 'outbreak') return showOutbreakResult(r);
     // Coins only for devices that had someone in this match: win 3-5 (beating the bosses: 500 per boss), otherwise 1.
@@ -107,6 +107,8 @@ register('netplay', (root) => {
         won,
         bosses,
         fish: !!r.fish,
+        kraken: !!r.kraken,
+        krakenBoss: !!game.kr?.bossMode,
         beachBoss: game.beach && r.mode === 'boss',
         phylPhase: game.phy?.phase,
         surv: game.surv ? { wave: game.surv.cleared, coins: game.surv.coins } : undefined,
@@ -121,7 +123,7 @@ register('netplay', (root) => {
       h(
         'div',
         { class: 'modal result' },
-        h('h2', {}, resultTitle(r, bosses, game.beach)),
+        h('h2', {}, resultTitle(r, bosses, game.beach, game.kr ? (game.kr.bossMode ? 'boss' : 'ffa') : null)),
         ...coinLine,
         h('ul', { class: 'scores' }, ...ranked.map((f) => h('li', {}, h('span', { class: 'dot', style: `background:${f.color}` }), h('b', {}, f.name), h('span', { class: 'muted' }, `${f.alive ? '🏆' : '💀'}${host ? ` ${f.kos} KO` : ''}`)))),
         host
@@ -143,6 +145,7 @@ register('netplay', (root) => {
       record: !!host,
       bossName: bossNameFor(start.mode),
       bossNames: bossNames(),
+      krakenName: t('kraken_name'),
       potions: start.potions,
       bosses: start.bosses,
       bossWeapons: start.bossWeapons,
@@ -238,7 +241,7 @@ register('netplay', (root) => {
   const offs = [
     s.on('start', (st) => build(st)),
     s.on('snapshot', (snap) => mirror?.apply(snap)),
-    s.on('over', (r: NetResult) => showResult({ mode: r.mode, winnerTeam: r.winnerTeam, winners: r.winners.map((i) => game.fighters[i]).filter(Boolean), fish: r.fish })),
+    s.on('over', (r: NetResult) => showResult({ mode: r.mode, winnerTeam: r.winnerTeam, winners: r.winners.map((i) => game.fighters[i]).filter(Boolean), fish: r.fish, kraken: r.kraken })),
     s.on('state', (st) => st.phase === 'lobby' && go('room')),
     s.on('closed', onRoomClosed),
   ];

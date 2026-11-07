@@ -10,6 +10,7 @@ export type WeaponId = 'sword' | 'spear' | 'hammer' | 'bow' | 'boomerang' | 'bom
   | 'pie' | 'icecream' | 'rollingpin' | 'spatula' | 'ketchup' | 'popcorn'
   | 'broom' | 'paperplane' | 'slipper' | 'waterballoon' | 'plunger' | 'fan' | 'frisbee' | 'morningstar' | 'blanket'
   | 'mattress' | 'aphone'
+  | 'macaroni' | 'friedrice' | 'jaylunch' | 'tentacle'
   | SummonCardId;
 
 /** Summon cards (October 30): one for every helper that had no weapon of its own to call it. */
@@ -169,6 +170,13 @@ export const WEAPONS: WeaponDef[] = [
   { id: 'mattress', price: 400, length: 56, damage: 22, turn: 12, cooldown: 6, ranged: true },
   // The APhone: 30 a hit; throw it for 60 and they burn, or it explodes (30) if it misses.
   { id: 'aphone', price: 500, length: 30, damage: 30, turn: 15, cooldown: 4, ranged: true },
+  // November 7: Jay mhuay. Her two hands (boss only): 20 a hit (30 with the boss bonus), Throw Macaroni every 6 s and the Fried Rice box every 10 s.
+  { id: 'macaroni', price: 0, length: 44, damage: 20, turn: 10, cooldown: 6, ranged: true, special: 'boss' },
+  { id: 'friedrice', price: 0, length: 40, damage: 20, turn: 10, cooldown: 10, ranged: true, special: 'boss' },
+  // Her weapon as a reward (like the Grandfather Cat Treasure): skills take turns, macaroni then fried rice.
+  { id: 'jaylunch', price: 0, length: 40, damage: 15, turn: 12, cooldown: 5, ranged: true, special: 'reward' },
+  // The Kraken's tentacles (never drawn as a weapon: see kraken.ts).
+  { id: 'tentacle', price: 0, length: 60, damage: 0, turn: 10, cooldown: 99, ranged: false, special: 'boss' },
   ...SUMMON_CARDS.map((c): WeaponDef => ({ id: c.id, price: c.price, length: 34, damage: 10, turn: 14, cooldown: c.cd, ranged: true })),
 ];
 

@@ -130,6 +130,8 @@ export const PROJ_FINISH: Partial<Record<ProjKind, Finish>> = {
   magic: 'pop',
   mattress: 'trip',
   aphone: 'fling',
+  macaroni: 'ashes',
+  ricebox: 'pop',
 };
 
 /** One flying body part (shotgun point blank: blown to pieces). */

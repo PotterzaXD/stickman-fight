@@ -968,7 +968,8 @@ export function drawMonsterDeco(ctx: Ctx, deco: string, vw: number, vh: number, 
 }
 
 /** The pirate map: the sea under the map, the ship's hull under the deck, the mast, sails and a flag. */
-export function drawPirateShip(ctx: Ctx, deck: Platform, mapW: number, mapH: number, time: number) {
+/** `between`: drawn in front of the mast and sails but behind the hull (the Kraken coming up). */
+export function drawPirateShip(ctx: Ctx, deck: Platform, mapW: number, mapH: number, time: number, between?: () => void) {
   // The sea below
   const g = ctx.createLinearGradient(0, mapH, 0, mapH + 400);
   g.addColorStop(0, '#039be5');
@@ -980,29 +981,8 @@ export function drawPirateShip(ctx: Ctx, deck: Platform, mapW: number, mapH: num
   ctx.beginPath();
   for (let x = -3000; x < mapW + 3000; x += 40) ctx.lineTo(x, mapH - 60 + Math.sin(x * 0.05 + time * 2) * 8);
   ctx.stroke();
-  // Hull
-  const L = deck.x - 20;
-  const R = deck.x + deck.w + 20;
-  const top = deck.y + deck.h;
-  ctx.fillStyle = '#5d4037';
-  ctx.beginPath();
-  ctx.moveTo(L - 80, deck.y - 30);
-  ctx.lineTo(R + 120, deck.y - 60);
-  ctx.quadraticCurveTo(R, mapH - 40, (L + R) / 2, mapH - 30);
-  ctx.quadraticCurveTo(L, mapH - 40, L - 80, deck.y - 30);
-  ctx.fill();
-  ctx.strokeStyle = '#3e2723';
-  ctx.lineWidth = 3;
-  for (let y = top + 30; y < mapH - 60; y += 34) line(ctx, L + (y - top) * 0.25, y, R - (y - top) * 0.25, y);
-  // Cannon holes
-  ctx.fillStyle = '#212121';
-  for (let x = L + 120; x < R - 80; x += 170) {
-    ctx.beginPath();
-    ctx.arc(x, top + 40, 11, 0, Math.PI * 2);
-    ctx.fill();
-  }
   // Mast and sails
-  const mx = (L + R) / 2;
+  const mx = (deck.x + deck.x + deck.w) / 2;
   ctx.fillStyle = '#4e342e';
   ctx.fillRect(mx - 9, deck.y - 560, 18, 560);
   const wave = Math.sin(time * 1.6) * 10;
@@ -1035,6 +1015,28 @@ export function drawPirateShip(ctx: Ctx, deck: Platform, mapW: number, mapH: num
   ctx.quadraticCurveTo(mx + 40, deck.y - 550 + wave * 0.5, mx + 9, deck.y - 560);
   ctx.fill();
   ctx.fillRect(mx - 9, deck.y - 610, 18, 50);
+  between?.();
+  // Hull
+  const L = deck.x - 20;
+  const R = deck.x + deck.w + 20;
+  const top = deck.y + deck.h;
+  ctx.fillStyle = '#5d4037';
+  ctx.beginPath();
+  ctx.moveTo(L - 80, deck.y - 30);
+  ctx.lineTo(R + 120, deck.y - 60);
+  ctx.quadraticCurveTo(R, mapH - 40, (L + R) / 2, mapH - 30);
+  ctx.quadraticCurveTo(L, mapH - 40, L - 80, deck.y - 30);
+  ctx.fill();
+  ctx.strokeStyle = '#3e2723';
+  ctx.lineWidth = 3;
+  for (let y = top + 30; y < mapH - 60; y += 34) line(ctx, L + (y - top) * 0.25, y, R - (y - top) * 0.25, y);
+  // Cannon holes
+  ctx.fillStyle = '#212121';
+  for (let x = L + 120; x < R - 80; x += 170) {
+    ctx.beginPath();
+    ctx.arc(x, top + 40, 11, 0, Math.PI * 2);
+    ctx.fill();
+  }
 }
 
 // ---------- The Outbreak ----------
