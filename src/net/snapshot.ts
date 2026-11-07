@@ -6,6 +6,7 @@ import { turnZombie } from '../game/infection';
 import { applyPhyl, encodePhyl } from '../game/phyl';
 import { applySurvival, encodeSurvival } from '../game/survival';
 import { PLANE_PHASES, applyDoom, applyPlane, encodeDoom } from '../game/nov05Maps';
+import { applyKraken, encodeKraken } from '../game/kraken';
 import type { WeaponId } from '../game/weapons';
 import type { Game, NetEvent } from '../game/game';
 import { FINISHES, makeCorpse } from '../game/finish';
@@ -60,9 +61,11 @@ export interface Snapshot {
   sw?: string[];
   sb?: [number, string, string[]][];
   pn?: [number, number];
+  /** The Kraken: its stage, rise, the big slam and its tentacles. */
+  kr?: number[];
 }
 
-const KINDS: ProjKind[] = ['arrow', 'snowball', 'minisnow', 'boomerang', 'bomb', 'axe', 'shuriken', 'laser', 'fireball', 'six7', 'poop', 'soup', 'icebolt', 'banana', 'fireslash', 'dart', 'memorybox', 'rocket', 'wave', 'shard', 'crash', 'vine', 'nerf', 'bullet67', 'water', 'bubble', 'yoyo', 'fishthrow', 'allyfire', 'egg', 'gum', 'crow', 'hay', 'goo', 'sound', 'pebble', 'flame', 'booger', 'tennis', 'pie', 'ketchup', 'popcorn', 'plane', 'slipper', 'balloon', 'plunger', 'frisbee', 'blanket', 'magic', 'mattress', 'aphone'];
+const KINDS: ProjKind[] = ['arrow', 'snowball', 'minisnow', 'boomerang', 'bomb', 'axe', 'shuriken', 'laser', 'fireball', 'six7', 'poop', 'soup', 'icebolt', 'banana', 'fireslash', 'dart', 'memorybox', 'rocket', 'wave', 'shard', 'crash', 'vine', 'nerf', 'bullet67', 'water', 'bubble', 'yoyo', 'fishthrow', 'allyfire', 'egg', 'gum', 'crow', 'hay', 'goo', 'sound', 'pebble', 'flame', 'booger', 'tennis', 'pie', 'ketchup', 'popcorn', 'plane', 'slipper', 'balloon', 'plunger', 'frisbee', 'blanket', 'magic', 'mattress', 'aphone', 'macaroni', 'ricebox'];
 const r1 = (v: number) => Math.round(v);
 const r2 = (v: number) => Math.round(v * 100) / 100;
 
@@ -160,6 +163,7 @@ export function encodeSnapshot(g: Game): Snapshot {
   if (g.surv) Object.assign(snap, encodeSurvival(g));
   if (g.doom) snap.dm = encodeDoom(g.doom);
   if (g.plane) snap.pn = [PLANE_PHASES.indexOf(g.plane.phase), r2(g.plane.t)];
+  if (g.kr) snap.kr = encodeKraken(g);
   g.events = [];
   return snap;
 }
@@ -358,6 +362,7 @@ export class Mirror {
     if (g.surv && s.sv) applySurvival(g, s.sv, s.sw ?? [], s.sb ?? []);
     if (g.doom && s.dm) applyDoom(g.doom, s.dm);
     if (g.plane && s.pn) applyPlane(g, s.pn);
+    if (g.kr && s.kr) applyKraken(g, s.kr);
     g.glassT = g.map.platforms.map(() => 0);
     for (const [i, t] of s.gl ?? []) if (i in g.glassT) g.glassT[i] = t;
     g.applyEvents(s.e);

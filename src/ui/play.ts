@@ -21,6 +21,7 @@ import { afterWave, livesOf, outbreakInfo, outbreakTitle } from './outbreak';
 import { RUSH } from '../game/oct22';
 import { phylMapFor } from '../game/phyl';
 import { ME } from '../game/meBoss';
+import { KRAKEN } from '../game/kraken';
 import { goThroughPortal } from './portal';
 
 function buildSpecs(match: MatchConfig): FighterSpec[] {
@@ -68,6 +69,7 @@ export function bossNames(): Record<BossKind, string> {
     elephant: t('elephant_name'),
     scarecrow: t('scarecrow_name'),
     robo: t('robo_name'),
+    jay: t('jay_name'),
     phyl1: t('phyl1_name'),
     phyl2: t('phyl2_name'),
     phyl3: t('phyl3_name'),
@@ -92,7 +94,7 @@ export const BUFFALO_COINS = 3000;
 export const FISH_COINS = 1000;
 export const PIGEON_COINS = 5000;
 export const SECRET_COINS: Record<SecretKind, number> = { queen: 4000, tide: 5000, guardian: 6000 };
-export const XBOSS_COINS: Record<XBossKind, number> = { elephant: 5000, scarecrow: 2000, robo: 3000 };
+export const XBOSS_COINS: Record<XBossKind, number> = { elephant: 5000, scarecrow: 2000, robo: 3000, jay: 1500 };
 /** PHYLISHIEUS: phase 1 and phase 2. */
 export const PHYL_COINS: Record<PhylPhase, number> = { 1: 10000, 2: 20000, 3: 40000 };
 const SECRET_ICON: Record<SecretKind, string> = { queen: '❄️', tide: '🌊', guardian: '🌲' };
@@ -158,6 +160,9 @@ export interface RewardInfo {
   bosses: number;
   /** The Beach: the Fishy boss was beaten. */
   fish?: boolean;
+  /** The Pirate Ship: the Kraken was beaten (and in a boss fight there, the bosses were dragged away: only the Kraken pays). */
+  kraken?: boolean;
+  krakenBoss?: boolean;
   /** Only one stickman (this device's player) fought. */
   solo?: boolean;
   /** Boss Fight on the Beach (the bosses were on your side). */
@@ -181,6 +186,7 @@ function matchAchievements(r: RewardInfo): AchievementId[] {
   if (mode === 'mascot' && r.solo) ach.push('buffalo');
   if (won && mode === 'buffalo') ach.push('buffaloBeat');
   if (r.fish) ach.push('fishBeat');
+  if (r.kraken) ach.push('krakenBeat');
   // Beating the Pigeon also puts it in Sandbox.
   if (won && mode === 'pigeon') ach.push('pigeonBeat');
   if (won) ach.push('firstWin');
@@ -249,6 +255,8 @@ export function giveReward(r: RewardInfo): HTMLElement[] {
     ? r.surv?.coins ?? 0
     : !won
     ? 1
+    : r.krakenBoss
+    ? 0
     : mode === 'phyl'
     ? PHYL_COINS[r.phylPhase ?? 1]
     : mode === 'me'
@@ -273,13 +281,17 @@ export function giveReward(r: RewardInfo): HTMLElement[] {
       : BOSS_COINS * bosses
     : 3 + Math.floor(Math.random() * 3);
   if (r.fish) coins += FISH_COINS;
-  const treasure = won && mode === 'cat' && !save.data.owned.includes('treasure');
-  const stick = won && mode === 'mascot' && !save.data.owned.includes('mascotstick');
+  if (r.kraken) coins += KRAKEN.coins;
+  const treasure = won && mode === 'cat' && !r.krakenBoss && !save.data.owned.includes('treasure');
+  // Beating Jay mhuay gives you her Lunch Box.
+  const lunch = won && mode === 'jay' && !r.krakenBoss && !save.data.owned.includes('jaylunch');
+  const stick = won && mode === 'mascot' && !r.krakenBoss && !save.data.owned.includes('mascotstick');
   // Beating the Fishy boss gives you its Trident.
   const trident = !!r.fish && !save.data.owned.includes('trident');
   save.update((d) => {
     d.coins += coins;
     if (treasure) d.owned.push('treasure');
+    if (lunch) d.owned.push('jaylunch');
     if (stick) d.owned.push('mascotstick');
     if (trident) d.owned.push('trident');
   });
@@ -305,7 +317,9 @@ export function giveReward(r: RewardInfo): HTMLElement[] {
   setTimeout(() => sfx.coin(), 400);
   const out: HTMLElement[] = [h('p', { class: 'coins-earned' }, `🪙 ${t('coinsEarned', { n: coins })}`, h('small', {}, ` (${save.data.coins})`))];
   if (r.fish) out.push(h('p', { class: 'treasure-got' }, t('fishCoins')));
+  if (r.kraken) out.push(h('p', { class: 'treasure-got' }, t('krakenCoins')));
   if (treasure) out.push(h('p', { class: 'treasure-got' }, t('treasureGot')));
+  if (lunch) out.push(h('p', { class: 'treasure-got' }, t('lunchGot')));
   if (stick) out.push(h('p', { class: 'treasure-got' }, t('mascotStickGot')));
   if (trident) out.push(h('p', { class: 'treasure-got' }, t('tridentGot')));
   if (mode === 'survival') out.push(h('p', { class: 'treasure-got' }, `🛡️ ${t(survBest ? 'svNewBest' : 'svBest', { n: save.data.survival.best })}`));
@@ -325,7 +339,10 @@ function achLines(ids: AchievementId[]): HTMLElement[] {
   return ids.map((id) => h('p', { class: 'treasure-got' }, t('achNew', { name: achName(id) })));
 }
 
-export function resultTitle(r: Pick<MatchResult, 'mode' | 'winnerTeam' | 'winners'>, bosses = 1, beach = false): string {
+export function resultTitle(r: Pick<MatchResult, 'mode' | 'winnerTeam' | 'winners'>, bosses = 1, beach = false, kraken: 'boss' | 'ffa' | null = null): string {
+  // The Pirate Ship: the Kraken won, or (a boss fight there) it was beaten.
+  if (kraken && r.winnerTeam === BOSS_TEAM) return t('krakenWon');
+  if (kraken === 'boss') return t('krakenDefeated');
   // The Beach: the Fishy boss won, or (Boss Fight) it was beaten.
   if (beach && r.winnerTeam === BOSS_TEAM) return t('fishWon');
   if (beach && r.mode === 'boss') return t('fishDefeated');
@@ -450,6 +467,8 @@ register('play', (root, { match, fromEditor }) => {
       won: r.humanWon,
       bosses,
       fish: r.fish,
+      kraken: !!r.kraken,
+      krakenBoss: !!game.kr?.bossMode,
       beachBoss: game.beach && r.mode === 'boss',
       phylPhase: game.phy?.phase,
       surv: game.surv ? { wave: game.surv.cleared, coins: game.surv.coins } : undefined,
@@ -463,7 +482,7 @@ register('play', (root, { match, fromEditor }) => {
       h(
         'div',
         { class: 'modal result' },
-        h('h2', {}, resultTitle(r, bosses, game.beach)),
+        h('h2', {}, resultTitle(r, bosses, game.beach, game.kr ? (game.kr.bossMode ? 'boss' : 'ffa') : null)),
         ...reward,
         h(
           'ul',
@@ -486,6 +505,7 @@ register('play', (root, { match, fromEditor }) => {
       fallMode: save.data.settings.fallMode,
       bossName: bossNameFor(match.mode),
       bossNames: bossNames(),
+      krakenName: t('kraken_name'),
       bosses: match.bosses,
       potions: save.data.settings.potions,
       extraBosses: match.mode === 'sandbox' ? match.extraBosses : undefined,

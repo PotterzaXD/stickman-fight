@@ -16,6 +16,8 @@ import { toast } from './dom';
 import { go, register } from './router';
 
 export const MAX_PLAYERS = 6;
+/** The fun modes live in Other fun modes (and online), not in Play's mode list. */
+export const isFunMode = (m: Mode): m is 'infection' | 'events' | 'survival' => m === 'infection' || m === 'events' || m === 'survival';
 export const MAX_BOTS = 6;
 export const MAX_BOSSES = 3;
 
@@ -170,7 +172,7 @@ register('lobby', (root, arg) => {
   if (arg?.mapId) m.mapId = arg.mapId;
   if (!maps.some((x) => x.id === m.mapId)) m.mapId = 'arena';
   m.bosses = Math.max(1, Math.min(MAX_BOSSES, m.bosses ?? 1));
-  if (m.mode === 'sandbox' || m.mode === 'outbreak' || (m.mode === 'buffalo' && !hasAch('buffalo')) || (isSecret(m.mode) && !save.data.secrets.includes(m.mode)) || (m.mode === 'phyl' && !phylCan()) || (m.mode === 'me' && !meOpen()) || m.mode === 'survival') m.mode = 'ffa';
+  if (m.mode === 'sandbox' || m.mode === 'outbreak' || (m.mode === 'buffalo' && !hasAch('buffalo')) || (isSecret(m.mode) && !save.data.secrets.includes(m.mode)) || (m.mode === 'phyl' && !phylCan()) || (m.mode === 'me' && !meOpen()) || isFunMode(m.mode)) m.mode = 'ffa';
   if (arg?.mode && (arg.mode !== 'phyl' || phylCan())) m.mode = arg.mode;
   // PHYLISHIEUS refights (Tome Key): phase 1 to start with.
   const refight = save.data.phyl.done && hasKey();
@@ -205,6 +207,24 @@ register('lobby', (root, arg) => {
   };
 
   const render = () => keepScroll(body.parentElement ?? body, paint);
+
+  // Play has two tabs: normal battles and the bosses. The fun modes (Infection, Random Events, Survival) only come here from Other fun modes.
+  let tab: 'battle' | 'boss' = isBossMode(m.mode) ? 'boss' : 'battle';
+  const tabBtn = (id: 'battle' | 'boss', label: string) =>
+    h(
+      'button',
+      {
+        class: `tab ${tab === id ? 'on' : ''}`,
+        onclick: () => {
+          if (tab === id) return;
+          tab = id;
+          m.mode = id === 'boss' ? 'boss' : 'ffa';
+          if (m.mapId === BEACH_MAP && !BEACH_MODES.includes(m.mode)) m.mode = 'boss';
+          render();
+        },
+      },
+      label,
+    );
 
   const paint = () => {
     const looks = slotLooks(m);
@@ -342,10 +362,13 @@ register('lobby', (root, arg) => {
         'section',
         {},
         h('h3', {}, t('mode')),
-        h('small', { class: 'seg-group' }, t('modesBattle')),
-        h('div', { class: 'segs' }, modeBtn('ffa', '🥊'), modeBtn('team', '🤝'), modeBtn('stock', '❤️'), modeBtn('hill', '👑'), modeBtn('race', '🔫')),
-        h('small', { class: 'seg-group' }, t('modesBosses')),
-        h(
+        isFunMode(m.mode)
+          ? h('div', { class: 'segs' }, modeBtn(m.mode, m.mode === 'infection' ? '🦠' : m.mode === 'events' ? '🌪️' : '🛡️'))
+          : h('div', { class: 'tabs play-tabs' }, tabBtn('battle', `⚔️ ${t('modesBattle')}`), tabBtn('boss', `👹 ${t('modesBosses')}`)),
+        !isFunMode(m.mode) && tab === 'battle' ? h('div', { class: 'segs' }, modeBtn('ffa', '🥊'), modeBtn('team', '🤝'), modeBtn('stock', '❤️'), modeBtn('hill', '👑'), modeBtn('race', '🔫')) : null,
+        isFunMode(m.mode) || tab !== 'boss'
+          ? null
+          : h(
           'div',
           { class: 'segs' },
           modeBtn('boss', '👹'),
@@ -357,6 +380,7 @@ register('lobby', (root, arg) => {
           modeBtn('elephant', '🐘'),
           modeBtn('scarecrow', '🌾'),
           modeBtn('robo', '🤖'),
+          modeBtn('jay', '🍝'),
           // Secret bosses only show up once you have unlocked them.
           ...SECRET_KINDS.filter((k) => save.data.secrets.includes(k)).map((k) => modeBtn(k, SECRET_ICONS[k])),
           // Locked ones show as ??? with a hint.
@@ -371,8 +395,6 @@ register('lobby', (root, arg) => {
             ? h('button', { class: 'seg locked', onclick: () => toast(`${t('hint.phyl', { total: ACHIEVEMENTS.length })} (${achDoneCount()}/${ACHIEVEMENTS.length})`) }, `🔒 ???`)
             : null,
         ),
-        h('small', { class: 'seg-group' }, t('modesFun')),
-        h('div', { class: 'segs' }, modeBtn('infection', '🦠'), modeBtn('events', '🌪️'), modeBtn('survival', '🛡️')),
         m.mode === 'survival' ? h('small', { class: 'muted' }, `🛡️ ${t('svBest', { n: save.data.survival.best })}`) : null,
         h('p', { class: 'muted' }, t(`${m.mode}Desc` as Key, m.mode === 'me' ? { name: localName(0) } : undefined)),
         m.mode === 'me' ? h('small', { class: 'muted' }, `🪙🏆 ${t('meReward')}`) : null,

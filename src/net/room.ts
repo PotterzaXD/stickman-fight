@@ -21,7 +21,7 @@ const randomPick = (owned: string[]) => {
 import { HATS, hatExists, resolveHat } from '../game/hats';
 import type { Snapshot } from './snapshot';
 
-export const PROTO = 17;
+export const PROTO = 18;
 export const MIN_ROOM = 2;
 export const MAX_ROOM = 30;
 export const MAX_LOCAL = 6;
@@ -113,6 +113,8 @@ export interface NetResult {
   winners: number[];
   /** The Beach: the Fishy boss was beaten. */
   fish?: boolean;
+  /** The Pirate Ship: the Kraken was beaten. */
+  kraken?: boolean;
 }
 
 type Msg =
@@ -633,7 +635,7 @@ export class RoomHost extends Emitter<RoomEvents> {
   }
 
   endMatch(r: MatchResult, fighters: unknown[]) {
-    const result: NetResult = { mode: r.mode, winnerTeam: r.winnerTeam, winners: r.winners.map((f) => fighters.indexOf(f)), fish: r.fish };
+    const result: NetResult = { mode: r.mode, winnerTeam: r.winnerTeam, winners: r.winners.map((f) => fighters.indexOf(f)), fish: r.fish, kraken: r.kraken };
     for (const p of this.peers.values()) sendJson(p.rel, { t: 'over', result });
   }
 

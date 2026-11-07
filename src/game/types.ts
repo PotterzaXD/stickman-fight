@@ -26,8 +26,8 @@ export type Difficulty = 'easy' | 'medium' | 'hard';
 export type Mode = 'ffa' | 'team' | 'boss' | 'cat' | 'mascot' | 'buffalo' | 'pigeon' | 'sandbox' | 'outbreak' | 'hill' | 'race' | 'stock' | 'rush' | 'infection' | 'events' | 'phyl' | 'me' | 'survival' | XBossKind | SecretKind;
 
 /** The October 20 bosses: the Magical Elephant (flies with its big ears), the Giant Scarecrow and Robo Stick. */
-export type XBossKind = 'elephant' | 'scarecrow' | 'robo';
-export const XBOSS_KINDS: XBossKind[] = ['elephant', 'scarecrow', 'robo'];
+export type XBossKind = 'elephant' | 'scarecrow' | 'robo' | 'jay';
+export const XBOSS_KINDS: XBossKind[] = ['elephant', 'scarecrow', 'robo', 'jay'];
 export const isXBoss = (m: string): m is XBossKind => (XBOSS_KINDS as string[]).includes(m);
 
 /** The secret bosses: hidden until you meet their unlock conditions. */

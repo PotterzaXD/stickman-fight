@@ -37,9 +37,14 @@ export const ACHIEVEMENTS = [
 /** PHYLISHIEUS badges: one for each phase beaten. They don't count toward the 28 that wake him up. */
 export const PHYL_BADGES = ['phylBeat1', 'phylBeat2', 'phylBeat3'] as const;
 export type BadgeId = (typeof PHYL_BADGES)[number];
-export type AchievementId = (typeof ACHIEVEMENTS)[number] | BadgeId;
-/** Everything on the Achievements screen (the 28 plus the badges). */
-export const ALL_ACH: AchievementId[] = [...ACHIEVEMENTS, ...PHYL_BADGES];
+/** November 7 extras: they don't count toward the Tome Key (so nobody loses it), and stay ??? until you get them. */
+export const EXTRA_ACH = ['krakenBeat'] as const;
+export type ExtraAchId = (typeof EXTRA_ACH)[number];
+export type AchievementId = (typeof ACHIEVEMENTS)[number] | BadgeId | ExtraAchId;
+/** Everything on the Achievements screen (the 28, the badges and the extras). */
+export const ALL_ACH: AchievementId[] = [...ACHIEVEMENTS, ...PHYL_BADGES, ...EXTRA_ACH];
+/** What the Tome Key needs: the 28 and the badges. */
+const KEY_ACH: AchievementId[] = [...ACHIEVEMENTS, ...PHYL_BADGES];
 export const achTotal = () => ALL_ACH.length;
 export const achHave = () => ALL_ACH.filter((id) => save.data.achievements.includes(id)).length;
 
@@ -50,7 +55,7 @@ export const phylOpen = () => achDoneCount() >= ACHIEVEMENTS.length && !save.dat
 export const hasKey = () => save.data.phyl.key;
 /** Get the key once you've earned it. Returns true the moment it's new. */
 export function checkKey(): boolean {
-  if (save.data.phyl.key || !save.data.phyl.done || achHave() < achTotal()) return false;
+  if (save.data.phyl.key || !save.data.phyl.done || KEY_ACH.some((id) => !save.data.achievements.includes(id))) return false;
   save.update((d) => (d.phyl.key = true));
   return true;
 }
@@ -65,7 +70,7 @@ export const SECRET_ACH: Partial<Record<AchievementId, SecretKind>> = { winterWa
 export const achName = (id: AchievementId) => t(`ach.${id}` as Key);
 export const achDesc = (id: AchievementId) => t(`achd.${id}` as Key);
 export const hasAch = (id: AchievementId) => save.data.achievements.includes(id);
-export const achHidden = (id: AchievementId) => !hasAch(id) && !!SECRET_ACH[id] && !save.data.secrets.includes(SECRET_ACH[id]!);
+export const achHidden = (id: AchievementId) => !hasAch(id) && ((!!SECRET_ACH[id] && !save.data.secrets.includes(SECRET_ACH[id]!)) || (EXTRA_ACH as readonly string[]).includes(id));
 
 /** Every weapon you can fight with in Sandbox (shop and rewards). */
 const FIGHT_WEAPONS = WEAPONS.filter((w) => w.special !== 'boss').map((w) => w.id);

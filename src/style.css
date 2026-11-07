@@ -2047,3 +2047,8 @@ button.chef-item {
 .one-d-result { text-align: center; }
 .one-d-tab { opacity: 0.85; font-size: 0.85em; }
 .fun-survival { background: linear-gradient(135deg, #2e7d32, #1b5e20); }
+
+/* Play: Battle and Bosses tabs */
+.play-tabs { display: flex; gap: 6px; margin: 4px 0 10px; border-bottom: 2px solid rgba(255,255,255,0.12); }
+.play-tabs .tab { flex: 1; padding: 10px 12px; border: none; border-radius: 12px 12px 0 0; background: rgba(255,255,255,0.06); color: inherit; font: inherit; font-weight: 700; cursor: pointer; }
+.play-tabs .tab.on { background: var(--accent); color: var(--accent-ink); }
