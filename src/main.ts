@@ -29,6 +29,7 @@ import './ui/outbreak';
 import './ui/versions';
 import './ui/funmodes';
 import './ui/oneD';
+import './ui/threeD';
 import './ui/td';
 import './ui/chef';
 import { session, setSession } from './net/room';

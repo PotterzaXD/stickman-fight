@@ -1206,6 +1206,16 @@ const en = {
   "achd.krakenBeat": "Beat The Kraken.",
   "w.tentacle": "Tentacles",
   "s.tentacle": "The Kraken's tentacles.",
+  threeD: "3D",
+  threeDCoins: "3D coins",
+  threeDTagline: "Same fight, same view. Now in 3D!",
+  threeDNote: "3D mode has its own coins and its own shop, with the 8 weapons from the very first version.",
+  threeDShopNote: "Bought with 3D coins (your normal coins stay the same). Win in 3D to get more.",
+  threeDConfirm: "Buy the {name} for {price} 3D coins?",
+  threeDBots: "Bots",
+  threeDPay: "Win: +{n} 3D coins",
+  threeDWon: "You win in 3D!",
+  threeDLost: "Knocked out...",
 };
 
 export type Key = keyof typeof en;
@@ -2391,6 +2401,16 @@ const th: Record<Key, string> = {
   "achd.krakenBeat": "ชนะคราเคน",
   "w.tentacle": "หนวดปลาหมึก",
   "s.tentacle": "หนวดของคราเคน",
+  threeD: "3D",
+  threeDCoins: "เหรียญ 3D",
+  threeDTagline: "สู้แบบเดิม มุมกล้องเดิม แต่เป็น 3D!",
+  threeDNote: "โหมด 3D มีเหรียญและร้านค้าของตัวเอง มีอาวุธ 8 ชิ้นจากเวอร์ชันแรกสุด",
+  threeDShopNote: "ซื้อด้วยเหรียญ 3D (เหรียญปกติไม่เปลี่ยน) ชนะในโหมด 3D เพื่อได้เหรียญเพิ่ม",
+  threeDConfirm: "ซื้อ {name} ราคา {price} เหรียญ 3D ไหม?",
+  threeDBots: "บอท",
+  threeDPay: "ชนะ: +{n} เหรียญ 3D",
+  threeDWon: "ชนะในโหมด 3D!",
+  threeDLost: "แพ้แล้ว...",
 };
 
 const dicts: Record<Lang, Record<Key, string>> = { en, th };

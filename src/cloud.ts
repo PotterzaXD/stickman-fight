@@ -67,6 +67,7 @@ function merge(local: SaveData, remote: SaveData): SaveData {
     meBeat: local.meBeat || remote.meBeat,
     survival: { best: Math.max(local.survival.best, remote.survival.best) },
     oneD: { ...newer.oneD, owned: Array.from(new Set([...local.oneD.owned, ...remote.oneD.owned])), wins: Math.max(local.oneD.wins, remote.oneD.wins) },
+    threeD: { ...newer.threeD, owned: Array.from(new Set([...local.threeD.owned, ...remote.threeD.owned])), wins: Math.max(local.threeD.wins, remote.threeD.wins) },
     // Volume settings belong to this device.
     settings: { ...newer.settings, musicVol: local.settings.musicVol, sfxVol: local.settings.sfxVol, musicMute: local.settings.musicMute, sfxMute: local.settings.sfxMute, killFeed: local.settings.killFeed, hideBossBars: local.settings.hideBossBars },
     customMaps: [...maps.values()],

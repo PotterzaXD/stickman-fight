@@ -46,6 +46,8 @@ export interface SaveData {
   survival: { best: number };
   /** 1D: its own coins and weapons, separate from the normal game. */
   oneD: OneDSave;
+  /** 3D mode (also opened by the Tome Key): its own coins and the weapons bought with them. */
+  threeD: ThreeDSave;
   /** Shirts, pants and shoes bought in the shop (for the profile picture). */
   clothes: string[];
   /** What your profile stickman wears ('none' = nothing). */
@@ -61,6 +63,22 @@ export interface OneDSave {
   /** The weapon you fight with. */
   weapon: string;
   wins: number;
+}
+
+/** 3D mode's save: same shape as 1D's (its own coins, owned weapons and the one you use). */
+export type ThreeDSave = OneDSave;
+/** 3D mode starts with the two weapons that were free when the game came out. */
+export const THREE_D_FREE = ['sword', 'spear'];
+
+export function loadThreeD(v: unknown): ThreeDSave {
+  const o = (v && typeof v === 'object' ? v : {}) as Partial<ThreeDSave>;
+  const owned = Array.from(new Set([...THREE_D_FREE, ...(Array.isArray(o.owned) ? o.owned.filter((x) => typeof x === 'string') : [])]));
+  return {
+    coins: Number.isFinite(o.coins) ? Math.max(0, Math.floor(o.coins as number)) : 0,
+    owned,
+    weapon: typeof o.weapon === 'string' && owned.includes(o.weapon) ? o.weapon : THREE_D_FREE[0],
+    wins: Number.isFinite(o.wins) ? Math.max(0, Math.floor(o.wins as number)) : 0,
+  };
 }
 
 export interface Outfit {
@@ -172,6 +190,7 @@ function defaults(): SaveData {
     meBeat: false,
     survival: { best: 0 },
     oneD: loadOneD(null),
+    threeD: loadThreeD(null),
     clothes: [],
     outfit: { ...DEFAULT_OUTFIT },
     joined: Date.now(),
@@ -227,6 +246,7 @@ export function normalize(raw: unknown): SaveData {
     meBeat: r.meBeat === true,
     survival: { best: Number.isFinite(r.survival?.best) ? Math.max(0, Math.floor(r.survival!.best)) : 0 },
     oneD: loadOneD(r.oneD),
+    threeD: loadThreeD(r.threeD),
     clothes: strs(r.clothes),
     outfit: loadOutfit(r.outfit),
     // Saves from before the profile: the first time this device opens the game with it.

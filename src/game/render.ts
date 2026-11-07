@@ -1901,7 +1901,7 @@ function drawStanding(ctx: Ctx, f: Fighter, time: number, label = true) {
 }
 
 /** A stickman's name, HP bar and skill-ready dot above its head. */
-function drawLabel(ctx: Ctx, f: Fighter, top: number) {
+export function drawLabel(ctx: Ctx, f: Fighter, top: number) {
   const x = f.x;
   {
     hpBar(ctx, x, top, 52, f.hp / f.maxHp, f.color);
@@ -2496,6 +2496,36 @@ function drawProjectile(ctx: Ctx, p: Projectile, time: number) {
   }
 }
 
+/** Shockwave rings, particles and floating numbers (`particles` = false: the 3D mode draws its own). */
+export function drawWorldFx(ctx: Ctx, g: Game, particles = true) {
+  for (const r of g.rings) {
+    ctx.strokeStyle = r.color;
+    ctx.globalAlpha = Math.max(0, r.life / r.max);
+    ctx.lineWidth = 6;
+    ctx.beginPath();
+    ctx.ellipse(r.x, r.y, r.r, r.r * 0.45, 0, 0, Math.PI * 2);
+    ctx.stroke();
+  }
+  ctx.globalAlpha = 1;
+  if (particles) for (const p of g.particles) {
+    ctx.globalAlpha = Math.max(0, p.life / p.max);
+    ctx.fillStyle = p.color;
+    ctx.fillRect(p.x - p.size / 2, p.y - p.size / 2, p.size, p.size);
+  }
+  ctx.globalAlpha = 1;
+  ctx.textAlign = 'center';
+  for (const t of g.texts) {
+    ctx.globalAlpha = Math.min(1, t.life * 2);
+    ctx.font = `900 ${t.size}px "Baloo 2", system-ui, sans-serif`;
+    ctx.lineWidth = 4;
+    ctx.strokeStyle = 'rgba(0,0,0,0.8)';
+    ctx.strokeText(t.text, t.x, t.y);
+    ctx.fillStyle = t.color;
+    ctx.fillText(t.text, t.x, t.y);
+  }
+  ctx.globalAlpha = 1;
+}
+
 export function renderGame(g: Game, ctx: Ctx, vw: number, vh: number, dpr: number) {
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   drawBackground(ctx, g.map, vw, vh, g.cam.x, g.time);
@@ -2596,35 +2626,15 @@ export function renderGame(g: Game, ctx: Ctx, vw: number, vh: number, dpr: numbe
   // Trapped in a bubble
   for (const b of g.bodies()) if (b.alive && b.bubbleT > 0) drawBubble(ctx, b.x, b.cy, Math.max(b.w, b.h) * 0.62 + Math.sin(g.time * 6) * 2);
 
-  for (const r of g.rings) {
-    ctx.strokeStyle = r.color;
-    ctx.globalAlpha = Math.max(0, r.life / r.max);
-    ctx.lineWidth = 6;
-    ctx.beginPath();
-    ctx.ellipse(r.x, r.y, r.r, r.r * 0.45, 0, 0, Math.PI * 2);
-    ctx.stroke();
-  }
-  ctx.globalAlpha = 1;
-  for (const p of g.particles) {
-    ctx.globalAlpha = Math.max(0, p.life / p.max);
-    ctx.fillStyle = p.color;
-    ctx.fillRect(p.x - p.size / 2, p.y - p.size / 2, p.size, p.size);
-  }
-  ctx.globalAlpha = 1;
-  ctx.textAlign = 'center';
-  for (const t of g.texts) {
-    ctx.globalAlpha = Math.min(1, t.life * 2);
-    ctx.font = `900 ${t.size}px "Baloo 2", system-ui, sans-serif`;
-    ctx.lineWidth = 4;
-    ctx.strokeStyle = 'rgba(0,0,0,0.8)';
-    ctx.strokeText(t.text, t.x, t.y);
-    ctx.fillStyle = t.color;
-    ctx.fillText(t.text, t.x, t.y);
-  }
-  ctx.globalAlpha = 1;
+  drawWorldFx(ctx, g);
 
   // Boss health bars across the top (one per boss)
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  drawHud(g, ctx, vw, vh);
+}
+
+/** Everything drawn over the world on the screen: boss bars, mode boards, the kill feed, big captions and flashes. */
+export function drawHud(g: Game, ctx: Ctx, vw: number, vh: number) {
   if (g.blizzard) drawBlizzard(ctx, g.blizzard, vw, vh, g.time);
   if (evOn(g.ev, 'blackout')) drawBlackout(ctx, g, vw, vh);
   if (g.ev) drawEventsHud(ctx, g.ev, vw);
