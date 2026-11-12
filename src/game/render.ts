@@ -24,6 +24,8 @@ import { drawCrashGround, drawCrashSky, drawNov05Deco, drawNov05Hud, drawSurviva
 import { drawNov05Over, drawNov05Projectile, drawNov05Weapon } from './nov05Draw';
 import { drawKrakenBack, drawKrakenFront } from './krakenDraw';
 import { drawJayDress, drawJayHead, drawJayProjectile, drawJayWeapon } from './jayDraw';
+import { drawDot, drawDotWorld } from './dotDraw';
+import { drawNov12Over, drawNov12Projectile, drawNov12Weapon } from './nov12Draw';
 import { drawOct30Helper, drawOct30Over, drawOct30Projectile, drawOct30Weapon, drawWarps } from './oct30Draw';
 import { clipAboveGround, drawCastle, drawToy, drawToyProjectile, drawToyWeapon, drawWall, swingArm, walkLegs } from './toys';
 
@@ -977,7 +979,7 @@ export function drawWeaponShape(ctx: Ctx, id: WeaponId, len: number, s: number, 
       ctx.fill();
       break;
     default:
-      if (!drawExtraWeapon(ctx, id, len, s, ready, performance.now() / 1000) && !drawCritterWeapon(ctx, id, len, s, ready, performance.now() / 1000) && !drawMonsterWeapon(ctx, id, len, s, ready, performance.now() / 1000) && !drawGadgetWeapon(ctx, id, len, s, ready, performance.now() / 1000) && !drawToyWeapon(ctx, id, len, s, ready, performance.now() / 1000) && !drawTreatWeapon(ctx, id, len, s, ready, performance.now() / 1000) && !drawNov05Weapon(ctx, id, len, s, ready) && !drawJayWeapon(ctx, id, len, s, ready)) drawOct30Weapon(ctx, id, len, s, ready, performance.now() / 1000);
+      if (!drawNov12Weapon(ctx, id, len, s, ready, performance.now() / 1000) && !drawExtraWeapon(ctx, id, len, s, ready, performance.now() / 1000) && !drawCritterWeapon(ctx, id, len, s, ready, performance.now() / 1000) && !drawMonsterWeapon(ctx, id, len, s, ready, performance.now() / 1000) && !drawGadgetWeapon(ctx, id, len, s, ready, performance.now() / 1000) && !drawToyWeapon(ctx, id, len, s, ready, performance.now() / 1000) && !drawTreatWeapon(ctx, id, len, s, ready, performance.now() / 1000) && !drawNov05Weapon(ctx, id, len, s, ready) && !drawJayWeapon(ctx, id, len, s, ready)) drawOct30Weapon(ctx, id, len, s, ready, performance.now() / 1000);
   }
 }
 
@@ -1117,6 +1119,7 @@ function drawSoupPot(ctx: Ctx, x: number, y: number, s: number, gold: boolean, r
 
 /** A fish called by the Fishy boss: it flops about and bites. */
 function drawFishMinion(ctx: Ctx, c: Cat, time: number) {
+  if (c.variant === 'betta') return drawBetta(ctx, c, time);
   const { x, y } = c;
   const f = c.facing;
   const flop = Math.sin(time * 14 + c.id) * 0.15;
@@ -1160,6 +1163,69 @@ function drawFishMinion(ctx: Ctx, c: Cat, time: number) {
   ctx.moveTo(f * 16, 2 - open);
   ctx.lineTo(f * 10, 3);
   ctx.lineTo(f * 16, 3 + open);
+  ctx.stroke();
+  ctx.restore();
+  hpBar(ctx, x, y - 44, 26, c.hp / c.maxHp, c.color);
+}
+
+/** The Summoner's betta fish: a bright red-violet fish with long flowing fins. */
+const BETTA_COLORS = ['#e53935', '#8e24aa', '#1e88e5', '#d81b60', '#00acc1'];
+function drawBetta(ctx: Ctx, c: Cat, time: number) {
+  const { x, y } = c;
+  const f = c.facing;
+  const col = BETTA_COLORS[c.id % BETTA_COLORS.length];
+  const wave = Math.sin(time * 9 + c.id);
+  ctx.save();
+  ctx.translate(x, y - 14);
+  ctx.rotate(Math.sin(time * 14 + c.id) * 0.12);
+  ctx.globalAlpha = 0.85;
+  ctx.fillStyle = c.hurtFlash > 0 ? '#ffffff' : col;
+  // Long flowing tail and fins (they wave).
+  ctx.beginPath();
+  ctx.moveTo(-f * 8, -2);
+  ctx.quadraticCurveTo(-f * 26, -22 + wave * 5, -f * 34, -6 + wave * 4);
+  ctx.quadraticCurveTo(-f * 30, 4, -f * 34, 14 - wave * 4);
+  ctx.quadraticCurveTo(-f * 24, 20 - wave * 5, -f * 8, 4);
+  ctx.closePath();
+  ctx.fill();
+  ctx.beginPath();
+  ctx.moveTo(-f * 6, -7);
+  ctx.quadraticCurveTo(f * 0, -24 + wave * 3, f * 8, -8);
+  ctx.closePath();
+  ctx.fill();
+  ctx.beginPath();
+  ctx.moveTo(-f * 4, 7);
+  ctx.quadraticCurveTo(f * 2, 22 - wave * 3, f * 8, 7);
+  ctx.closePath();
+  ctx.fill();
+  ctx.globalAlpha = 1;
+  // Body
+  ctx.fillStyle = c.hurtFlash > 0 ? '#ffffff' : col;
+  ctx.strokeStyle = 'rgba(0,0,0,0.45)';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.ellipse(0, 0, 15, 9, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.stroke();
+  // Shiny scales
+  ctx.fillStyle = 'rgba(255,255,255,0.35)';
+  ctx.beginPath();
+  ctx.ellipse(f * 2, -3, 7, 3, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = '#ffffff';
+  ctx.beginPath();
+  ctx.arc(f * 8, -2, 3, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = '#000';
+  ctx.beginPath();
+  ctx.arc(f * 9, -2, 1.5, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.strokeStyle = 'rgba(0,0,0,0.6)';
+  ctx.beginPath();
+  const open = c.attackT > 0.5 ? 4 : 1.2;
+  ctx.moveTo(f * 15, 2 - open);
+  ctx.lineTo(f * 10, 3);
+  ctx.lineTo(f * 15, 3 + open);
   ctx.stroke();
   ctx.restore();
   hpBar(ctx, x, y - 44, 26, c.hp / c.maxHp, c.color);
@@ -1706,7 +1772,23 @@ function drawPoison(ctx: Ctx, b: Body, time: number) {
 }
 
 function drawFighter(ctx: Ctx, f: Fighter, time: number) {
+  // Ghost Sword: the ghost life and ghost clones are see-through and float a little.
+  if (f.ghost) {
+    ctx.save();
+    ctx.globalAlpha = 0.5 + Math.sin(time * 4 + f.id) * 0.08;
+    ctx.shadowColor = '#b3e5fc';
+    ctx.shadowBlur = 16;
+    ctx.translate(0, Math.sin(time * 3 + f.id) * 3);
+    drawFighterBody(ctx, f, time);
+    ctx.restore();
+    return;
+  }
+  drawFighterBody(ctx, f, time);
+}
+
+function drawFighterBody(ctx: Ctx, f: Fighter, time: number) {
   if (f.phyl) return drawPhyl(ctx, f, time);
+  if (f.dot) return drawDot(ctx, f, time);
   // The Kraken is drawn with the map (krakenDraw.ts).
   if (f.kraken) return;
   // Knocked flat by a pie (or the Rolling Pin): the whole stickman lies on the ground, head first.
@@ -2129,7 +2211,7 @@ function drawSnowman(ctx: Ctx, m: Snowman) {
 }
 
 function drawProjectile(ctx: Ctx, p: Projectile, time: number) {
-  if (drawExtraProjectile(ctx, p, time) || drawCritterProjectile(ctx, p, time) || drawMonsterProjectile(ctx, p, time) || drawGadgetProjectile(ctx, p, time) || drawToyProjectile(ctx, p, time) || drawTreatProjectile(ctx, p) || drawOct30Projectile(ctx, p, time) || drawNov05Projectile(ctx, p) || drawJayProjectile(ctx, p)) return;
+  if (drawExtraProjectile(ctx, p, time) || drawCritterProjectile(ctx, p, time) || drawMonsterProjectile(ctx, p, time) || drawGadgetProjectile(ctx, p, time) || drawToyProjectile(ctx, p, time) || drawTreatProjectile(ctx, p) || drawOct30Projectile(ctx, p, time) || drawNov05Projectile(ctx, p) || drawJayProjectile(ctx, p) || drawNov12Projectile(ctx, p, time)) return;
   switch (p.kind) {
     case 'nerf': {
       // Foam dart: blue body, orange tip
@@ -2571,7 +2653,7 @@ export function renderGame(g: Game, ctx: Ctx, vw: number, vh: number, dpr: numbe
     if (c.variant === 'sbsnow' || c.variant === 'fireally') {
       drawSbAlly(ctx, c, g.time);
       hpBar(ctx, c.x, c.y - c.h - 36, 34, c.hp / c.maxHp, c.owner.color);
-    } else if (c.variant === 'fish') drawFishMinion(ctx, c, g.time);
+    } else if (c.variant === 'fish' || c.variant === 'betta') drawFishMinion(ctx, c, g.time);
     else if (c.variant === 'memory') drawMemoryAlly(ctx, c);
     else if (c.variant === 'soldier') drawSoldier(ctx, c);
     else drawCat(ctx, c);
@@ -2607,11 +2689,13 @@ export function renderGame(g: Game, ctx: Ctx, vw: number, vh: number, dpr: numbe
   for (const b of g.bodies()) if (b.alive && b.poisonT > 0) drawPoison(ctx, b, g.time);
   drawOct30Over(ctx, g.bodies(), g.fighters, g.time);
   drawNov05Over(ctx, g.bodies(), g.time);
+  drawNov12Over(ctx, g.bodies(), g.time);
   drawNov05MapFront(ctx, g, g.time);
   if (g.kr) drawKrakenFront(ctx, g, g.time);
   if (g.surv) drawSurvivalWorld(ctx, g.surv, g.time);
   if (g.ev) drawEventsWorld(ctx, g, g.time);
   if (g.phy) drawPhylWorld(ctx, g, g.time);
+  drawDotWorld(ctx, g, g.time);
   for (const p of g.projectiles) drawProjectile(ctx, p, g.time);
   for (const f of g.fighters) if (f.alive && f.jetT > 0) drawJet(ctx, f, g.time);
   for (const b of g.bolts) drawBolt(ctx, b);
@@ -2685,7 +2769,8 @@ export function drawHud(g: Game, ctx: Ctx, vw: number, vh: number) {
     ctx.font = '800 13px "Baloo 2", system-ui, sans-serif';
     ctx.textAlign = 'center';
     ctx.fillStyle = '#fff';
-    ctx.fillText(`${boss.name}  ${Math.max(0, Math.ceil(boss.hp))} / ${boss.maxHp}`, vw / 2, y + 12);
+    // The "." boss has hearts, not HP.
+    ctx.fillText(boss.dot ? `${boss.name}  ${'❤️'.repeat(Math.max(0, Math.round(boss.hp)))}${'🖤'.repeat(Math.max(0, Math.round(boss.maxHp - boss.hp)))}` : `${boss.name}  ${Math.max(0, Math.ceil(boss.hp))} / ${boss.maxHp}`, vw / 2, y + 12);
   }
 
   // The kill feed can be turned off in Settings.

@@ -80,7 +80,7 @@ export interface KrakenState {
 }
 
 /** Modes where the Kraken shows up on the Pirate Ship. */
-export const krakenMode = (m: Mode) => m === 'ffa' || m === 'team' || (isBossMode(m) && m !== 'rush' && m !== 'phyl' && m !== 'me');
+export const krakenMode = (m: Mode) => m === 'ffa' || m === 'team' || (isBossMode(m) && m !== 'rush' && m !== 'phyl' && m !== 'me' && m !== 'dot');
 
 const rand = Math.random;
 const sign = (v: number) => (v > 0 ? 1 : v < 0 ? -1 : 0);

@@ -179,6 +179,7 @@ register('room', (root) => {
               ['scarecrow', `🌾 ${t('scarecrow')}`],
               ['robo', `🤖 ${t('robo')}`],
               ['jay', `🍝 ${t('jay')}`],
+              ['dot', `⚫ ${t('dot')}`],
               ['outbreak', `🧟 ${t('outbreak')}`],
               ['infection', `🦠 ${t('infection')}`],
               ['events', `🌪️ ${t('events')}`],

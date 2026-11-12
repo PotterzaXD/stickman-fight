@@ -26,8 +26,8 @@ export type Difficulty = 'easy' | 'medium' | 'hard';
 export type Mode = 'ffa' | 'team' | 'boss' | 'cat' | 'mascot' | 'buffalo' | 'pigeon' | 'sandbox' | 'outbreak' | 'hill' | 'race' | 'stock' | 'rush' | 'infection' | 'events' | 'phyl' | 'me' | 'survival' | XBossKind | SecretKind;
 
 /** The October 20 bosses: the Magical Elephant (flies with its big ears), the Giant Scarecrow and Robo Stick. */
-export type XBossKind = 'elephant' | 'scarecrow' | 'robo' | 'jay';
-export const XBOSS_KINDS: XBossKind[] = ['elephant', 'scarecrow', 'robo', 'jay'];
+export type XBossKind = 'elephant' | 'scarecrow' | 'robo' | 'jay' | 'dot';
+export const XBOSS_KINDS: XBossKind[] = ['elephant', 'scarecrow', 'robo', 'jay', 'dot'];
 export const isXBoss = (m: string): m is XBossKind => (XBOSS_KINDS as string[]).includes(m);
 
 /** The secret bosses: hidden until you meet their unlock conditions. */
@@ -136,9 +136,9 @@ export interface SandboxBoss {
 /** Helpers you can drop into Sandbox: every helper any weapon or the Summoner can call. A chick slot is 10 chicks. */
 export type HelperKind = 'cat' | 'fish' | 'memory' | 'soldier' | 'snowman' | 'sbsnow' | 'fireally' | 'redguy' | 'chicken' | 'chick' | 'lilpigeon' | 'skeleton' | 'dog' | 'retro' | 'bee' | 'ninja' | 'zombie'
   | 'babyele' | 'drone' | 'penguin' | 'knight' | 'frog' | 'ghost' | 'ginger' | 'cupcake' | 'chef'
-  | 'unicorn' | 'dino' | 'wizard' | 'panda' | 'physi';
+  | 'unicorn' | 'dino' | 'wizard' | 'panda' | 'physi' | 'betta';
 /** The zombie ally is only here once you have beaten wave 10 of The Outbreak (see `zombieAlly` in the save). */
-export const HELPER_KINDS: HelperKind[] = ['cat', 'fish', 'memory', 'soldier', 'snowman', 'sbsnow', 'fireally', 'redguy', 'chicken', 'chick', 'lilpigeon', 'skeleton', 'dog', 'retro', 'bee', 'ninja', 'zombie', 'babyele', 'drone', 'penguin', 'knight', 'frog', 'ghost', 'ginger', 'cupcake', 'chef', 'unicorn', 'dino', 'wizard', 'panda', 'physi'];
+export const HELPER_KINDS: HelperKind[] = ['cat', 'fish', 'memory', 'soldier', 'snowman', 'sbsnow', 'fireally', 'redguy', 'chicken', 'chick', 'lilpigeon', 'skeleton', 'dog', 'retro', 'bee', 'ninja', 'zombie', 'babyele', 'drone', 'penguin', 'knight', 'frog', 'ghost', 'ginger', 'cupcake', 'chef', 'unicorn', 'dino', 'wizard', 'panda', 'physi', 'betta'];
 /** The Outbreak's zombies and the Zombie Boss, for Sandbox (they fight for whichever team you put them on). */
 export type SbZombieKind = 'znormal' | 'zshooter' | 'zmini' | 'zbig' | 'zrunner' | 'zexploder' | 'zboss';
 export const SB_ZOMBIE_KINDS: SbZombieKind[] = ['znormal', 'zshooter', 'zmini', 'zbig', 'zrunner', 'zexploder', 'zboss'];
@@ -163,6 +163,8 @@ export interface MatchConfig {
   helpers?: SandboxHelper[];
   /** Sandbox: Clones, each the slot index (player or bot) it copies. */
   clones?: number[];
+  /** Sandbox: ghost clones, each the slot index (player or bot) it copies. */
+  ghostClones?: number[];
   /** Sandbox: Free For All, nobody is on anybody's team (fighters, bosses, helpers and Clones). */
   ffa?: boolean;
   /** The Outbreak: which save (0-2) this wave belongs to. */

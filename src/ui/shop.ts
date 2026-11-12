@@ -138,6 +138,9 @@ register('shop', (root) => {
             : // The Zombie Card is for sale once you have beaten wave 10 of The Outbreak.
               w.id === 'sum_zombie' && !save.data.zombieAlly
             ? h('span', { class: 'badge' }, `🔒 ${t('zombieCardLocked')}`)
+            : // The Ghost Sword is for sale once you own the Sword and the Fire Sword.
+              w.id === 'ghostsword' && !(save.data.owned.includes('sword') && save.data.owned.includes('firesword'))
+            ? h('span', { class: 'badge' }, `🔒 ${t('ghostSwordLocked')}`)
             : h('button', { class: `btn ${afford ? 'primary' : ''}`, onclick: buy }, `🪙 ${w.price}`),
         );
       }),

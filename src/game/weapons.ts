@@ -11,6 +11,7 @@ export type WeaponId = 'sword' | 'spear' | 'hammer' | 'bow' | 'boomerang' | 'bom
   | 'broom' | 'paperplane' | 'slipper' | 'waterballoon' | 'plunger' | 'fan' | 'frisbee' | 'morningstar' | 'blanket'
   | 'mattress' | 'aphone'
   | 'macaroni' | 'friedrice' | 'jaylunch' | 'tentacle'
+  | 'blindfold' | 'ghostsword' | 'dotcore'
   | SummonCardId;
 
 /** Summon cards (October 30): one for every helper that had no weapon of its own to call it. */
@@ -72,6 +73,8 @@ export const WEAPONS: WeaponDef[] = [
   { id: 'broom', price: 0, length: 86, damage: 18, turn: 13, cooldown: 3, ranged: false },
   { id: 'paperplane', price: 0, length: 30, damage: 12, turn: 15, cooldown: 1.5, ranged: true },
   { id: 'slipper', price: 0, length: 34, damage: 18, turn: 15, cooldown: 2, ranged: true },
+  // November 12: the free Blindfold. 30 a hit; throw it (60) and whoever it lands on sleeps until somebody hits them.
+  { id: 'blindfold', price: 0, length: 40, damage: 30, turn: 15, cooldown: 4, ranged: true },
   { id: 'hammer', price: 200, length: 84, damage: 42, turn: 9, cooldown: 3.5, ranged: false },
   { id: 'bow', price: 250, length: 40, damage: 10, turn: 14, cooldown: 0.9, ranged: true },
   { id: 'boomerang', price: 300, length: 40, damage: 14, turn: 14, cooldown: 0.4, ranged: true },
@@ -177,6 +180,11 @@ export const WEAPONS: WeaponDef[] = [
   { id: 'jaylunch', price: 0, length: 40, damage: 15, turn: 12, cooldown: 5, ranged: true, special: 'reward' },
   // The Kraken's tentacles (never drawn as a weapon: see kraken.ts).
   { id: 'tentacle', price: 0, length: 60, damage: 0, turn: 10, cooldown: 99, ranged: false, special: 'boss' },
+  // November 12: the Ghost Sword, just like the Sword (30 a hit, same dash), but once a match you come back as a ghost.
+  // Sold once you own the Sword and the Fire Sword.
+  { id: 'ghostsword', price: 1200, length: 72, damage: 30, turn: 16, cooldown: 2.5, ranged: false },
+  // The "." boss (never drawn as a weapon: see dot.ts).
+  { id: 'dotcore', price: 0, length: 40, damage: 0, turn: 10, cooldown: 99, ranged: false, special: 'boss' },
   ...SUMMON_CARDS.map((c): WeaponDef => ({ id: c.id, price: c.price, length: 34, damage: 10, turn: 14, cooldown: c.cd, ranged: true })),
 ];
 

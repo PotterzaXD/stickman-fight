@@ -38,10 +38,11 @@ Play has two tabs: **⚔️ Battle** (Free For All, Teams, 3 Lives, King of the 
 - **The Pigeon:** a giant pigeon with 500,000 HP. Everyone gets a Shotgun (the weapon picker is locked) and you can bring up to 30 players and bots. The pigeon hovers, then dives and pecks one fighter at a time: one peck is a KO. Knocked out fighters come back after 3 seconds, and there is no time limit, so the match only ends when the pigeon goes down. It has its own looping chiptune theme. Beating it gives **5,000 coins** every time, the **Bird Down** achievement, and adds the pigeon to Sandbox. Offline only.
 
 - **Jay mhuay:** a giant girl boss (ponytail, bow and a polka-dot dress) with 20,000 HP and 30 damage a hit. **Throw Macaroni** (every 6 s): 40 damage, then burns for 1 a second for 10 seconds. **Fried Rice with Crabs** (every 10 s): a box for 60 that bursts open where it lands. Beating her gives **1,500 coins** every time, and the first win gives **Jay's Lunch Box** (the same two skills taking turns, at half strength). She is in Sandbox too.
+- **"." (the dot boss):** every boss in one, with **3 hearts** instead of HP. The fight goes in turns, and it always goes first: on its turn it throws 5 to 8 attacks in a row, each one borrowed from another boss (the Boss's thunder, Grandfather Cat's soup, the Mascot's smash, Buffalo's charge, Fishy's trident, the Pigeon's dive, the Snow Queen, Tide King, Ancient Guardian, the Elephant's spray, the Scarecrow, Robo Stick, Jay mhuay's macaroni and fried rice, PHYLISHIEUS's falling fire and the Kraken's slam over a marked zone), and nothing can hurt it. Then it gets tired and sinks to the ground: **your turn** (7 seconds). The first hit takes one heart and its turn starts again. The third hit beats it (**+3,000 coins** every time). It is in Sandbox too.
 
 - **Secret bosses:** there are secret bosses hidden in the game. They show as locked **🔒 ???** buttons in Play; tap one (or read the **Secret boss hints** box) for a hint on how to unlock it, with your progress where it can be counted. When you meet the conditions, they show up as new modes in Play (and online, when the host has them).
 
-- **Sandbox** (its own button on the main menu): add any players, bots and bosses (Boss, Grandfather Cat, Mascot, Buffalo, Fishy boss, the Pigeon once you beat it, and any secret bosses you have unlocked), put them on teams, and change each one's HP and power. Sandbox takes up to 30 players and bots and up to 20 bosses. You can also add up to 20 **helpers**: AI cats, fish, the Recall Memory boss and spear soldiers, each on the team you choose. You can try every weapon there. Sandbox matches never change your coins.
+- **Sandbox** (its own button on the main menu): add any players, bots and bosses (Boss, Grandfather Cat, Mascot, Buffalo, Fishy boss, the Pigeon once you beat it, and any secret bosses you have unlocked), put them on teams, and change each one's HP and power. Sandbox takes up to 30 players and bots and up to 20 bosses. You can also add up to 20 **helpers**: AI cats, fish, the Recall Memory boss and spear soldiers, each on the team you choose. Betta fish are helpers too, and the **Ghost Clones** section adds up to 20 ghost clones (100 HP, Ghost Sword) of any player or bot. You can try every weapon there. Sandbox matches never change your coins.
 
 You can have up to 6 players and 6 bots at once. Each bot has its own difficulty: CPU-easy, CPU-medium or CPU-hard. With no players, you watch the bots fight.
 
@@ -81,7 +82,9 @@ Winning gives 3–5 coins. When bots or the boss win, you get 1 coin. Beating th
 | Shotgun | 600 | A blast of pellets, cooldown 2 seconds. Up close (about one stickman away) it does 180, from far away 90 |
 | Pistol | 150 | Shoots nerf bullets for 10 damage. 1 second between shots, and after 5 shots it reloads for 3 seconds |
 | 67 Gun | 500 | One shot for 100 damage, cooldown 10 seconds |
-| Summoner | 1,100 | Calls 3 cats, 3 fish and 3 snowmen (all weaker than normal), the Recall Memory boss, and a spear soldier (300 HP, hits for 20). In the game its description just says "Uhhh guess it." |
+| Summoner | 1,100 | Calls 3 cats, 3 fish and 3 snowmen (all weaker than normal), the Recall Memory boss, and a spear soldier (300 HP, hits for 20). Since November 12 it also calls 2 ghost clones (100 HP) and 10 betta fish (80 HP, twice a Summoner fish, and bite for 6, half a Summoner fish). In the game its description just says "Uhhh guess it." |
+| Blindfold | Free | 30 a hit. Throw the blindfold (60): it lands on their head and they fall asleep until somebody hits them (5 seconds at most) |
+| Ghost Sword | 1,200 | For sale once you own the Sword and the Fire Sword. Just like the Sword (30 a hit, Dash Slash). Passive, once a match: when you go down you come back as a see-through ghost with 250 HP (+10 for every KO you made before that), and 2 ghost clones of you (100 HP each, with Ghost Swords) come to help |
 | Spear of Bravery | 800 | Calls 3 spear soldiers (300 HP each, half-strength spears) |
 | Frying Pan | 300 | BONK: 40 damage and the enemy sees stars for 1.5 seconds |
 | Water Gun | 200 | Sprays water that pushes enemies far away (6 a drop) |
@@ -239,8 +242,8 @@ The final boss, shown as ??? in the boss list until you have all 28 achievements
 
 Opened by the **Tome Key** (the same key as 1D): a **🧊 3D** button in the main menu's small row. It is the normal game with **exactly the same camera and point of view**, only drawn in 3D (Three.js): round shiny heads with eyes that blink and look where you aim, round arms and legs, thick blocks for platforms with real shadows, 3D weapons and shots. Its menu is a 3D version of the main menu with a 3D fight in the background.
 
-- Its own coins (**3D coins**) and its own shop with the 8 weapons from the first version: Sword and Spear free, Hammer 20, Bow 25, Boomerang 30, Bomb 35, Katana 40, Snowball 50.
-- You against 1 to 5 bots (Free For All or Teams) on the 6 maps from the first version. Win: 10 + 5 for each bot. Offline only.
+- Its own coins (**3D coins**) and its own shop with the weapons from the first two versions: Sword and Spear free, Hammer 20, Bow 25, Boomerang 30, Bomb 35, Katana 40, Snowball 50, and from the second update Axe 60, Shuriken 70, Laser Gun 80 and Magic Staff 90.
+- You against 1 to 5 bots (Free For All or Teams), or **Boss Fight**: you and your bots against 1 to 3 giant bosses holding 3D weapons. The 6 first maps plus the second update's Volcano, Concrete Factory, Glass Palace, Rooftops and Frozen Lake (with their concrete, lava and glass blocks). Win: 10 + 5 for each bot, or 20 for each boss. Offline only.
 
 ## Profile
 

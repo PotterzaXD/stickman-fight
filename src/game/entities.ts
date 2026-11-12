@@ -16,7 +16,7 @@ export const BUFFALO_HP = 8000;
 export const FISH_HP = 9999;
 export const PIGEON_HP = 500000;
 /** The October 20 bosses. */
-export const XBOSS_HP: Record<XBossKind, number> = { elephant: 12500, scarecrow: 7000, robo: 9000, jay: 20000 };
+export const XBOSS_HP: Record<XBossKind, number> = { elephant: 12500, scarecrow: 7000, robo: 9000, jay: 20000, dot: 3 };
 /** The secret bosses. */
 export const SECRET_HP: Record<SecretKind, number> = { queen: 12000, tide: 15000, guardian: 18000 };
 
@@ -62,6 +62,8 @@ export abstract class Body {
   downT = 0;
   /** Blanket: seconds left asleep under a blanket (a hit wakes them up). */
   sleepT = 0;
+  /** Blindfold: this sleep came from a blindfold (drawn over the eyes instead of a blanket). */
+  blind = false;
   /** Mattress: seconds left crushed under it (10), the next choke tick, who threw it and the damage each tick. */
   mattT = 0;
   mattTick = 0;
@@ -164,6 +166,12 @@ export class Fighter extends Body {
   golem = false;
   /** The Kraken under the Pirate Ship (not a stickman: it never moves, see kraken.ts). */
   kraken = false;
+  /** Ghost Sword: in its ghost life (or one of the ghost clones). Drawn see-through. */
+  ghost = false;
+  /** Ghost Sword: already came back once this match. */
+  ghostUsed = false;
+  /** The "." boss: whose turn it is, seconds left in it, the attacks left in its turn and the attack going on (see dot.ts). */
+  dot: { turn: 'boss' | 'you'; t: number; left: number; move: number; moveT: number; dive: number; zoneT: number; zoneX: number; zoneY: number; bob: number } | null = null;
   elState: 'fly' | 'slam' | 'rise' | 'drop' | 'spray' | 'charge' = 'fly';
   elT = 2.5;
   elMove = 0;
@@ -398,7 +406,8 @@ export type CatVariant =
   | 'knight' | 'frog' | 'ghost'
   | 'ginger' | 'cupcake' | 'chef'
   | 'unicorn' | 'dino' | 'wizard' | 'panda'
-  | 'physi';
+  | 'physi'
+  | 'betta';
 /** The Outbreak's zombies (on the zombies' side). */
 export type ZombieKind = 'znormal' | 'zshooter' | 'zmini' | 'zbig' | 'zrunner' | 'zexploder' | 'zboss';
 export const ZOMBIE_KINDS: ZombieKind[] = ['znormal', 'zshooter', 'zmini', 'zbig', 'zrunner', 'zexploder', 'zboss'];
@@ -412,6 +421,7 @@ export const CAT_VARIANTS: CatVariant[] = [
   'ginger', 'cupcake', 'chef',
   'unicorn', 'dino', 'wizard', 'panda',
   'physi',
+  'betta',
 ];
 /** Helpers that don't vanish when beaten: they stay where they went down (the red guy frozen, skeletons as bones, the dog asleep) until their weapon or the Summoner brings them back. */
 export const REVIVES = (v: CatVariant) => v === 'redguy' || v === 'skeleton' || v === 'dog';
@@ -429,8 +439,8 @@ export const CHICK = { hp: 20, dmg: 1 };
 export const CHICKEN = { hp: 200, dmg: 15, call: 3, every: 3, guard: 380 };
 /** Most chicks one fighter can have at once (so the game doesn't freeze). */
 export const MAX_CHICKS = 100;
-/** One Little Pigeon: 250,000 HP, 10 a peck, about one peck a second. */
-export const LIL_PIGEON = { hp: 250000, dmg: 10, every: 1 };
+/** One Little Pigeon: 5,000 HP, 10 a peck, about one peck a second. */
+export const LIL_PIGEON = { hp: 5000, dmg: 10, every: 1 };
 /** Bone: 2 skeletons (99 HP, 20 a hit) and a dog (250 HP, 50 a bite, 8 seconds between bites). */
 export const SKELETON = { hp: 99, dmg: 20, count: 2 };
 export const DOG = { hp: 250, dmg: 50, every: 8 };
@@ -594,6 +604,7 @@ export type ProjKind =
   | 'magic'
   | 'mattress'
   | 'aphone'
+  | 'blindfold'
   | 'macaroni'
   | 'ricebox';
 

@@ -25,21 +25,23 @@ const MAX_SB_BOSSES = 20;
 /** Helpers (chick slots don't count). */
 const MAX_SB_HELPERS = 30;
 const MAX_SB_CLONES = 10;
+/** Ghost clones (Ghost Sword): their own limit. */
+const MAX_SB_GHOSTS = 20;
 /** Zombies (the Zombie Boss counts as one). */
 const MAX_SB_ZOMBIES = 30;
 
 const POWERS = [25, 50, 100, 200, 500, 1000];
 const BOSS_HP: Record<BossKind, number> = { boss: 5000, cat: 10000, mascot: 50000, buffalo: 8000, fish: 9999, pigeon: PIGEON_HP, ...SECRET_HP, ...XBOSS_HP, phyl1: PHYL.hp[1], phyl2: PHYL.hp[2], phyl3: PHYL.hp[3], golem: PHYL.golemHp, me: ME.hp };
-export const BOSS_ICON: Record<BossKind, string> = { boss: '👹', cat: '🐱', mascot: '⚪', buffalo: '🐃', fish: '🐟', pigeon: '🐦', queen: '❄️', tide: '🌊', guardian: '🌲', elephant: '🐘', scarecrow: '🌾', robo: '🤖', jay: '🍝', phyl1: '📖', phyl2: '📕', phyl3: '📜', golem: '🗿', me: '🪞' };
+export const BOSS_ICON: Record<BossKind, string> = { boss: '👹', cat: '🐱', mascot: '⚪', buffalo: '🐃', fish: '🐟', pigeon: '🐦', queen: '❄️', tide: '🌊', guardian: '🌲', elephant: '🐘', scarecrow: '🌾', robo: '🤖', jay: '🍝', dot: '⚫', phyl1: '📖', phyl2: '📕', phyl3: '📜', golem: '🗿', me: '🪞' };
 const HELPER_ICON: Record<HelperKind | SbZombieKind, string> = {
   cat: '🐱', fish: '🐟', memory: '💭', soldier: '💂', snowman: '☃️', sbsnow: '⛄', fireally: '🔥', redguy: '🟥', chicken: '🐔', chick: '🐥', lilpigeon: '🐦', skeleton: '💀', dog: '🐕', retro: '👾', bee: '🐝', ninja: '🥷', zombie: '🧟',
-  babyele: '🐘', drone: '🛸', penguin: '🐧', knight: '🛡️', frog: '🐸', ghost: '👻', ginger: '🍪', cupcake: '🧁', chef: '👨‍🍳', unicorn: '🦄', dino: '🦖', wizard: '🧙', panda: '🐼', physi: '👁️',
+  babyele: '🐘', drone: '🛸', penguin: '🐧', knight: '🛡️', frog: '🐸', ghost: '👻', ginger: '🍪', cupcake: '🧁', chef: '👨‍🍳', unicorn: '🦄', dino: '🦖', wizard: '🧙', panda: '🐼', physi: '👁️', betta: '🐠',
   znormal: '🧟', zshooter: '🤢', zmini: '🧒', zbig: '🦍', zrunner: '🏃', zexploder: '💥', zboss: '👑',
 };
 const HELPER_HP: Record<HelperKind | SbZombieKind, number> = {
   cat: 100, fish: 50, memory: MEMORY_ALLY.hp, soldier: SOLDIER_HP, snowman: SNOWMAN_HP, sbsnow: SB_ALLY.hp, fireally: SB_ALLY.hp, redguy: RED_GUY.hp,
   chicken: CHICKEN.hp, chick: CHICK.hp, lilpigeon: LIL_PIGEON.hp, skeleton: SKELETON.hp, dog: DOG.hp, retro: RETRO.hp, bee: BEES.hp, ninja: NINJAS.hp, zombie: ZOMBIE_ALLY.hp,
-  babyele: BABY_ELE.hp, drone: DRONE.hp, penguin: PENGUIN.hp, knight: KNIGHT.hp, frog: FROG.hp, ghost: GHOST.hp, ginger: GINGER.hp, cupcake: CUPCAKE.hp, chef: CHEF.hp, unicorn: UNICORN.hp, dino: DINO.hp, wizard: WIZARD.hp, panda: PANDA.hp, physi: PHYSI.hp,
+  babyele: BABY_ELE.hp, drone: DRONE.hp, penguin: PENGUIN.hp, knight: KNIGHT.hp, frog: FROG.hp, ghost: GHOST.hp, ginger: GINGER.hp, cupcake: CUPCAKE.hp, chef: CHEF.hp, unicorn: UNICORN.hp, dino: DINO.hp, wizard: WIZARD.hp, panda: PANDA.hp, physi: PHYSI.hp, betta: 80,
   znormal: ZOMBIES.znormal.hp, zshooter: ZOMBIES.zshooter.hp, zmini: ZOMBIES.zmini.hp, zbig: ZOMBIES.zbig.hp, zrunner: ZOMBIES.zrunner.hp, zexploder: ZOMBIES.zexploder.hp, zboss: ZOMBIES.zboss.hp,
 };
 /** Helpers that count toward the helper limit (chicks don't, zombies have their own). */
@@ -48,7 +50,7 @@ const zombieCount = (list: SandboxHelper[]) => list.filter((x) => isSbZombie(x.k
 
 /** How crowded a Sandbox match is: bots, bosses, helpers (a chick slot is 1), zombies and Clones. */
 export function sandboxCrowd(m: MatchConfig): number {
-  return m.slots.filter((s) => s.kind === 'bot').length + (m.extraBosses?.length ?? 0) + (m.helpers?.length ?? 0) + (m.clones?.length ?? 0);
+  return m.slots.filter((s) => s.kind === 'bot').length + (m.extraBosses?.length ?? 0) + (m.helpers?.length ?? 0) + (m.clones?.length ?? 0) + (m.ghostClones?.length ?? 0);
 }
 /** The Pigeon shows up in Sandbox after you beat it once. */
 const pigeonOpen = () => hasAch('pigeonBeat');
@@ -75,6 +77,7 @@ register('sandbox', (root) => {
   m.extraBosses = m.extraBosses.filter((b) => b.kind in BOSS_HP && (!(SECRET_KINDS as string[]).includes(b.kind) || save.data.secrets.includes(b.kind)) && (b.kind !== 'pigeon' || pigeonOpen()) && bossOpen(b.kind));
   m.helpers = (m.helpers ?? []).filter((x) => (HELPER_KINDS.includes(x.kind as HelperKind) || isSbZombie(x.kind)) && helperOpen(x.kind));
   m.clones = (m.clones ?? []).filter((i) => Number.isInteger(i) && i >= 0 && i < m.slots.length);
+  m.ghostClones = (m.ghostClones ?? []).filter((i) => Number.isInteger(i) && i >= 0 && i < m.slots.length);
   if (!maps.some((x) => x.id === m.mapId)) m.mapId = 'arena';
 
   const body = h('div', { class: 'page-body' });
@@ -85,7 +88,7 @@ register('sandbox', (root) => {
   const validate = () => {
     if (!m.slots.length && !m.extraBosses!.length) return t('sbEmpty');
     // Free for all: any two of anything can fight.
-    if (m.ffa) return m.slots.length + m.extraBosses!.length + counted(m.helpers!) + zombieCount(m.helpers!) + m.clones!.length >= 2 ? '' : t('needTwo');
+    if (m.ffa) return m.slots.length + m.extraBosses!.length + counted(m.helpers!) + zombieCount(m.helpers!) + m.clones!.length + m.ghostClones!.length >= 2 ? '' : t('needTwo');
     if (teams().size < 2) return t('sbNeedTwoTeams');
     return '';
   };
@@ -188,6 +191,7 @@ register('sandbox', (root) => {
           m.slots.splice(i, 1);
           // Clones of this fighter go too; the others keep pointing at the same fighter.
           m.clones = m.clones!.filter((c) => c !== i).map((c) => (c > i ? c - 1 : c));
+          m.ghostClones = m.ghostClones!.filter((c) => c !== i).map((c) => (c > i ? c - 1 : c));
         }),
       );
     });
@@ -218,6 +222,29 @@ register('sandbox', (root) => {
         h('label', { class: 'field' }, h('small', {}, t('sbCloneOf')), sel),
         h('small', { class: 'muted' }, `❤️ ${m.slots[of]?.hp ?? 500}`),
         removeBtn(() => m.clones!.splice(i, 1)),
+      );
+    });
+    const ghostRows = m.ghostClones!.map((of, i) => {
+      const sel = h(
+        'select',
+        {
+          'aria-label': t('sbCloneOf'),
+          onchange: (e: Event) => {
+            m.ghostClones![i] = Number((e.target as HTMLSelectElement).value);
+            render();
+          },
+        },
+        ...slotNames.map((n, si) => h('option', { value: String(si) }, n)),
+      );
+      sel.value = String(of);
+      const team = m.slots[of]?.team ?? 0;
+      return h(
+        'div',
+        { class: 'slot' },
+        h('span', { class: 'slot-name', style: `--c:${TEAM_COLORS[team]}` }, `👻 ${t('sbGhostClones')}`),
+        h('label', { class: 'field' }, h('small', {}, t('sbCloneOf')), sel),
+        h('small', { class: 'muted' }, '❤️ 100'),
+        removeBtn(() => m.ghostClones!.splice(i, 1)),
       );
     });
     const bossRows = m.extraBosses!.map((bs: SandboxBoss, i) =>
@@ -428,6 +455,41 @@ register('sandbox', (root) => {
           ),
         ),
         h('div', { class: 'slots' }, ...cloneRows),
+      ),
+      h(
+        'section',
+        {},
+        h('h3', {}, `👻 ${t('sbGhostClones')} (${m.ghostClones!.length}/${MAX_SB_GHOSTS})`),
+        h('p', { class: 'muted small' }, t('sbGhostClonesDesc')),
+        h(
+          'div',
+          { class: 'row gap wrap' },
+          h(
+            'button',
+            {
+              class: 'btn small',
+              disabled: m.ghostClones!.length >= MAX_SB_GHOSTS || !m.slots.length,
+              onclick: () => {
+                m.ghostClones!.push(0);
+                render();
+              },
+            },
+            `+ 👻 ${t('sbGhostClones')}`,
+          ),
+          h(
+            'button',
+            {
+              class: 'btn small',
+              disabled: m.ghostClones!.length >= MAX_SB_GHOSTS || !m.slots.length,
+              onclick: () => {
+                while (m.ghostClones!.length < MAX_SB_GHOSTS) m.ghostClones!.push(0);
+                render();
+              },
+            },
+            `+ 👻 ×${MAX_SB_GHOSTS}`,
+          ),
+        ),
+        h('div', { class: 'slots' }, ...ghostRows),
       ),
     );
   };

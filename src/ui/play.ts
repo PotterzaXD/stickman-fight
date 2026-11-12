@@ -70,6 +70,7 @@ export function bossNames(): Record<BossKind, string> {
     scarecrow: t('scarecrow_name'),
     robo: t('robo_name'),
     jay: t('jay_name'),
+    dot: t('dot_name'),
     phyl1: t('phyl1_name'),
     phyl2: t('phyl2_name'),
     phyl3: t('phyl3_name'),
@@ -94,7 +95,7 @@ export const BUFFALO_COINS = 3000;
 export const FISH_COINS = 1000;
 export const PIGEON_COINS = 5000;
 export const SECRET_COINS: Record<SecretKind, number> = { queen: 4000, tide: 5000, guardian: 6000 };
-export const XBOSS_COINS: Record<XBossKind, number> = { elephant: 5000, scarecrow: 2000, robo: 3000, jay: 1500 };
+export const XBOSS_COINS: Record<XBossKind, number> = { elephant: 5000, scarecrow: 2000, robo: 3000, jay: 1500, dot: 3000 };
 /** PHYLISHIEUS: phase 1 and phase 2. */
 export const PHYL_COINS: Record<PhylPhase, number> = { 1: 10000, 2: 20000, 3: 40000 };
 const SECRET_ICON: Record<SecretKind, string> = { queen: '❄️', tide: '🌊', guardian: '🌲' };
@@ -511,6 +512,7 @@ register('play', (root, { match, fromEditor }) => {
       extraBosses: match.mode === 'sandbox' ? match.extraBosses : undefined,
       helpers: match.mode === 'sandbox' ? match.helpers : undefined,
       clones: match.mode === 'sandbox' ? match.clones : undefined,
+      ghostClones: match.mode === 'sandbox' ? match.ghostClones : undefined,
       ffa: match.mode === 'sandbox' && !!match.ffa,
       outbreak: outbreak && obSave ? outbreakInfo(obSave) : undefined,
       juice: save.data.settings.juice,

@@ -16,11 +16,13 @@ import type { Loop3D } from '../three/loop3d';
 /*
  * 3D mode (a tab next to 1D, opened by the Tome Key; offline).
  * It is the normal game with the same camera and point of view, drawn in 3D: round shiny heads that blink and look
- * around, round arms and legs, thick blocks for platforms, real shadows. Its own coins (3D coins) and its own shop
- * with only the 8 weapons the game came out with. The 6 maps from the first version. You against bots.
+ * around, round arms and legs, thick blocks for platforms, real shadows. Its own coins (3D coins) and its own shop.
+ * It has what the game had after its second update: the 8 weapons it came out with plus the Axe, Shuriken, Laser Gun and
+ * Magic Staff, the 6 first maps plus Volcano, Concrete Factory, Glass Palace, Rooftops and Frozen Lake (with their
+ * concrete, lava and glass blocks), and Boss Fight with 1 to 3 bosses. You against bots.
  */
 
-/** The weapons from the day the game came out (sword and spear were free then too). */
+/** The weapons from the day the game came out (sword and spear were free then too), then the second update's four. */
 export const THREE_D_WEAPONS: { id: WeaponId; price: number }[] = [
   { id: 'sword', price: 0 },
   { id: 'spear', price: 0 },
@@ -30,16 +32,33 @@ export const THREE_D_WEAPONS: { id: WeaponId; price: number }[] = [
   { id: 'bomb', price: 35 },
   { id: 'katana', price: 40 },
   { id: 'snowball', price: 50 },
+  { id: 'axe', price: 60 },
+  { id: 'shuriken', price: 70 },
+  { id: 'laser', price: 80 },
+  { id: 'staff', price: 90 },
 ];
-/** The maps from the first version. */
-export const THREE_D_MAPS = ['arena', 'sky', 'tower', 'bridge', 'snow', 'pit'];
+/** The maps from the first version, then the second update's five. */
+export const THREE_D_MAPS = ['arena', 'sky', 'tower', 'bridge', 'snow', 'pit', 'volcano', 'factory', 'glass', 'rooftops', 'frozen'];
 
-type Mode3D = 'ffa' | 'team';
+type Mode3D = 'ffa' | 'team' | 'boss';
 interface Setup3D {
   mode: Mode3D;
   mapId: string;
   bots: number;
   difficulty: Difficulty;
+  /** Boss Fight: how many bosses (1-3). */
+  bosses?: number;
+}
+
+/** 3D coins for a win: 10 + 5 a bot, or 20 a boss in Boss Fight. */
+const pay3D = (s: Setup3D) => (s.mode === 'boss' ? 20 * (s.bosses ?? 1) : 10 + 5 * s.bots);
+/** Bosses only hold 3D weapons (two different ones). */
+function bossWeapons3D(n: number): string[][] {
+  return Array.from({ length: n }, () => {
+    const pool = THREE_D_WEAPONS.map((w) => w.id as string);
+    const a = pool.splice(Math.floor(Math.random() * pool.length), 1)[0];
+    return [a, pool[Math.floor(Math.random() * pool.length)]];
+  });
 }
 
 const maps3D = () => BUILTIN_MAPS.filter((m) => THREE_D_MAPS.includes(m.id));
@@ -157,7 +176,10 @@ register('threeD', (root) => {
     panel.replaceChildren(
       head,
       h('h3', {}, t('mode')),
-      seg<Mode3D>(setup.mode, [['ffa', `🥊 ${t('ffa')}`], ['team', `🤝 ${t('team')}`]], (v) => (setup.mode = v)),
+      seg<Mode3D>(setup.mode, [['ffa', `🥊 ${t('ffa')}`], ['team', `🤝 ${t('team')}`], ['boss', `👹 ${t('boss')}`]], (v) => (setup.mode = v)),
+      ...(setup.mode === 'boss'
+        ? [h('p', { class: 'muted small' }, t('threeDBossNote')), h('h3', {}, t('threeDBosses')), seg<number>(setup.bosses ?? 1, [1, 2, 3].map((n) => [n, `👹 ${n}`]), (v) => (setup.bosses = v))]
+        : []),
       h('h3', {}, t('map')),
       h(
         'div',
@@ -169,7 +191,7 @@ register('threeD', (root) => {
       h('h3', {}, t('threeDBots')),
       seg<number>(setup.bots, [1, 2, 3, 4, 5].map((n) => [n, String(n)]), (v) => (setup.bots = v)),
       seg<Difficulty>(setup.difficulty, (['easy', 'medium', 'hard'] as Difficulty[]).map((d) => [d, t(d)]), (v) => (setup.difficulty = v)),
-      h('p', { class: 'muted' }, `${t('weapon')}: ${t(`w.${save.data.threeD.weapon}` as Key)} · 🧊 ${t('threeDPay', { n: 10 + 5 * setup.bots })}`),
+      h('p', { class: 'muted' }, `${t('weapon')}: ${t(`w.${save.data.threeD.weapon}` as Key)} · 🧊 ${t('threeDPay', { n: pay3D(setup) })}`),
       btn3(`⚔️ ${t('start')}`, () => go('threeDPlay', { ...setup }), 'primary big'),
     );
   };
@@ -202,8 +224,8 @@ register('threeDPlay', (root, s) => {
     const team = s.mode === 'team';
     const me: FighterSpec = { name: localName(0), color: team ? TEAM_COLORS[0] : PLAYER_COLORS[0], team: 0, human: true, weapon: save.data.threeD.weapon, difficulty: 'medium', playerIndex: 0 };
     const bots = Array.from({ length: s.bots }, (_, i): FighterSpec => {
-      // Teams: you and every other bot against the rest.
-      const tm = team ? (i % 2 ? 0 : 1) : i + 1;
+      // Teams: you and every other bot against the rest. Boss Fight: every bot is on your side.
+      const tm = s.mode === 'boss' ? 0 : team ? (i % 2 ? 0 : 1) : i + 1;
       return {
         name: t('bot', { n: i + 1 }),
         color: team ? TEAM_COLORS[tm] : BOT_COLORS[i],
@@ -239,7 +261,7 @@ register('threeDPlay', (root, s) => {
 
   const showResult = (r: MatchResult) => {
     const won = r.humanWon;
-    const got = won ? 10 + 5 * s.bots : 1;
+    const got = won ? pay3D(s) : 1;
     save.update((d) => {
       d.threeD.coins += got;
       if (won) d.threeD.wins++;
@@ -268,7 +290,13 @@ register('threeDPlay', (root, s) => {
   const start = () => {
     hidePause();
     sticks?.destroy();
-    game = new Game(map, specs(), { mode: s.mode, fallMode: save.data.settings.fallMode, juice: save.data.settings.juice });
+    const bosses = Math.max(1, Math.min(3, s.bosses ?? 1));
+    game = new Game(map, specs(), {
+      mode: s.mode,
+      fallMode: save.data.settings.fallMode,
+      juice: save.data.settings.juice,
+      ...(s.mode === 'boss' ? { bosses, bossWeapons: bossWeapons3D(bosses), bossName: t('boss_name') } : {}),
+    });
     game.onOver = showResult;
     game.focus = [0];
     playMusic(map.theme);
