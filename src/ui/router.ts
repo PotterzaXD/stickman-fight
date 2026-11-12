@@ -32,7 +32,7 @@ export interface Routes {
   chefDay: undefined;
   oneD: undefined;
   threeD: undefined;
-  threeDPlay: { mode: 'ffa' | 'team'; mapId: string; bots: number; difficulty: import('../game/types').Difficulty };
+  threeDPlay: { mode: 'ffa' | 'team' | 'boss'; mapId: string; bots: number; difficulty: import('../game/types').Difficulty; bosses?: number };
 }
 
 export type Screen<K extends keyof Routes> = (root: HTMLElement, arg: Routes[K]) => (() => void) | void;

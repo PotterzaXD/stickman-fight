@@ -381,6 +381,7 @@ register('lobby', (root, arg) => {
           modeBtn('scarecrow', '🌾'),
           modeBtn('robo', '🤖'),
           modeBtn('jay', '🍝'),
+          modeBtn('dot', '⚫'),
           // Secret bosses only show up once you have unlocked them.
           ...SECRET_KINDS.filter((k) => save.data.secrets.includes(k)).map((k) => modeBtn(k, SECRET_ICONS[k])),
           // Locked ones show as ??? with a hint.

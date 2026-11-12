@@ -417,7 +417,7 @@ export class Renderer3D {
       }
       o.position.set(p.x, -p.y, 4);
       if (p.kind === 'arrow' || p.kind === 'laser' || p.kind === 'dart') o.rotation.set(0, 0, -Math.atan2(p.vy, p.vx));
-      else if (p.kind === 'boomerang' || p.kind === 'shuriken') o.rotation.set(0.4, 0, -p.t * 18);
+      else if (p.kind === 'boomerang' || p.kind === 'shuriken' || p.kind === 'axe') o.rotation.set(0.4, 0, -p.t * 18);
       else o.rotation.set(p.t * 3, p.t * 5, 0);
     }
   }
@@ -609,6 +609,11 @@ function makeMats() {
     boomer: new THREE.MeshStandardMaterial({ color: '#ffb300', roughness: 0.45 }),
     string: new THREE.MeshBasicMaterial({ color: '#eeeeee' }),
     cloud: new THREE.MeshStandardMaterial({ color: '#ffffff', roughness: 1 }),
+    // The second update: Axe, Shuriken, Laser Gun and Magic Staff, and their shots.
+    laser: new THREE.MeshStandardMaterial({ color: '#ff1744', emissive: new THREE.Color('#ff1744'), emissiveIntensity: 0.9, roughness: 0.3 }),
+    fire: new THREE.MeshStandardMaterial({ color: '#ff9100', emissive: new THREE.Color('#ff6d00'), emissiveIntensity: 0.8, roughness: 0.4 }),
+    gem: new THREE.MeshStandardMaterial({ color: '#7c4dff', emissive: new THREE.Color('#651fff'), emissiveIntensity: 0.5, roughness: 0.15, metalness: 0.3 }),
+    gunBody: new THREE.MeshStandardMaterial({ color: '#37474f', roughness: 0.35, metalness: 0.5 }),
   };
 }
 
@@ -622,7 +627,7 @@ function mesh(geo: THREE.BufferGeometry, mat: THREE.Material, own = false) {
   return m;
 }
 
-/** The release-day weapons in 3D (hand at the origin, pointing along +x). Anything else gets a plain stick. */
+/** The 3D weapons (the release-day ones and the second update's four; hand at the origin, pointing along +x). Anything else gets a plain stick. */
 function weaponMesh(id: string, len: number, s: number, ready: boolean, mats: Mats, geo: Geos): THREE.Group {
   const g = new THREE.Group();
   const add = (m: THREE.Mesh, x: number, y: number, z: number, sx: number, sy: number, sz: number, rz = 0) => {
@@ -680,9 +685,62 @@ function weaponMesh(id: string, len: number, s: number, ready: boolean, mats: Ma
     case 'snowball':
       if (ready) add(mesh(geo.sphere, mats.snow), 10 * s, 0, 0, 9 * s, 9 * s, 9 * s);
       break;
+    case 'axe':
+      if (ready) g.add(axe(len, s, mats, geo));
+      break;
+    case 'shuriken':
+      if (ready) {
+        const st = shuriken(9 * s, mats, geo);
+        st.position.x = 10 * s;
+        g.add(st);
+      }
+      break;
+    case 'laser':
+      add(mesh(geo.box, mats.gunBody), len * 0.45, 0, 0, len * 0.8, 10 * s, 7 * s);
+      add(mesh(geo.box, mats.gunBody), 6 * s, -8 * s, 0, 6 * s, 14 * s, 6 * s);
+      add(mesh(geo.cyl, ready ? mats.laser : mats.darkSteel), len - 2 * s, 0, 0, 3 * s, 8 * s, 3 * s, Math.PI / 2);
+      break;
+    case 'staff':
+      shaft(-6 * s, len - 10 * s, 2.2 * s, mats.darkWood);
+      add(mesh(geo.sphere, ready ? mats.fire : mats.gem), len - 4 * s, 0, 0, 7 * s, 7 * s, 7 * s);
+      break;
     default:
       shaft(-4 * s, len, 2.4 * s, mats.wood);
   }
+  return g;
+}
+
+/** An axe head on a handle (thrown, it spins and comes back). */
+function axe(len: number, s: number, mats: Mats, geo: Geos) {
+  const g = new THREE.Group();
+  const h = mesh(geo.cyl, mats.wood);
+  h.scale.set(2.2 * s, len, 2.2 * s);
+  h.rotation.z = Math.PI / 2;
+  h.position.x = len / 2 - 4 * s;
+  g.add(h);
+  const blade = mesh(new THREE.CylinderGeometry(1, 1, 1, 20, 1, false, 0, Math.PI), mats.steel, true);
+  blade.scale.set(14 * s, 3 * s, 14 * s);
+  blade.rotation.set(Math.PI / 2, 0, Math.PI / 2);
+  blade.position.set(len - 10 * s, 6 * s, 0);
+  g.add(blade);
+  return g;
+}
+
+/** A four-point ninja star. */
+function shuriken(r: number, mats: Mats, geo: Geos) {
+  const g = new THREE.Group();
+  for (let k = 0; k < 4; k++) {
+    const p = mesh(geo.cone, mats.darkSteel);
+    p.scale.set(r * 0.35, r * 1.1, r * 0.12);
+    const a = (k * Math.PI) / 2;
+    p.position.set(Math.cos(a) * r * 0.55, Math.sin(a) * r * 0.55, 0);
+    p.rotation.z = a - Math.PI / 2;
+    g.add(p);
+  }
+  const c = mesh(geo.cyl, mats.steel);
+  c.scale.set(r * 0.3, r * 0.15, r * 0.3);
+  c.rotation.x = Math.PI / 2;
+  g.add(c);
   return g;
 }
 
@@ -738,6 +796,25 @@ function shotMesh(p: Projectile, mats: Mats, geo: Geos): THREE.Object3D {
     case 'snowball':
     case 'minisnow': {
       const b = mesh(geo.sphere, mats.snow);
+      b.scale.setScalar(p.r);
+      g.add(b);
+      break;
+    }
+    case 'axe':
+      g.add(axe(40 * s, s, mats, geo));
+      break;
+    case 'shuriken':
+      g.add(shuriken(Math.max(8, p.r * 1.3), mats, geo));
+      break;
+    case 'laser': {
+      const b = mesh(geo.cyl, mats.laser);
+      b.scale.set(2.2, 46, 2.2);
+      b.rotation.z = Math.PI / 2;
+      g.add(b);
+      break;
+    }
+    case 'fireball': {
+      const b = mesh(geo.sphere, mats.fire);
       b.scale.setScalar(p.r);
       g.add(b);
       break;

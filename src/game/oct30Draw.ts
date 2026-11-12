@@ -587,7 +587,7 @@ function drawPanda(ctx: Ctx, c: Cat, time: number) {
 /** Asleep under a blanket, and a Morning Star spin. */
 export function drawOct30Over(ctx: Ctx, bodies: Body[], fighters: Fighter[], time: number) {
   for (const b of bodies) {
-    if (!b.alive || b.sleepT <= 0) continue;
+    if (!b.alive || b.sleepT <= 0 || b.blind) continue;
     // Lying down: the blanket covers the body, the head peeks out.
     const w = Math.max(b.h, b.w) * 1.05;
     const fx = b.x;

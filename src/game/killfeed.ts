@@ -86,7 +86,7 @@ const EN: Record<FeedKind, { solo: string[]; by: string[] }> = {
   },
   lilpigeon: {
     solo: ['{v} flew away. Coo…', '{v} got distracted by bread 🍞', '{v} went home to the park'],
-    by: ['{k} plucked all of {v}’s feathers 🪶', '{k} somehow beat all 250,000 HP of {v}', '{v} got shooed away by {k}', '{k} turned {v} into a pigeon pie 🥧'],
+    by: ['{k} plucked all of {v}’s feathers 🪶', '{k} somehow beat all 5,000 HP of {v}', '{v} got shooed away by {k}', '{k} turned {v} into a pigeon pie 🥧'],
   },
   retro: {
     solo: ['{v} went back to 8-bit heaven 👾', '{v} ran out of pixels', '{v} got a GAME OVER screen'],
@@ -184,7 +184,7 @@ const TH: Record<FeedKind, { solo: string[]; by: string[] }> = {
   },
   lilpigeon: {
     solo: ['{v} บินหนีไปแล้ว กุ๊กกรู…', '{v} มัวแต่สนใจขนมปัง 🍞', '{v} กลับบ้านที่สวนสาธารณะ'],
-    by: ['{k} ถอนขน {v} หมดตัว 🪶', '{k} เอาชนะ {v} ทั้ง 250,000 HP ได้ยังไงเนี่ย', '{v} โดน {k} ไล่ไปแล้ว', '{k} เอา {v} ไปทำพายนกพิราบ 🥧'],
+    by: ['{k} ถอนขน {v} หมดตัว 🪶', '{k} เอาชนะ {v} ทั้ง 5,000 HP ได้ยังไงเนี่ย', '{v} โดน {k} ไล่ไปแล้ว', '{k} เอา {v} ไปทำพายนกพิราบ 🥧'],
   },
   retro: {
     solo: ['{v} กลับไปสวรรค์ 8 บิตแล้ว 👾', '{v} พิกเซลหมดแล้ว', '{v} เจอหน้าจอ GAME OVER'],

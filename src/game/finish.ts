@@ -339,6 +339,7 @@ export function helperCorpse(c: Cat): Corpse | null {
     case 'cat':
       return propCorpse('grave', c.x, c.y, c.color, c.facing, 6);
     case 'fish':
+    case 'betta':
       return propCorpse('cooked', c.x, c.y, c.color, c.facing, 6);
     case 'memory':
       return propCorpse('fade', c.x, c.y, c.color, c.facing, 1.4);

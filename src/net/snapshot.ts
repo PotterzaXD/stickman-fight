@@ -63,9 +63,13 @@ export interface Snapshot {
   pn?: [number, number];
   /** The Kraken: its stage, rise, the big slam and its tentacles. */
   kr?: number[];
+  /** Ghost Sword: fighters in their ghost life and ghost clones [fighter index, max HP]. */
+  gh?: number[][];
+  /** The "." boss: [fighter index, its turn (1) or yours (0), its attack, Kraken zone seconds, zone x, zone y]. */
+  dt?: number[][];
 }
 
-const KINDS: ProjKind[] = ['arrow', 'snowball', 'minisnow', 'boomerang', 'bomb', 'axe', 'shuriken', 'laser', 'fireball', 'six7', 'poop', 'soup', 'icebolt', 'banana', 'fireslash', 'dart', 'memorybox', 'rocket', 'wave', 'shard', 'crash', 'vine', 'nerf', 'bullet67', 'water', 'bubble', 'yoyo', 'fishthrow', 'allyfire', 'egg', 'gum', 'crow', 'hay', 'goo', 'sound', 'pebble', 'flame', 'booger', 'tennis', 'pie', 'ketchup', 'popcorn', 'plane', 'slipper', 'balloon', 'plunger', 'frisbee', 'blanket', 'magic', 'mattress', 'aphone', 'macaroni', 'ricebox'];
+const KINDS: ProjKind[] = ['arrow', 'snowball', 'minisnow', 'boomerang', 'bomb', 'axe', 'shuriken', 'laser', 'fireball', 'six7', 'poop', 'soup', 'icebolt', 'banana', 'fireslash', 'dart', 'memorybox', 'rocket', 'wave', 'shard', 'crash', 'vine', 'nerf', 'bullet67', 'water', 'bubble', 'yoyo', 'fishthrow', 'allyfire', 'egg', 'gum', 'crow', 'hay', 'goo', 'sound', 'pebble', 'flame', 'booger', 'tennis', 'pie', 'ketchup', 'popcorn', 'plane', 'slipper', 'balloon', 'plunger', 'frisbee', 'blanket', 'magic', 'mattress', 'aphone', 'macaroni', 'ricebox', 'blindfold'];
 const r1 = (v: number) => Math.round(v);
 const r2 = (v: number) => Math.round(v * 100) / 100;
 
@@ -92,7 +96,8 @@ const SHIELD = 1,
   DOWN = 524288,
   SLEEP = 1048576,
   SPIN = 2097152,
-  MATT = 4194304;
+  MATT = 4194304,
+  BLIND = 8388608;
 
 function ownerIndex(g: Game, o: unknown): number {
   const f = o instanceof Snowman || o instanceof Cat ? o.owner : o;
@@ -129,6 +134,7 @@ export function encodeSnapshot(g: Game): Snapshot {
       if (f.sleepT > 0) fl |= SLEEP;
       if (f.spinT > 0) fl |= SPIN;
       if (f.mattT > 0) fl |= MATT;
+      if (f.blind) fl |= BLIND;
       return [f.alive ? 1 : 0, r1(f.x), r1(f.y), r1(f.vx), r1(f.vy), r1(f.hp), f.facing, f.onGround ? 1 : 0, fl, r1(f.shieldHp), r2(f.angles[0]), r2(f.angVel[0]), r2(f.angles[1] ?? 0), FINISHES.indexOf(f.finish)];
     }),
     m: g.snowmen.map((s) => [s.id, ownerIndex(g, s.owner), r1(s.x), r1(s.y), r1(s.hp), s.facing, s.hurtFlash > 0 ? 1 : 0]),
@@ -164,6 +170,10 @@ export function encodeSnapshot(g: Game): Snapshot {
   if (g.doom) snap.dm = encodeDoom(g.doom);
   if (g.plane) snap.pn = [PLANE_PHASES.indexOf(g.plane.phase), r2(g.plane.t)];
   if (g.kr) snap.kr = encodeKraken(g);
+  const gh = g.fighters.flatMap((f, i) => (f.ghost ? [[i, f.maxHp]] : []));
+  if (gh.length) snap.gh = gh;
+  const dots = g.fighters.flatMap((f, i) => (f.dot ? [[i, f.dot.turn === 'boss' ? 1 : 0, f.dot.move, r2(f.dot.zoneT), r1(f.dot.zoneX), r1(f.dot.zoneY)]] : []));
+  if (dots.length) snap.dt = dots;
   g.events = [];
   return snap;
 }
@@ -232,6 +242,7 @@ export class Mirror {
       f.sleepT = fl & SLEEP ? 1 : 0;
       f.spinT = fl & SPIN ? 1 : 0;
       f.mattT = fl & MATT ? 1 : 0;
+      f.blind = !!(fl & BLIND);
       if (f.pigeon) f.pigeonState = fl & DIVE ? 'dive' : 'hover';
       f.shieldHp = shieldHp;
       f.angVel[0] = av0;
@@ -363,6 +374,21 @@ export class Mirror {
     if (g.doom && s.dm) applyDoom(g.doom, s.dm);
     if (g.plane && s.pn) applyPlane(g, s.pn);
     if (g.kr && s.kr) applyKraken(g, s.kr);
+    for (const [i, maxHp] of s.gh ?? []) {
+      const f = g.fighters[i];
+      if (!f) continue;
+      f.ghost = true;
+      f.maxHp = maxHp;
+    }
+    for (const [i, turn, move, zoneT, zoneX, zoneY] of s.dt ?? []) {
+      const d = g.fighters[i]?.dot;
+      if (!d) continue;
+      d.turn = turn ? 'boss' : 'you';
+      d.move = move;
+      d.zoneT = zoneT;
+      d.zoneX = zoneX;
+      d.zoneY = zoneY;
+    }
     g.glassT = g.map.platforms.map(() => 0);
     for (const [i, t] of s.gl ?? []) if (i in g.glassT) g.glassT[i] = t;
     g.applyEvents(s.e);

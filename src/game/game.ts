@@ -49,6 +49,8 @@ import { BOOGER, CHEF, CUPCAKE, FROG, GHOST, GINGER, KNIGHT, LOLLIPOP } from './
 import { oct23AttackGap, oct23Bit, oct23Hit, oct23Skill, oct23Splat, summonOct23, updateOct23 } from './oct23';
 import { infectHit, infectionWinner, startInfection, turnZombie, updateInfection, type InfectionState } from './infection';
 import { makeMe, meDodge, meFly } from './meBoss';
+import { BETTA, callGhostClones, ghostFade, ghostRevive, makeGhost, nov12Hit, nov12Skill, nov12Splat, updateNov12 } from './nov12';
+import { dotGuard, dotThink, initDot } from './dot';
 import { startSurvival, survivalWinner, updateSurvival, type SurvState } from './survival';
 import { planeOut, spawnsFor, startDoom, startPlane, updateDoom, updatePlane, type DoomState, type PlaneState } from './nov05Maps';
 import { evOn, startEvents, updateEvents, type EventsState } from './events';
@@ -140,6 +142,8 @@ export interface GameOpts {
   helpers?: SandboxHelper[];
   /** Sandbox: Clones, each the fighter index (player or bot) it copies. */
   clones?: number[];
+  /** Sandbox: ghost clones (Ghost Sword), each the fighter index it copies. */
+  ghostClones?: number[];
   /** Sandbox: Free For All, nobody is on anybody's team. */
   ffa?: boolean;
   /** The Outbreak: the wave to fight. */
@@ -345,7 +349,7 @@ export interface FeedItem {
   t: number;
 }
 /** Helpers with their own kill feed lines. */
-const HELPER_FEED: Record<string, FeedKind> = { cat: 'meow', chick: 'chick', chicken: 'chicken', fish: 'fish', memory: 'memory', dog: 'dog', skeleton: 'skeleton', lilpigeon: 'lilpigeon', retro: 'retro', zombie: 'zombie', bee: 'bee' };
+const HELPER_FEED: Record<string, FeedKind> = { cat: 'meow', chick: 'chick', chicken: 'chicken', fish: 'fish', betta: 'fish', memory: 'memory', dog: 'dog', skeleton: 'skeleton', lilpigeon: 'lilpigeon', retro: 'retro', zombie: 'zombie', bee: 'bee' };
 /** Seconds a kill feed line stays, and how many show at once. */
 export const FEED_LIFE = 5;
 export const FEED_MAX = 6;
@@ -580,6 +584,15 @@ export class Game {
         if (opts.ffa) c.team = 300 + this.fighters.length;
       }
     }
+    // Sandbox: ghost clones (100 HP each, see-through, with a Ghost Sword).
+    for (const i of opts.ghostClones ?? []) {
+      const of = this.fighters[i];
+      if (!of || i >= specs.length) continue;
+      const c = this.addClone(of, 'ghostsword');
+      makeGhost(c);
+      c.brain = new BotBrain('hard');
+      if (opts.ffa) c.team = 300 + this.fighters.length;
+    }
     // The Outbreak: the zombies' hidden leader, the zombie allies, and the first zombies.
     if (opts.outbreak && opts.mode === 'outbreak' && !opts.demo) startOutbreak(this, opts.outbreak, opts.bossName ?? 'Zombies');
     if (this.beach) {
@@ -649,10 +662,12 @@ export class Game {
         ? ['robocannon']
         : kind === 'jay'
         ? ['macaroni', 'friedrice']
+        : kind === 'dot'
+        ? ['dotcore']
         : randomBossWeapons();
     const color = {
       boss: '#263238', cat: '#ff9800', mascot: '#ffffff', buffalo: '#5d4037', fish: '#1e88e5', pigeon: '#90a4ae', queen: '#81d4fa', tide: '#0277bd', guardian: '#558b2f',
-      elephant: '#9aa0a6', scarecrow: '#c49a5a', robo: '#78909c', jay: '#ec407a',
+      elephant: '#9aa0a6', scarecrow: '#c49a5a', robo: '#78909c', jay: '#ec407a', dot: '#111111',
     }[kind as string] ?? '#263238';
     const f = new Fighter({
       name,
@@ -674,6 +689,8 @@ export class Game {
     });
     // The Pigeon and the Elephant fly in from above.
     if (f.pigeon || f.xboss === 'elephant') f.y -= 250;
+    // The "." boss: a big dot with 3 hearts (dot.ts).
+    if (kind === 'dot') initDot(f);
     f.brain = new BotBrain('boss');
     this.fighters.push(f);
     return f;
@@ -1022,6 +1039,7 @@ export class Game {
     updateOct23(this, dt);
     updateOct30(this, dt);
     updateNov05(this, dt);
+    updateNov12(this);
     this.updateBubbles(dt);
     this.markSurvivors();
     if (this.cut) this.updateCutscene(dt);
@@ -1129,6 +1147,8 @@ export class Game {
     let it = f.human ? f.humanIntent(dt) : f.brain!.think(dt, f, this);
     // The boss with your name flies.
     if (f.me) meFly(this, f, it, dt);
+    // The "." boss flies and takes its turns (dot.ts).
+    if (f.dot) dotThink(this, f, it, dt);
     // Bots dodge his meteors, swords and the bomb.
     if (this.phy && !f.human) it = phylDodge(this, f, it);
     // Cutscene: nobody moves on their own.
@@ -1179,9 +1199,9 @@ export class Game {
 
     if (it.skill !== null) this.useSkill(f, it.skillSlot, it.skill);
 
-    this.stepBody(f, dt, f.me ? 0 : f.dashT > 0 ? 0.15 : 1);
+    this.stepBody(f, dt, f.me || f.dot ? 0 : f.dashT > 0 ? 0.15 : 1);
     // Skills break glass: the sword's dash and the spear's thrust.
-    if (f.dashT > 0) f.weapons.forEach((w, i) => w.id === 'sword' && this.breakGlassAt(f.tip(i).x, f.tip(i).y, 14, f));
+    if (f.dashT > 0) f.weapons.forEach((w, i) => (w.id === 'sword' || w.id === 'ghostsword') && this.breakGlassAt(f.tip(i).x, f.tip(i).y, 14, f));
     if (f.thrustT > 0) this.breakGlassAt(f.tip(f.thrustSlot).x, f.tip(f.thrustSlot).y, 10, f);
     if (f.onGround) f.airJumps = 1;
     if (f.slamming && f.onGround) {
@@ -1368,6 +1388,9 @@ export class Game {
     if (this.kr && !krakenGuard(this, target)) return false;
     // The boss with your name is very good at dodging.
     if (meDodge(this, target, kx, ky)) return false;
+    // The "." boss: it only takes a hit (one heart) on your turn.
+    const dg = dotGuard(this, target, src);
+    if (dg !== null) return dg;
     // PHYLISHIEUS can only be hurt while he is tired on the ground.
     if (this.phy && target instanceof Fighter && target.phyl) {
       amount = phylGuard(this, target, amount);
@@ -1449,6 +1472,8 @@ export class Game {
       b.hp = Math.max(1, b.hp);
       return;
     }
+    // Ghost Sword: the first time this match, you come back as a ghost.
+    if (ghostRevive(this, b, how)) return;
     b.alive = false;
     b.hp = 0;
     const fighter = b instanceof Fighter;
@@ -1497,7 +1522,7 @@ export class Game {
       this.play('ko');
       if (how !== 'void' && this.potionsOn && Math.random() < POTION_CHANCE) this.dropPotion(b.x, b.cy);
     }
-    if (b instanceof Fighter && b.cloneOf && how !== 'void') this.cloneBoom(b);
+    if (b instanceof Fighter && b.cloneOf && how !== 'void') b.ghost ? ghostFade(this, b) : this.cloneBoom(b);
     const killer = src instanceof Snowman || src instanceof Cat ? src.owner : src;
     // Get Tricked: somebody knocked out your Clone.
     if (b instanceof Fighter && b.cloneOf && killer instanceof Fighter && killer !== b.cloneOf && killer !== b) this.tricked.add(b.cloneOf);
@@ -1611,7 +1636,8 @@ export class Game {
     f.angles[i] = angle;
     const tip = f.tip(i);
     switch (def.id) {
-      case 'sword': {
+      case 'sword':
+      case 'ghostsword': {
         const dir = Math.abs(cos) < 0.2 ? f.facing : sign(cos);
         f.facing = dir;
         f.dashT = 0.22;
@@ -1932,7 +1958,7 @@ export class Game {
         this.text(f.x, f.y - f.h - 30, '🔥 FWOOSH!', '#ff9100', 24);
         break;
       default:
-        if (!oct22Skill(this, f, i, angle) && !oct23Skill(this, f, i, angle) && !oct30Skill(this, f, i, angle) && !nov05Skill(this, f, i, angle)) jaySkill(this, f, i, angle);
+        if (!oct22Skill(this, f, i, angle) && !oct23Skill(this, f, i, angle) && !oct30Skill(this, f, i, angle) && !nov05Skill(this, f, i, angle) && !nov12Skill(this, f, i, angle)) jaySkill(this, f, i, angle);
         break;
       case 'stick':
       case 'mascotstick': {
@@ -2060,6 +2086,9 @@ export class Game {
     summonOct23(this, f, inward);
     // October 30: the Unicorn, the Dino, the Wizard and the Panda.
     summonOct30(this, f, inward);
+    // November 12: two ghost clones and 10 betta fish.
+    callGhostClones(this, f, 2, 2);
+    this.callCats(f, BETTA, 'betta');
     for (let k = 0; k < SUMMONER.snowmen; k++) {
       if (this.snowmen.filter((m) => m.alive && m.owner === f).length >= this.maxSnowmen) break;
       const m = new Snowman(f, f.x + (k - 1) * 56, f.y - 6);
@@ -2828,7 +2857,7 @@ export class Game {
 
   /** Call Cat AI: little cats appear around the caller. */
   callCats(f: Fighter, o: { count: number; hp: number; dmg: number; max: number }, variant: CatVariant = 'cat') {
-    const icon = variant === 'fish' ? '🐟' : variant === 'soldier' ? '💂' : variant === 'bee' ? '🐝' : variant === 'ninja' ? '🥷' : variant === 'drone' ? '🤖' : '🐱';
+    const icon = variant === 'betta' ? '🐠' : variant === 'fish' ? '🐟' : variant === 'soldier' ? '💂' : variant === 'bee' ? '🐝' : variant === 'ninja' ? '🥷' : variant === 'drone' ? '🤖' : '🐱';
     const have = this.cats.filter((c) => c.alive && c.owner === f && c.variant === variant).length;
     const n = Math.min(o.count, o.max - have);
     if (n <= 0) {
@@ -2843,7 +2872,7 @@ export class Game {
       this.cats.push(c);
       this.burst(x, f.y - 20, '#ffcc80', 6, 220);
     }
-    this.ring(f.x, f.y, 90 * f.scale, 0.4, variant === 'fish' ? '#4fc3f7' : variant === 'soldier' ? '#ffd54f' : '#ffb74d');
+    this.ring(f.x, f.y, 90 * f.scale, 0.4, variant === 'betta' ? '#e040fb' : variant === 'fish' ? '#4fc3f7' : variant === 'soldier' ? '#ffd54f' : '#ffb74d');
     this.text(f.x, f.y - f.h - 30, `${icon} ×${n}`, variant === 'fish' ? '#81d4fa' : '#ffcc80', 28);
     this.play('snowman');
   }
@@ -2887,9 +2916,9 @@ export class Game {
     const scale = owner instanceof Fighter ? owner.scale : 1;
     const big = kind === 'boomerang' || kind === 'bomb' || kind === 'axe' || kind === 'fireball' || kind === 'six7' || kind === 'soup' || kind === 'hay';
     const r =
-      { arrow: 5, snowball: 11, minisnow: 8, boomerang: 16, bomb: 11, axe: 22, shuriken: 8, laser: 6, fireball: 14, six7: 24, poop: 10, soup: 14, icebolt: 9, banana: 10, fireslash: 34, dart: 6, memorybox: 12, rocket: 10, wave: 60, shard: 10, crash: 80, vine: 14, nerf: 6, bullet67: 7, water: 7, bubble: 18, yoyo: 13, fishthrow: 14, allyfire: 12, egg: 10, gum: 11, crow: 14, hay: 34, goo: 10, sound: 40, pebble: 6, flame: 14, booger: 9, tennis: 9, pie: 13, ketchup: 7, popcorn: 7, plane: 12, slipper: 12, balloon: 12, plunger: 9, frisbee: 16, blanket: 22, magic: 10, mattress: 26, aphone: 9, macaroni: 12, ricebox: 15 }[kind] *
+      { arrow: 5, snowball: 11, minisnow: 8, boomerang: 16, bomb: 11, axe: 22, shuriken: 8, laser: 6, fireball: 14, six7: 24, poop: 10, soup: 14, icebolt: 9, banana: 10, fireslash: 34, dart: 6, memorybox: 12, rocket: 10, wave: 60, shard: 10, crash: 80, vine: 14, nerf: 6, bullet67: 7, water: 7, bubble: 18, yoyo: 13, fishthrow: 14, allyfire: 12, egg: 10, gum: 11, crow: 14, hay: 34, goo: 10, sound: 40, pebble: 6, flame: 14, booger: 9, tennis: 9, pie: 13, ketchup: 7, popcorn: 7, plane: 12, slipper: 12, balloon: 12, plunger: 9, frisbee: 16, blanket: 22, magic: 10, mattress: 26, aphone: 9, macaroni: 12, ricebox: 15, blindfold: 12 }[kind] *
       (big || kind === 'fireslash' ? scale : 1);
-    const life = { arrow: 2, snowball: 3, minisnow: 3, boomerang: 3.5, bomb: 1.5, axe: 3.5, shuriken: 2, laser: 0.7, fireball: 2, six7: 3.5, poop: 3, soup: 3, icebolt: 2, banana: 3, fireslash: 0.7, dart: 2, memorybox: 0.35, rocket: 2, wave: 1.7, shard: 1.6, crash: 1.9, vine: 0.42, nerf: 2, bullet67: 1.2, water: 0.9, bubble: 2.6, yoyo: 3.5, fishthrow: 3, allyfire: 2, egg: 2.5, gum: 2.5, crow: 3.5, hay: 2.4, goo: 2.5, sound: 0.45, pebble: 2, flame: 0.5, booger: 2.5, tennis: 3.5, pie: 2.5, ketchup: 1.2, popcorn: 1.5, plane: 2.2, slipper: 2.5, balloon: 2.5, plunger: 1.5, frisbee: 1.1, blanket: 2.5, magic: 1.6, mattress: 2.5, aphone: 2.5, macaroni: 2.5, ricebox: 2.5 }[kind];
+    const life = { arrow: 2, snowball: 3, minisnow: 3, boomerang: 3.5, bomb: 1.5, axe: 3.5, shuriken: 2, laser: 0.7, fireball: 2, six7: 3.5, poop: 3, soup: 3, icebolt: 2, banana: 3, fireslash: 0.7, dart: 2, memorybox: 0.35, rocket: 2, wave: 1.7, shard: 1.6, crash: 1.9, vine: 0.42, nerf: 2, bullet67: 1.2, water: 0.9, bubble: 2.6, yoyo: 3.5, fishthrow: 3, allyfire: 2, egg: 2.5, gum: 2.5, crow: 3.5, hay: 2.4, goo: 2.5, sound: 0.45, pebble: 2, flame: 0.5, booger: 2.5, tennis: 3.5, pie: 2.5, ketchup: 1.2, popcorn: 1.5, plane: 2.2, slipper: 2.5, balloon: 2.5, plunger: 1.5, frisbee: 1.1, blanket: 2.5, magic: 1.6, mattress: 2.5, aphone: 2.5, macaroni: 2.5, ricebox: 2.5, blindfold: 2.5 }[kind];
     this.projectiles.push({
       kind,
       x,
@@ -3047,7 +3076,7 @@ export class Game {
           oct30Hit(this, p, e, dir);
           continue;
         }
-        if (oct22Hit(this, p, e, dir) || oct23Hit(this, p, e, dir) || oct30Hit(this, p, e, dir) || nov05Hit(this, p, e, dir) || jayHit(this, p, e, dir)) {
+        if (oct22Hit(this, p, e, dir) || oct23Hit(this, p, e, dir) || oct30Hit(this, p, e, dir) || nov05Hit(this, p, e, dir) || nov12Hit(this, p, e, dir) || jayHit(this, p, e, dir)) {
           // Booger, tennis ball, pie, ketchup, popcorn and the October 30 shots (see oct22.ts, oct23.ts and oct30.ts).
         } else if (p.kind === 'fireball') this.explode(p, 120 * p.scale, true);
         else if (p.kind === 'bomb') this.explode(p);
@@ -3146,7 +3175,7 @@ export class Game {
             p.dead = true;
             break;
           }
-          if (tennisBounce(p, pl) || oct23Splat(this, p, pl) || oct30Splat(this, p, pl) || nov05Splat(this, p, pl) || jaySplat(this, p, pl)) break;
+          if (tennisBounce(p, pl) || oct23Splat(this, p, pl) || oct30Splat(this, p, pl) || nov05Splat(this, p, pl) || nov12Splat(this, p, pl) || jaySplat(this, p, pl)) break;
           if (p.kind === 'booger') {
             this.burst(p.x, Math.min(p.y, pl.y), '#9ccc65', 6, 160);
             p.dead = true;
@@ -3348,7 +3377,7 @@ export class Game {
     }
     if (this.beach && this.fish && !this.fish.alive) this.fishBeaten = true;
     // Helpers that are still up (cats, snowmen, chicks...) keep their side in the match.
-    // One Little Pigeon doesn't: with 250,000 HP a side left with only its pigeon would never lose.
+    // One Little Pigeon doesn't: with its big HP a side left with only its pigeon would never lose.
     const helpers: Body[] = [...this.snowmen, ...this.cats].filter((h) => h.alive && !(h instanceof Cat && h.variant === 'lilpigeon'));
     if (this.kr) {
       const k = krakenWinner(this, helpers);

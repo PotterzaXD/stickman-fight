@@ -166,6 +166,8 @@ export const HELPER_STATS: Partial<Record<CatVariant, [number, number]>> = {
   wizard: [WIZARD.hp, WIZARD.dmg],
   panda: [PANDA.hp, PANDA.dmg],
   physi: [PHYSI.hp, PHYSI.dmg],
+  // November 12: the betta fish (twice a Summoner fish's HP, half its bite).
+  betta: [80, 6],
 };
 
 /** A new shot hit someone. Returns false for other shots. */
