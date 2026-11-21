@@ -1,5 +1,5 @@
 import type { Game } from '../game/game';
-import { drawHud, drawLabel, drawWorldFx } from '../game/render';
+import { drawHud, drawLabel, drawWorldFx, hpBar } from '../game/render';
 import { Renderer3D } from './render3d';
 
 const STEP = 1 / 120;
@@ -71,6 +71,8 @@ export function startLoop3D(
     if (!opts.bare) {
       ctx.setTransform(dpr * z, 0, 0, dpr * z, dpr * (w / 2 - g.cam.x * z + sx), dpr * (h / 2 - g.cam.y * z + sy));
       for (const f of g.fighters) if (f.alive && !f.boss) drawLabel(ctx, f, f.y - f.h - 22);
+      // Helpers' HP bars (Grandfather Cat's AI cats).
+      for (const c of g.cats) if (c.alive) hpBar(ctx, c.x, c.y - c.h - 22, 28, c.hp / c.maxHp, c.color);
       drawWorldFx(ctx, g, false);
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       drawHud(g, ctx, w, h);

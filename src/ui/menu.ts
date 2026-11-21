@@ -33,7 +33,7 @@ export function coinChip() {
 }
 
 /** Who made the game. */
-function showCredits() {
+export function showCredits() {
   const row = (role: string, name: string) => h('div', { class: 'credit-row' }, h('small', { class: 'muted' }, role), h('b', {}, name));
   const wrap = h(
     'div',

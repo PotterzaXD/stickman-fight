@@ -376,6 +376,8 @@ export function helperCorpse(c: Cat): Corpse | null {
     case 'drone':
       return propCorpse('scrap', c.x, c.y, '#90a4ae', c.facing, 1.4);
     case 'soldier':
+    case 'gunsoldier':
+    case 'pilot':
     case 'knight':
     case 'chef':
     case 'wizard':

@@ -1,6 +1,6 @@
 import { ballisticAngle } from './ai';
 import {
-  BABY_ELE, Body, CHEF, CUPCAKE, Cat, DINO, DRONE, FROG, Fighter, GHOST, GINGER, KNIGHT, PANDA, PENGUIN, PHYSI, RETRO, SB_ALLY, UNICORN, WIZARD, ZOMBIE_ALLY,
+  AIRCRAFT, BABY_ELE, Body, CHEF, GUN_SOLDIER, CUPCAKE, Cat, DINO, DRONE, FROG, Fighter, GHOST, GINGER, KNIGHT, PANDA, PENGUIN, PHYSI, RETRO, SB_ALLY, UNICORN, WIZARD, ZOMBIE_ALLY,
   type CatVariant, type Projectile,
 } from './entities';
 import type { Game } from './game';
@@ -168,6 +168,9 @@ export const HELPER_STATS: Partial<Record<CatVariant, [number, number]>> = {
   physi: [PHYSI.hp, PHYSI.dmg],
   // November 12: the betta fish (twice a Summoner fish's HP, half its bite).
   betta: [80, 6],
+  // November 21: the pistol soldier and the Aircraft.
+  gunsoldier: [GUN_SOLDIER.hp, GUN_SOLDIER.dmg],
+  aircraft: [AIRCRAFT.hp, AIRCRAFT.dmg],
 };
 
 /** A new shot hit someone. Returns false for other shots. */

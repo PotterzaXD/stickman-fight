@@ -2135,3 +2135,11 @@ button.chef-item {
 
 .three-panel .muted, .three-card small { color: rgba(255, 255, 255, 0.82); }
 .three-panel .seg, .three-panel .map-card { color: #263238; }
+
+/* ---------- November 21: 3D menu laid out like the main menu, Grandfather Cat in 3D ---------- */
+.three-wrap { padding: 0; width: 100%; }
+.three-home { width: 100%; padding-top: 0; }
+.three-home .logo3d { font-size: clamp(40px, 9vw, 84px); }
+.menu-buttons .btn.cat3d { background: linear-gradient(90deg, #ff9800, #ffcc80); color: #3e2723; }
+.menu-buttons .btn.boss3d { background: linear-gradient(90deg, #263238, #c62828); color: #fff; }
+.three-card.locked { opacity: 0.6; filter: grayscale(0.6); }

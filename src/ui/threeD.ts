@@ -8,6 +8,7 @@ import { jingle, playMusic } from '../music';
 import { save } from '../save';
 import { sfx } from '../sfx';
 import { confirmBox, h, toast } from './dom';
+import { shareGame, showCredits } from './menu';
 import { mapThumb, weaponIcon } from './icons';
 import { localName } from './lobby';
 import { go, register } from './router';
@@ -17,9 +18,11 @@ import type { Loop3D } from '../three/loop3d';
  * 3D mode (a tab next to 1D, opened by the Tome Key; offline).
  * It is the normal game with the same camera and point of view, drawn in 3D: round shiny heads that blink and look
  * around, round arms and legs, thick blocks for platforms, real shadows. Its own coins (3D coins) and its own shop.
- * It has what the game had after its second update: the 8 weapons it came out with plus the Axe, Shuriken, Laser Gun and
+ * It has what the game had after its third update: the 8 weapons it came out with plus the Axe, Shuriken, Laser Gun and
  * Magic Staff, the 6 first maps plus Volcano, Concrete Factory, Glass Palace, Rooftops and Frozen Lake (with their
- * concrete, lava and glass blocks), and Boss Fight with 1 to 3 bosses. You against bots.
+ * concrete, lava and glass blocks), and Boss Fight with 1 to 3 bosses. The third update brought the 67 Weapon, the
+ * Poop Bomb, the Space map (low gravity) and Grandfather Cat (his Treasure is the reward), and Credits on the menu.
+ * You against bots. Its menu is laid out like the normal main menu.
  */
 
 /** The weapons from the day the game came out (sword and spear were free then too), then the second update's four. */
@@ -36,11 +39,16 @@ export const THREE_D_WEAPONS: { id: WeaponId; price: number }[] = [
   { id: 'shuriken', price: 70 },
   { id: 'laser', price: 80 },
   { id: 'staff', price: 90 },
+  // The third update.
+  { id: 'poop', price: 100 },
+  { id: 'six7', price: 120 },
 ];
-/** The maps from the first version, then the second update's five. */
-export const THREE_D_MAPS = ['arena', 'sky', 'tower', 'bridge', 'snow', 'pit', 'volcano', 'factory', 'glass', 'rooftops', 'frozen'];
+/** Not sold: beat Grandfather Cat in 3D to get it (like in the normal game). */
+export const THREE_D_REWARDS: WeaponId[] = ['treasure'];
+/** The maps from the first version, then the second update's five, then Space. */
+export const THREE_D_MAPS = ['arena', 'sky', 'tower', 'bridge', 'snow', 'pit', 'volcano', 'factory', 'glass', 'rooftops', 'frozen', 'space'];
 
-type Mode3D = 'ffa' | 'team' | 'boss';
+type Mode3D = 'ffa' | 'team' | 'boss' | 'cat';
 interface Setup3D {
   mode: Mode3D;
   mapId: string;
@@ -50,8 +58,8 @@ interface Setup3D {
   bosses?: number;
 }
 
-/** 3D coins for a win: 10 + 5 a bot, or 20 a boss in Boss Fight. */
-const pay3D = (s: Setup3D) => (s.mode === 'boss' ? 20 * (s.bosses ?? 1) : 10 + 5 * s.bots);
+/** 3D coins for a win: 10 + 5 a bot, 20 a boss in Boss Fight, or 50 for beating Grandfather Cat. */
+const pay3D = (s: Setup3D) => (s.mode === 'cat' ? 50 : s.mode === 'boss' ? 20 * (s.bosses ?? 1) : 10 + 5 * s.bots);
 /** Bosses only hold 3D weapons (two different ones). */
 function bossWeapons3D(n: number): string[][] {
   return Array.from({ length: n }, () => {
@@ -118,20 +126,35 @@ register('threeD', (root) => {
   const paint = () => {
     paintCoins();
     if (tab === 'home') {
+      // Laid out like the normal main menu: the logo, Play, two big buttons, the small ones in a row, then How to play and Credits.
+      panel.className = 'menu-center three-home';
       panel.replaceChildren(
-        h('h1', { class: 'logo3d' }, h('span', {}, t('title')), h('b', {}, '3D')),
+        h('h1', { class: 'logo logo3d' }, h('span', {}, t('title')), h('b', {}, '3D')),
         h('p', { class: 'tagline' }, t('threeDTagline')),
         h(
           'div',
-          { class: 'three-buttons' },
-          btn3(`⚔️ ${t('play')}`, () => ((tab = 'play'), paint()), 'primary'),
-          btn3(`🛒 ${t('shop')}`, () => ((tab = 'shop'), paint()), 'shop'),
-          btn3(`← ${t('back')}`, () => go('menu'), 'ghost'),
+          { class: 'menu-buttons' },
+          h('button', { class: 'btn big primary', onclick: () => ((tab = 'play'), paint()) }, `⚔️ ${t('play')}`),
+          h('button', { class: 'btn big cat3d', onclick: () => ((setup.mode = 'cat'), (tab = 'play'), paint()) }, `🐱 ${t('cat_name')}`),
+          h('button', { class: 'btn big boss3d', onclick: () => ((setup.mode = 'boss'), (tab = 'play'), paint()) }, `👹 ${t('boss')}`),
         ),
-        h('p', { class: 'three-note' }, `🧊 ${t('threeDNote')}`),
+        h(
+          'div',
+          { class: 'menu-tools' },
+          h('button', { class: 'btn', onclick: () => ((tab = 'shop'), paint()) }, `🛒 ${t('shop')}`),
+          h('button', { class: 'btn', onclick: () => go('settings') }, `⚙️ ${t('settings')}`),
+          h('button', { class: 'btn', onclick: () => go('menu') }, `← ${t('back')}`),
+        ),
+        h(
+          'div',
+          { class: 'menu-foot' },
+          h('details', { class: 'howto' }, h('summary', {}, t('howTo')), h('p', {}, t('howToText')), h('p', { class: 'small' }, `🧊 ${t('threeDNote')}`)),
+          h('button', { class: 'chip credits-btn', onclick: showCredits }, `⭐ ${t('credits')}`),
+        ),
       );
       return;
     }
+    panel.className = 'three-panel';
     const head = h('div', { class: 'three-head' }, btn3(`← ${t('back')}`, () => ((tab = 'home'), paint()), 'ghost small'), h('h2', {}, tab === 'play' ? `⚔️ ${t('play')} 3D` : `🛒 ${t('shop')} 3D`));
     if (tab === 'shop') {
       panel.replaceChildren(
@@ -140,8 +163,11 @@ register('threeD', (root) => {
         h(
           'div',
           { class: 'three-shop' },
-          ...THREE_D_WEAPONS.map((w) => {
+          ...[...THREE_D_WEAPONS, ...THREE_D_REWARDS.map((id) => ({ id, price: -1 }))].map((w) => {
             const have = save.data.threeD.owned.includes(w.id);
+            // A reward: shown locked until you win it.
+            if (w.price < 0 && !have)
+              return h('div', { class: 'three-card locked' }, h('div', { class: 'three-icon' }, weaponIcon(w.id, 64)), h('b', {}, t(`w.${w.id}` as Key)), h('small', { class: 'muted' }, `🔒 ${t('threeDTreasureHow')}`));
             const using = save.data.threeD.weapon === w.id;
             const buy = async () => {
               if (save.data.threeD.coins < w.price) return toast(t('notEnough'));
@@ -176,7 +202,8 @@ register('threeD', (root) => {
     panel.replaceChildren(
       head,
       h('h3', {}, t('mode')),
-      seg<Mode3D>(setup.mode, [['ffa', `🥊 ${t('ffa')}`], ['team', `🤝 ${t('team')}`], ['boss', `👹 ${t('boss')}`]], (v) => (setup.mode = v)),
+      seg<Mode3D>(setup.mode, [['ffa', `🥊 ${t('ffa')}`], ['team', `🤝 ${t('team')}`], ['boss', `👹 ${t('boss')}`], ['cat', `🐱 ${t('cat_name')}`]], (v) => (setup.mode = v)),
+      ...(setup.mode === 'cat' ? [h('p', { class: 'muted small' }, t('threeDCatNote'))] : []),
       ...(setup.mode === 'boss'
         ? [h('p', { class: 'muted small' }, t('threeDBossNote')), h('h3', {}, t('threeDBosses')), seg<number>(setup.bosses ?? 1, [1, 2, 3].map((n) => [n, `👹 ${n}`]), (v) => (setup.bosses = v))]
         : []),
@@ -199,7 +226,7 @@ register('threeD', (root) => {
   root.append(
     gl,
     hud,
-    h('div', { class: 'menu three-menu' }, h('div', { class: 'topbar' }, coinsSlot, h('div', { class: 'spacer' })), h('div', { class: 'menu-center' }, panel)),
+    h('div', { class: 'menu three-menu' }, h('div', { class: 'topbar' }, coinsSlot, h('div', { class: 'spacer' }), h('button', { class: 'chip', onclick: shareGame }, `🔗 ${t('share')}`)), h('div', { class: 'menu-center three-wrap' }, panel)),
   );
   paint();
   return () => {
@@ -225,7 +252,7 @@ register('threeDPlay', (root, s) => {
     const me: FighterSpec = { name: localName(0), color: team ? TEAM_COLORS[0] : PLAYER_COLORS[0], team: 0, human: true, weapon: save.data.threeD.weapon, difficulty: 'medium', playerIndex: 0 };
     const bots = Array.from({ length: s.bots }, (_, i): FighterSpec => {
       // Teams: you and every other bot against the rest. Boss Fight: every bot is on your side.
-      const tm = s.mode === 'boss' ? 0 : team ? (i % 2 ? 0 : 1) : i + 1;
+      const tm = s.mode === 'boss' || s.mode === 'cat' ? 0 : team ? (i % 2 ? 0 : 1) : i + 1;
       return {
         name: t('bot', { n: i + 1 }),
         color: team ? TEAM_COLORS[tm] : BOT_COLORS[i],
@@ -262,10 +289,14 @@ register('threeDPlay', (root, s) => {
   const showResult = (r: MatchResult) => {
     const won = r.humanWon;
     const got = won ? pay3D(s) : 1;
+    // Grandfather Cat: the first win also gives his Treasure.
+    const treasure = won && s.mode === 'cat' && !save.data.threeD.owned.includes('treasure');
     save.update((d) => {
       d.threeD.coins += got;
       if (won) d.threeD.wins++;
+      if (treasure) d.threeD.owned.push('treasure');
     });
+    if (treasure) setTimeout(() => toast(`🍲 ${t('threeDTreasureGot')}`), 400);
     if (won) sfx.win();
     jingle(won ? 'victory' : 'defeat');
     const ranked = game.fighters.filter((f) => !f.cloneOf).sort((a, b) => Number(b.alive) - Number(a.alive) || b.kos - a.kos);
@@ -296,6 +327,7 @@ register('threeDPlay', (root, s) => {
       fallMode: save.data.settings.fallMode,
       juice: save.data.settings.juice,
       ...(s.mode === 'boss' ? { bosses, bossWeapons: bossWeapons3D(bosses), bossName: t('boss_name') } : {}),
+      ...(s.mode === 'cat' ? { bossName: t('cat_name') } : {}),
     });
     game.onOver = showResult;
     game.focus = [0];
