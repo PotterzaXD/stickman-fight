@@ -136,9 +136,9 @@ export interface SandboxBoss {
 /** Helpers you can drop into Sandbox: every helper any weapon or the Summoner can call. A chick slot is 10 chicks. */
 export type HelperKind = 'cat' | 'fish' | 'memory' | 'soldier' | 'snowman' | 'sbsnow' | 'fireally' | 'redguy' | 'chicken' | 'chick' | 'lilpigeon' | 'skeleton' | 'dog' | 'retro' | 'bee' | 'ninja' | 'zombie'
   | 'babyele' | 'drone' | 'penguin' | 'knight' | 'frog' | 'ghost' | 'ginger' | 'cupcake' | 'chef'
-  | 'unicorn' | 'dino' | 'wizard' | 'panda' | 'physi' | 'betta' | 'gunsoldier' | 'aircraft';
+  | 'unicorn' | 'dino' | 'wizard' | 'panda' | 'physi' | 'betta' | 'gunsoldier' | 'aircraft' | 'pilot';
 /** The zombie ally is only here once you have beaten wave 10 of The Outbreak (see `zombieAlly` in the save). */
-export const HELPER_KINDS: HelperKind[] = ['cat', 'fish', 'memory', 'soldier', 'snowman', 'sbsnow', 'fireally', 'redguy', 'chicken', 'chick', 'lilpigeon', 'skeleton', 'dog', 'retro', 'bee', 'ninja', 'zombie', 'babyele', 'drone', 'penguin', 'knight', 'frog', 'ghost', 'ginger', 'cupcake', 'chef', 'unicorn', 'dino', 'wizard', 'panda', 'physi', 'betta', 'gunsoldier', 'aircraft'];
+export const HELPER_KINDS: HelperKind[] = ['cat', 'fish', 'memory', 'soldier', 'snowman', 'sbsnow', 'fireally', 'redguy', 'chicken', 'chick', 'lilpigeon', 'skeleton', 'dog', 'retro', 'bee', 'ninja', 'zombie', 'babyele', 'drone', 'penguin', 'knight', 'frog', 'ghost', 'ginger', 'cupcake', 'chef', 'unicorn', 'dino', 'wizard', 'panda', 'physi', 'betta', 'gunsoldier', 'aircraft', 'pilot'];
 /** The Outbreak's zombies and the Zombie Boss, for Sandbox (they fight for whichever team you put them on). */
 export type SbZombieKind = 'znormal' | 'zshooter' | 'zmini' | 'zbig' | 'zrunner' | 'zexploder' | 'zboss';
 export const SB_ZOMBIE_KINDS: SbZombieKind[] = ['znormal', 'zshooter', 'zmini', 'zbig', 'zrunner', 'zexploder', 'zboss'];

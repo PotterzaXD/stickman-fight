@@ -7,7 +7,7 @@ import { ICE_SPIKE, PIE, oct23Helper, oct23Reach, oct23Speed } from './oct23';
 import { nov05BotSkill } from './nov05';
 import { jayBotSkill } from './jay';
 import { nov12BotSkill } from './nov12';
-import { gunSoldierShoot, nov21BotSkill, updateAircraft, updatePilot } from './nov21';
+import { gunSoldierShoot, nov21BotSkill, pilotShoot, updateAircraft } from './nov21';
 import { oct30BotSkill, oct30Helper, oct30Reach, oct30Speed } from './oct30';
 import type { Difficulty, Intent, Platform } from './types';
 
@@ -484,7 +484,6 @@ export function updateCat(c: Cat, dt: number, g: Game) {
   if (c.variant === 'bee') return updateBee(c, dt, g);
   if (c.variant === 'drone') return updateDrone(c, dt, g);
   if (c.variant === 'aircraft') return updateAircraft(c, dt, g);
-  if (c.variant === 'pilot') return updatePilot(c, dt, g);
   if (c.variant === 'ghost') return updateGhost(c, dt, g);
   // Ninjas blink next to whoever they are after.
   if (c.variant === 'ninja') ninjaBlink(c, dt, g);
@@ -510,14 +509,14 @@ export function updateCat(c: Cat, dt: number, g: Game) {
       if (home && Math.abs(home.x - c.x) > 70) c.moveX = sign(home.x - c.x);
     }
     // The Fire Ally keeps its distance and throws fireballs.
-    if (t && (c.variant === 'fireally' || c.variant === 'zshooter' || c.variant === 'gunsoldier')) {
+    if (t && (c.variant === 'fireally' || c.variant === 'zshooter' || c.variant === 'gunsoldier' || c.variant === 'pilot')) {
       const d = Math.abs(t.x - c.x);
       c.moveX = d < 260 ? -sign(t.x - c.x) : d > 480 ? sign(t.x - c.x) : 0;
     }
     // Don't run off an edge unless the target is across a small gap.
     if (c.onGround && c.moveX !== 0 && !platformBelow(g, c.x + sign(c.moveX) * 30, c.y, 700)) {
       // The Fire Ally backing away just stops at the edge.
-      if (c.variant === 'fireally' || c.variant === 'zshooter' || c.variant === 'gunsoldier') c.moveX = 0;
+      if (c.variant === 'fireally' || c.variant === 'zshooter' || c.variant === 'gunsoldier' || c.variant === 'pilot') c.moveX = 0;
       else if (t && t.y < c.y + 80 && Math.abs(t.x - c.x) > 120 && rand() < 0.5) {
         c.vy = -900;
         c.onGround = false;
@@ -549,6 +548,7 @@ export function updateCat(c: Cat, dt: number, g: Game) {
   }
   // Pistol soldiers keep their distance and shoot (nov21.ts).
   if (c.variant === 'gunsoldier') return gunSoldierShoot(c, dt, g, t);
+  if (c.variant === 'pilot') return pilotShoot(c, dt, g, t);
   if (c.variant === 'fireally') {
     if (t) c.facing = sign(t.x - c.x) || c.facing;
     c.shootT -= dt;

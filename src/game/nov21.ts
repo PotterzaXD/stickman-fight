@@ -166,25 +166,18 @@ export function updateAircraft(c: Cat, dt: number, g: Game) {
   g.burst(c.x + c.facing * 34, c.cy + 4, '#ffd54f', 4, 160, false);
 }
 
-const fired = new WeakSet<Cat>();
-
-/** A pilot who got out alive (1 HP): lands, takes aim, fires one bullet for 1, and goes down. */
-export function updatePilot(c: Cat, dt: number, g: Game) {
-  c.attackT -= dt;
-  c.shootT -= dt;
-  c.vx *= Math.max(0, 1 - (c.onGround ? 8 : 1) * dt);
-  const t = nearestFoe(g, c, 1600);
+/** A pilot (out of a wrecked Aircraft, or from Sandbox): 30 HP, keeps a little away and fires a bullet for 2 every 10 s. */
+export function pilotShoot(c: Cat, dt: number, g: Game, t: Body | null) {
   if (t) c.facing = sign(t.x - c.x) || c.facing;
-  if (fired.has(c) || c.shootT > 0 || c.stun > 0) return;
-  fired.add(c);
+  c.shootT -= dt;
+  if (!t || c.shootT > 0 || c.stun > 0 || c.sleepT > 0) return;
   const hx = c.x + c.facing * 14;
   const hy = c.y - 32;
-  const a = t ? Math.atan2(t.cy - hy, t.x - hx) : c.facing > 0 ? 0 : Math.PI;
+  if (Math.hypot(t.x - hx, t.cy - hy) > 1100) return;
+  c.shootT = PILOT.every;
   c.attackT = 0.3;
-  g.spawnProj('gold', c, hx, hy, a, 1500, 0, PILOT.dmg, 0);
+  g.spawnProj('gold', c, hx, hy, Math.atan2(t.cy - hy, t.x - hx), 1500, 0, c.touchDmg, 0);
   g.text(c.x, c.y - c.h - 20, 'pew!', '#ffe082', 18);
-  // Then it's over for him.
-  c.life = PILOT.afterS;
 }
 
 // ---------- the Aircraft goes down ----------
@@ -238,12 +231,14 @@ export function aircraftDown(g: Game, c: Cat) {
     if (Math.hypot(dx, e.cy - c.cy) > R + e.w / 2) continue;
     g.damage(e, AIRCRAFT.boom, c.owner, (sign(dx) || 1) * 650, -520, 'ashes');
   }
-  // The two pilots: 25% each to get out alive with 1 HP.
-  for (const k of [-1, 1]) {
-    if (rand() >= PILOT.chance) continue;
+  // The pilots: 50% one gets out, 25% both do.
+  const r = rand();
+  const n = r < PILOT.two ? 2 : r < PILOT.two + PILOT.one ? 1 : 0;
+  for (let i = 0; i < n; i++) {
+    const k = n === 1 ? (rand() < 0.5 ? -1 : 1) : i ? 1 : -1;
     const p = new Cat(c.owner, c.x + k * 10, c.y - 10, PILOT.hp, PILOT.dmg, 'pilot');
     p.team = c.team;
-    p.vx = k * (220 + rand() * 120);
+    p.vx = k * (100 + rand() * 80);
     p.vy = -700;
     p.shootT = PILOT.aimS + rand() * 0.3;
     g.cats.push(p);

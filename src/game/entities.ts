@@ -438,8 +438,8 @@ export const GUN_SOLDIER = { count: 3, hp: 500, dmg: 10, max: 3, every: 1, ammo:
 export const SPEAR_SQUAD = { count: 3, hp: SOLDIER_HP, dmg: 12, max: 6 };
 /** The Aircraft: 300 HP, flies, 2 bullets at a time for 3 each. */
 export const AIRCRAFT = { hp: 300, dmg: 3, every: 0.55, max: 1, range: 850, boom: 40, boomR: 260 };
-/** Each pilot has a 25% chance to get out alive with 1 HP and fire 1 bullet for 1 before going down. */
-export const PILOT = { chance: 0.25, hp: 1, dmg: 1, aimS: 0.8, afterS: 0.9 };
+/** When the Aircraft blows up: 50% one pilot gets out, 25% both do (25% none). Pilots: 30 HP, 2 a bullet, a shot every 10 s. */
+export const PILOT = { one: 0.5, two: 0.25, hp: 30, dmg: 2, aimS: 0.8, every: 10 };
 
 /** Recall Memory's boss ally: 1,000 HP, 30 damage, fades away after 20 seconds. */
 export const MEMORY_ALLY = { hp: 1000, dmg: 30, life: 20 };

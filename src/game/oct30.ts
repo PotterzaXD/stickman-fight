@@ -1,6 +1,6 @@
 import { ballisticAngle } from './ai';
 import {
-  AIRCRAFT, BABY_ELE, Body, CHEF, GUN_SOLDIER, CUPCAKE, Cat, DINO, DRONE, FROG, Fighter, GHOST, GINGER, KNIGHT, PANDA, PENGUIN, PHYSI, RETRO, SB_ALLY, UNICORN, WIZARD, ZOMBIE_ALLY,
+  AIRCRAFT, PILOT, BABY_ELE, Body, CHEF, GUN_SOLDIER, CUPCAKE, Cat, DINO, DRONE, FROG, Fighter, GHOST, GINGER, KNIGHT, PANDA, PENGUIN, PHYSI, RETRO, SB_ALLY, UNICORN, WIZARD, ZOMBIE_ALLY,
   type CatVariant, type Projectile,
 } from './entities';
 import type { Game } from './game';
@@ -171,6 +171,7 @@ export const HELPER_STATS: Partial<Record<CatVariant, [number, number]>> = {
   // November 21: the pistol soldier and the Aircraft.
   gunsoldier: [GUN_SOLDIER.hp, GUN_SOLDIER.dmg],
   aircraft: [AIRCRAFT.hp, AIRCRAFT.dmg],
+  pilot: [PILOT.hp, PILOT.dmg],
 };
 
 /** A new shot hit someone. Returns false for other shots. */

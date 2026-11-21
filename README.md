@@ -241,7 +241,7 @@ The final boss, shown as ??? in the boss list until you have all 28 achievements
 
 ## Aircraft 07
 
-A tan jet (number 07) with two yellow pilots in red shirts riding on top. 300 HP. It flies over the fight and fires both wing guns at once (2 bullets, 3 damage each). When it goes down it blows up in the biggest explosion in the game (a white flash, a fireball, a mushroom of smoke, flying bricks and a big shake; enemies close by take 40), and the burning wreck slowly falls down the map. Each pilot has a 25% chance to get out alive with 1 HP: he lands, fires one bullet for 1 damage, and then goes down. It comes from the Golden Pistol and the Summoner, and it is a helper in Sandbox.
+A tan jet (number 07) with two yellow pilots in red shirts riding on top. 300 HP. It flies over the fight and fires both wing guns at once (2 bullets, 3 damage each). When it goes down it blows up in the biggest explosion in the game (a white flash, a fireball, a mushroom of smoke, flying bricks and a big shake; enemies close by take 40), and the burning wreck slowly falls down the map. The kill feed says **"Are they okay?"**. There is a 50% chance that 1 pilot gets out alive and a 25% chance that both do. Pilots have 30 HP and keep shooting: a bullet for 2 damage every 10 seconds. The Aircraft comes from the Golden Pistol and the Summoner. The Aircraft and the pilots are both helpers in Sandbox.
 
 **Pistol soldiers** (Golden Pistol, Summoner, Sandbox): stickmen in helmets with 500 HP who keep their distance and shoot (10 a bullet, one a second, 3 seconds to reload after 5 shots).
 

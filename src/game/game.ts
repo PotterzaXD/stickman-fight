@@ -350,7 +350,7 @@ export interface FeedItem {
   t: number;
 }
 /** Helpers with their own kill feed lines. */
-const HELPER_FEED: Record<string, FeedKind> = { cat: 'meow', chick: 'chick', chicken: 'chicken', fish: 'fish', betta: 'fish', memory: 'memory', dog: 'dog', skeleton: 'skeleton', lilpigeon: 'lilpigeon', retro: 'retro', zombie: 'zombie', bee: 'bee' };
+const HELPER_FEED: Record<string, FeedKind> = { cat: 'meow', chick: 'chick', chicken: 'chicken', fish: 'fish', betta: 'fish', memory: 'memory', dog: 'dog', skeleton: 'skeleton', lilpigeon: 'lilpigeon', retro: 'retro', zombie: 'zombie', bee: 'bee', aircraft: 'aircraft' };
 /** Seconds a kill feed line stays, and how many show at once. */
 export const FEED_LIFE = 5;
 export const FEED_MAX = 6;

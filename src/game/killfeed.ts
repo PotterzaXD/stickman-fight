@@ -5,7 +5,7 @@ import { save } from '../save';
  * 'kill' = knocked out by someone. The others are the map's fault (nobody hit them first).
  * 'water'/'void'/'lava' with a killer = someone knocked them in.
  */
-export type FeedKind = 'kill' | 'water' | 'void' | 'lava' | 'burn' | 'peck' | 'meow' | 'chick' | 'chicken' | 'fish' | 'memory' | 'dog' | 'skeleton' | 'lilpigeon' | 'retro' | 'zombie' | 'bee' | 'spikes' | 'portal' | 'infect';
+export type FeedKind = 'kill' | 'water' | 'void' | 'lava' | 'burn' | 'peck' | 'meow' | 'chick' | 'chicken' | 'fish' | 'memory' | 'dog' | 'skeleton' | 'lilpigeon' | 'retro' | 'zombie' | 'bee' | 'spikes' | 'portal' | 'infect' | 'aircraft';
 
 const EN: Record<FeedKind, { solo: string[]; by: string[] }> = {
   kill: {
@@ -95,6 +95,10 @@ const EN: Record<FeedKind, { solo: string[]; by: string[] }> = {
   zombie: {
     solo: ['{v} went back to sleep in the ground 🪦', '{v} finally rests in peace 🧟', '{v} fell apart. Again'],
     by: ['{k} made {v} un-undead 🧟', '{k} sent {v} back to the graveyard 🪦', '{v} wanted brains. {k} said no 🧠', '{k} told {v} it was time for bed again'],
+  },
+  aircraft: {
+    solo: ['💥 {v} blew up. Are they okay?'],
+    by: ['💥 {k} blew up {v}. Are they okay?'],
   },
   bee: {
     solo: ['{v} buzzed its last buzz 🐝', '{v} went back to the hive', '{v} flew into a window'],
@@ -194,6 +198,10 @@ const TH: Record<FeedKind, { solo: string[]; by: string[] }> = {
     solo: ['{v} กลับไปนอนในดินแล้ว 🪦', '{v} ได้พักผ่อนสักที 🧟', '{v} หลุดเป็นชิ้น ๆ อีกแล้ว'],
     by: ['{k} ทำให้ {v} หายเป็นซอมบี้ 🧟', '{k} ส่ง {v} กลับสุสาน 🪦', '{v} อยากกินสมอง แต่ {k} ไม่ให้ 🧠', '{k} บอก {v} ว่าถึงเวลานอนอีกรอบแล้ว'],
   },
+  aircraft: {
+    solo: ['💥 {v} ระเบิดแล้ว Are they okay?'],
+    by: ['💥 {k} ยิง {v} ระเบิด Are they okay?'],
+  },
   bee: {
     solo: ['{v} หึ่งครั้งสุดท้าย 🐝', '{v} บินกลับรังแล้ว', '{v} บินชนกระจก'],
     by: ['{k} ตบ {v} ร่วง 🐝', '{k} ทำให้ {v} กลายเป็นน้ำผึ้ง 🍯', '{v} โดน {k} ไล่ตบ', '{k} บอก {v} ว่าไม่เอาผึ้งนะ 🐝'],
@@ -255,6 +263,7 @@ export const FEED_STYLE: Partial<Record<FeedKind, { bg: string; text: string; bo
   lilpigeon: { bg: 'rgba(144,164,174,0.95)', text: '#ffffff', border: 'rgba(255,255,255,0.95)' },
   retro: { bg: 'rgba(17,17,17,0.95)', text: '#ffffff', border: 'rgba(255,255,255,0.95)' },
   zombie: { bg: 'rgba(104,159,56,0.92)', text: '#ffffff' },
+  aircraft: { bg: 'rgba(255,109,0,0.95)', text: '#ffffff', border: 'rgba(255,235,59,0.95)' },
   bee: { bg: 'rgba(253,216,53,0.95)', text: '#212121', border: 'rgba(33,33,33,0.9)' },
   infect: { bg: 'rgba(104,159,56,0.95)', text: '#ffffff', border: 'rgba(51,105,30,0.95)' },
   portal: { bg: 'rgba(124,77,255,0.92)', text: '#ffffff', border: 'rgba(234,128,252,0.95)' },

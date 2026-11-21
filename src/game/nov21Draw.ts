@@ -334,7 +334,7 @@ function drawAircraft(ctx: Ctx, c: Cat, time: number) {
   ctx.restore();
 }
 
-/** A pilot who got out: on foot, 1 HP, about to fire his one shot. */
+/** A pilot on foot (out of the wreck or from Sandbox): 30 HP, a shot every 10 s. */
 function drawPilot(ctx: Ctx, c: Cat) {
   const d = c.facing || 1;
   const bob = c.onGround ? 0 : -2;
