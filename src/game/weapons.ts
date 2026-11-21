@@ -12,6 +12,7 @@ export type WeaponId = 'sword' | 'spear' | 'hammer' | 'bow' | 'boomerang' | 'bom
   | 'mattress' | 'aphone'
   | 'macaroni' | 'friedrice' | 'jaylunch' | 'tentacle'
   | 'blindfold' | 'ghostsword' | 'dotcore'
+  | 'goldpistol'
   | SummonCardId;
 
 /** Summon cards (October 30): one for every helper that had no weapon of its own to call it. */
@@ -116,7 +117,7 @@ export const WEAPONS: WeaponDef[] = [
   // Pistol: 1 second between shots, then a 3 second reload after 5 shots.
   { id: 'pistol', price: 150, length: 34, damage: 8, turn: 15, cooldown: 1, ranged: true },
   { id: 'gun67', price: 500, length: 50, damage: 12, turn: 13, cooldown: 10, ranged: true },
-  { id: 'summoner', price: 4500, length: 62, damage: 15, turn: 12, cooldown: 25, ranged: true },
+  { id: 'summoner', price: 5000, length: 62, damage: 15, turn: 12, cooldown: 25, ranged: true },
   { id: 'bravery', price: 800, length: 110, damage: 24, turn: 12, cooldown: 20, ranged: false },
   { id: 'pan', price: 300, length: 52, damage: 28, turn: 14, cooldown: 4, ranged: false },
   { id: 'watergun', price: 200, length: 42, damage: 6, turn: 14, cooldown: 3, ranged: true },
@@ -185,11 +186,14 @@ export const WEAPONS: WeaponDef[] = [
   { id: 'ghostsword', price: 1200, length: 72, damage: 30, turn: 16, cooldown: 2.5, ranged: false },
   // The "." boss (never drawn as a weapon: see dot.ts).
   { id: 'dotcore', price: 0, length: 40, damage: 0, turn: 10, cooldown: 99, ranged: false, special: 'boss' },
+  // November 21: the Golden Pistol. 8 a bonk; drag to aim and it fires on its own (10 a bullet, like the Pistol).
+  // Let go for Squad Up: pistol soldiers, spear soldiers, 2 ghost clones, a Clone and the Aircraft.
+  { id: 'goldpistol', price: 1100, length: 38, damage: 8, turn: 15, cooldown: 25, ranged: true },
   ...SUMMON_CARDS.map((c): WeaponDef => ({ id: c.id, price: c.price, length: 34, damage: 10, turn: 14, cooldown: c.cd, ranged: true })),
 ];
 
 /** Weapons drawn as guns (flipped so they stay the right way up when you aim left). */
-export const GUNS: WeaponId[] = ['sniper', 'shotgun', 'pistol', 'gun67', 'watergun', 'egg', 'gum', 'flamethrower'];
+export const GUNS: WeaponId[] = ['sniper', 'shotgun', 'pistol', 'gun67', 'watergun', 'egg', 'gum', 'flamethrower', 'goldpistol'];
 
 /** Weapons you can buy in the shop or roll at random (no boss or reward weapons). */
 export const SHOP_WEAPONS = WEAPONS.filter((w) => !w.special);

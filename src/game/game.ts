@@ -49,6 +49,7 @@ import { BOOGER, CHEF, CUPCAKE, FROG, GHOST, GINGER, KNIGHT, LOLLIPOP } from './
 import { oct23AttackGap, oct23Bit, oct23Hit, oct23Skill, oct23Splat, summonOct23, updateOct23 } from './oct23';
 import { infectHit, infectionWinner, startInfection, turnZombie, updateInfection, type InfectionState } from './infection';
 import { makeMe, meDodge, meFly } from './meBoss';
+import { GUN_SOLDIER, aircraftDown, aircraftWreck, callAircraft, goldAutoFire, nov21Hit, nov21Skill, nov21Splat, updateWrecks } from './nov21';
 import { BETTA, callGhostClones, ghostFade, ghostRevive, makeGhost, nov12Hit, nov12Skill, nov12Splat, updateNov12 } from './nov12';
 import { dotGuard, dotThink, initDot } from './dot';
 import { startSurvival, survivalWinner, updateSurvival, type SurvState } from './survival';
@@ -747,7 +748,7 @@ export class Game {
       let n = 1;
       if (hp.kind === 'chick') n = Math.min(SB_CHICKS, MAX_CHICKS - this.cats.filter((c) => c.variant === 'chick' && c.owner === owner).length);
       for (let j = 0; j < n; j++) {
-        const c = new Cat(owner, x + (n > 1 ? (j - (n - 1) / 2) * 12 : 0), sp.y - (hp.kind === 'drone' || hp.kind === 'ghost' ? 120 : 4), o.hp, o.dmg, hp.kind);
+        const c = new Cat(owner, x + (n > 1 ? (j - (n - 1) / 2) * 12 : 0), sp.y - (hp.kind === 'drone' || hp.kind === 'ghost' ? 120 : hp.kind === 'aircraft' ? 200 : 4), o.hp, o.dmg, hp.kind);
         // Sandbox helpers stay until they are beaten.
         c.life = Infinity;
         c.team = team;
@@ -1197,6 +1198,7 @@ export class Game {
       f.angVel[i] = step / dt;
     }
 
+    goldAutoFire(this, f, it, dt);
     if (it.skill !== null) this.useSkill(f, it.skillSlot, it.skill);
 
     this.stepBody(f, dt, f.me || f.dot ? 0 : f.dashT > 0 ? 0.15 : 1);
@@ -1488,6 +1490,8 @@ export class Game {
     if (b instanceof Fighter && this.inf && this.inf.pick <= 0 && !b.boss) turnZombie(this, b);
     // An Exploder zombie blows up when it goes down.
     if (b instanceof Cat && b.variant === 'zexploder' && how !== 'void') zombieBoom(this, b);
+    // The Aircraft blows up (and its pilots may get out alive).
+    if (b instanceof Cat && b.variant === 'aircraft' && how !== 'void') aircraftDown(this, b);
     if (fighter) b.finish = how;
     // Fell into the void: nothing at all. Helpers leave their own remains (a grave, a cooked fish...).
     // The original pop for snowmen and 'pop' kills.
@@ -1958,7 +1962,7 @@ export class Game {
         this.text(f.x, f.y - f.h - 30, '🔥 FWOOSH!', '#ff9100', 24);
         break;
       default:
-        if (!oct22Skill(this, f, i, angle) && !oct23Skill(this, f, i, angle) && !oct30Skill(this, f, i, angle) && !nov05Skill(this, f, i, angle) && !nov12Skill(this, f, i, angle)) jaySkill(this, f, i, angle);
+        if (!oct22Skill(this, f, i, angle) && !oct23Skill(this, f, i, angle) && !oct30Skill(this, f, i, angle) && !nov05Skill(this, f, i, angle) && !nov12Skill(this, f, i, angle) && !nov21Skill(this, f, i)) jaySkill(this, f, i, angle);
         break;
       case 'stick':
       case 'mascotstick': {
@@ -2089,6 +2093,9 @@ export class Game {
     // November 12: two ghost clones and 10 betta fish.
     callGhostClones(this, f, 2, 2);
     this.callCats(f, BETTA, 'betta');
+    // November 21: 3 pistol soldiers and the Aircraft.
+    this.callCats(f, GUN_SOLDIER, 'gunsoldier');
+    callAircraft(this, f);
     for (let k = 0; k < SUMMONER.snowmen; k++) {
       if (this.snowmen.filter((m) => m.alive && m.owner === f).length >= this.maxSnowmen) break;
       const m = new Snowman(f, f.x + (k - 1) * 56, f.y - 6);
@@ -2802,9 +2809,9 @@ export class Game {
   }
 
   /** Summoner's Clone: one at a time. It looks just like you (name, hat and color). */
-  private summonClone(f: Fighter, sandbox = false) {
+  summonClone(f: Fighter, sandbox = false) {
     // Sandbox may add more than one Clone of the same fighter.
-    if (!sandbox && (f.cloneOf || this.fighters.some((c) => c.alive && c.cloneOf === f))) return;
+    if (!sandbox && (f.cloneOf || this.fighters.some((c) => c.alive && c.cloneOf === f && !c.ghost))) return;
     const pool = SHOP_WEAPONS.filter((w) => !SUMMON_WEAPONS.includes(w.id) && !isSummonCard(w.id));
     const c = this.addClone(f, pool[Math.floor(Math.random() * pool.length)].id);
     c.brain = new BotBrain('hard');
@@ -2850,6 +2857,11 @@ export class Game {
 
   /** What a helper leaves behind: a cat's grave, a cooked fish, a soldier's ragdoll, or the Recall Memory boss fading away. */
   helperRemains(c: Cat) {
+    // The Aircraft: a burning wreck that falls slowly down the map.
+    if (c.variant === 'aircraft') {
+      aircraftWreck(this, c);
+      return;
+    }
     const corpse = helperCorpse(c);
     if (corpse) this.corpses.push(corpse);
     this.burst(c.x, c.cy, c.variant === 'memory' ? '#b388ff' : c.color, 8, 220, false);
@@ -2857,7 +2869,7 @@ export class Game {
 
   /** Call Cat AI: little cats appear around the caller. */
   callCats(f: Fighter, o: { count: number; hp: number; dmg: number; max: number }, variant: CatVariant = 'cat') {
-    const icon = variant === 'betta' ? '🐠' : variant === 'fish' ? '🐟' : variant === 'soldier' ? '💂' : variant === 'bee' ? '🐝' : variant === 'ninja' ? '🥷' : variant === 'drone' ? '🤖' : '🐱';
+    const icon = variant === 'gunsoldier' ? '🔫' : variant === 'betta' ? '🐠' : variant === 'fish' ? '🐟' : variant === 'soldier' ? '💂' : variant === 'bee' ? '🐝' : variant === 'ninja' ? '🥷' : variant === 'drone' ? '🤖' : '🐱';
     const have = this.cats.filter((c) => c.alive && c.owner === f && c.variant === variant).length;
     const n = Math.min(o.count, o.max - have);
     if (n <= 0) {
@@ -2872,7 +2884,7 @@ export class Game {
       this.cats.push(c);
       this.burst(x, f.y - 20, '#ffcc80', 6, 220);
     }
-    this.ring(f.x, f.y, 90 * f.scale, 0.4, variant === 'betta' ? '#e040fb' : variant === 'fish' ? '#4fc3f7' : variant === 'soldier' ? '#ffd54f' : '#ffb74d');
+    this.ring(f.x, f.y, 90 * f.scale, 0.4, variant === 'gunsoldier' ? '#ffd54f' : variant === 'betta' ? '#e040fb' : variant === 'fish' ? '#4fc3f7' : variant === 'soldier' ? '#ffd54f' : '#ffb74d');
     this.text(f.x, f.y - f.h - 30, `${icon} ×${n}`, variant === 'fish' ? '#81d4fa' : '#ffcc80', 28);
     this.play('snowman');
   }
@@ -2916,9 +2928,9 @@ export class Game {
     const scale = owner instanceof Fighter ? owner.scale : 1;
     const big = kind === 'boomerang' || kind === 'bomb' || kind === 'axe' || kind === 'fireball' || kind === 'six7' || kind === 'soup' || kind === 'hay';
     const r =
-      { arrow: 5, snowball: 11, minisnow: 8, boomerang: 16, bomb: 11, axe: 22, shuriken: 8, laser: 6, fireball: 14, six7: 24, poop: 10, soup: 14, icebolt: 9, banana: 10, fireslash: 34, dart: 6, memorybox: 12, rocket: 10, wave: 60, shard: 10, crash: 80, vine: 14, nerf: 6, bullet67: 7, water: 7, bubble: 18, yoyo: 13, fishthrow: 14, allyfire: 12, egg: 10, gum: 11, crow: 14, hay: 34, goo: 10, sound: 40, pebble: 6, flame: 14, booger: 9, tennis: 9, pie: 13, ketchup: 7, popcorn: 7, plane: 12, slipper: 12, balloon: 12, plunger: 9, frisbee: 16, blanket: 22, magic: 10, mattress: 26, aphone: 9, macaroni: 12, ricebox: 15, blindfold: 12 }[kind] *
+      { arrow: 5, snowball: 11, minisnow: 8, boomerang: 16, bomb: 11, axe: 22, shuriken: 8, laser: 6, fireball: 14, six7: 24, poop: 10, soup: 14, icebolt: 9, banana: 10, fireslash: 34, dart: 6, memorybox: 12, rocket: 10, wave: 60, shard: 10, crash: 80, vine: 14, nerf: 6, bullet67: 7, water: 7, bubble: 18, yoyo: 13, fishthrow: 14, allyfire: 12, egg: 10, gum: 11, crow: 14, hay: 34, goo: 10, sound: 40, pebble: 6, flame: 14, booger: 9, tennis: 9, pie: 13, ketchup: 7, popcorn: 7, plane: 12, slipper: 12, balloon: 12, plunger: 9, frisbee: 16, blanket: 22, magic: 10, mattress: 26, aphone: 9, macaroni: 12, ricebox: 15, blindfold: 12, gold: 5 }[kind] *
       (big || kind === 'fireslash' ? scale : 1);
-    const life = { arrow: 2, snowball: 3, minisnow: 3, boomerang: 3.5, bomb: 1.5, axe: 3.5, shuriken: 2, laser: 0.7, fireball: 2, six7: 3.5, poop: 3, soup: 3, icebolt: 2, banana: 3, fireslash: 0.7, dart: 2, memorybox: 0.35, rocket: 2, wave: 1.7, shard: 1.6, crash: 1.9, vine: 0.42, nerf: 2, bullet67: 1.2, water: 0.9, bubble: 2.6, yoyo: 3.5, fishthrow: 3, allyfire: 2, egg: 2.5, gum: 2.5, crow: 3.5, hay: 2.4, goo: 2.5, sound: 0.45, pebble: 2, flame: 0.5, booger: 2.5, tennis: 3.5, pie: 2.5, ketchup: 1.2, popcorn: 1.5, plane: 2.2, slipper: 2.5, balloon: 2.5, plunger: 1.5, frisbee: 1.1, blanket: 2.5, magic: 1.6, mattress: 2.5, aphone: 2.5, macaroni: 2.5, ricebox: 2.5, blindfold: 2.5 }[kind];
+    const life = { arrow: 2, snowball: 3, minisnow: 3, boomerang: 3.5, bomb: 1.5, axe: 3.5, shuriken: 2, laser: 0.7, fireball: 2, six7: 3.5, poop: 3, soup: 3, icebolt: 2, banana: 3, fireslash: 0.7, dart: 2, memorybox: 0.35, rocket: 2, wave: 1.7, shard: 1.6, crash: 1.9, vine: 0.42, nerf: 2, bullet67: 1.2, water: 0.9, bubble: 2.6, yoyo: 3.5, fishthrow: 3, allyfire: 2, egg: 2.5, gum: 2.5, crow: 3.5, hay: 2.4, goo: 2.5, sound: 0.45, pebble: 2, flame: 0.5, booger: 2.5, tennis: 3.5, pie: 2.5, ketchup: 1.2, popcorn: 1.5, plane: 2.2, slipper: 2.5, balloon: 2.5, plunger: 1.5, frisbee: 1.1, blanket: 2.5, magic: 1.6, mattress: 2.5, aphone: 2.5, macaroni: 2.5, ricebox: 2.5, blindfold: 2.5, gold: 1 }[kind];
     this.projectiles.push({
       kind,
       x,
@@ -3076,7 +3088,7 @@ export class Game {
           oct30Hit(this, p, e, dir);
           continue;
         }
-        if (oct22Hit(this, p, e, dir) || oct23Hit(this, p, e, dir) || oct30Hit(this, p, e, dir) || nov05Hit(this, p, e, dir) || nov12Hit(this, p, e, dir) || jayHit(this, p, e, dir)) {
+        if (oct22Hit(this, p, e, dir) || oct23Hit(this, p, e, dir) || oct30Hit(this, p, e, dir) || nov05Hit(this, p, e, dir) || nov12Hit(this, p, e, dir) || nov21Hit(this, p, e, dir) || jayHit(this, p, e, dir)) {
           // Booger, tennis ball, pie, ketchup, popcorn and the October 30 shots (see oct22.ts, oct23.ts and oct30.ts).
         } else if (p.kind === 'fireball') this.explode(p, 120 * p.scale, true);
         else if (p.kind === 'bomb') this.explode(p);
@@ -3175,7 +3187,7 @@ export class Game {
             p.dead = true;
             break;
           }
-          if (tennisBounce(p, pl) || oct23Splat(this, p, pl) || oct30Splat(this, p, pl) || nov05Splat(this, p, pl) || nov12Splat(this, p, pl) || jaySplat(this, p, pl)) break;
+          if (tennisBounce(p, pl) || oct23Splat(this, p, pl) || oct30Splat(this, p, pl) || nov05Splat(this, p, pl) || nov12Splat(this, p, pl) || nov21Splat(this, p, pl) || jaySplat(this, p, pl)) break;
           if (p.kind === 'booger') {
             this.burst(p.x, Math.min(p.y, pl.y), '#9ccc65', 6, 160);
             p.dead = true;
@@ -3459,6 +3471,7 @@ export class Game {
   }
 
   updateEffects(dt: number) {
+    updateWrecks(this, dt);
     for (const p of this.particles) {
       p.vy += p.g * dt;
       p.x += p.vx * dt;

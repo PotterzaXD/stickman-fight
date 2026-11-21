@@ -69,7 +69,7 @@ export interface Snapshot {
   dt?: number[][];
 }
 
-const KINDS: ProjKind[] = ['arrow', 'snowball', 'minisnow', 'boomerang', 'bomb', 'axe', 'shuriken', 'laser', 'fireball', 'six7', 'poop', 'soup', 'icebolt', 'banana', 'fireslash', 'dart', 'memorybox', 'rocket', 'wave', 'shard', 'crash', 'vine', 'nerf', 'bullet67', 'water', 'bubble', 'yoyo', 'fishthrow', 'allyfire', 'egg', 'gum', 'crow', 'hay', 'goo', 'sound', 'pebble', 'flame', 'booger', 'tennis', 'pie', 'ketchup', 'popcorn', 'plane', 'slipper', 'balloon', 'plunger', 'frisbee', 'blanket', 'magic', 'mattress', 'aphone', 'macaroni', 'ricebox', 'blindfold'];
+const KINDS: ProjKind[] = ['arrow', 'snowball', 'minisnow', 'boomerang', 'bomb', 'axe', 'shuriken', 'laser', 'fireball', 'six7', 'poop', 'soup', 'icebolt', 'banana', 'fireslash', 'dart', 'memorybox', 'rocket', 'wave', 'shard', 'crash', 'vine', 'nerf', 'bullet67', 'water', 'bubble', 'yoyo', 'fishthrow', 'allyfire', 'egg', 'gum', 'crow', 'hay', 'goo', 'sound', 'pebble', 'flame', 'booger', 'tennis', 'pie', 'ketchup', 'popcorn', 'plane', 'slipper', 'balloon', 'plunger', 'frisbee', 'blanket', 'magic', 'mattress', 'aphone', 'macaroni', 'ricebox', 'blindfold', 'gold'];
 const r1 = (v: number) => Math.round(v);
 const r2 = (v: number) => Math.round(v * 100) / 100;
 

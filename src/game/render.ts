@@ -25,6 +25,7 @@ import { drawNov05Over, drawNov05Projectile, drawNov05Weapon } from './nov05Draw
 import { drawKrakenBack, drawKrakenFront } from './krakenDraw';
 import { drawJayDress, drawJayHead, drawJayProjectile, drawJayWeapon } from './jayDraw';
 import { drawDot, drawDotWorld } from './dotDraw';
+import { drawGoldPistol, drawNov21Helper, drawNov21Projectile, drawWrecks } from './nov21Draw';
 import { drawNov12Over, drawNov12Projectile, drawNov12Weapon } from './nov12Draw';
 import { drawOct30Helper, drawOct30Over, drawOct30Projectile, drawOct30Weapon, drawWarps } from './oct30Draw';
 import { clipAboveGround, drawCastle, drawToy, drawToyProjectile, drawToyWeapon, drawWall, swingArm, walkLegs } from './toys';
@@ -940,6 +941,9 @@ export function drawWeaponShape(ctx: Ctx, id: WeaponId, len: number, s: number, 
     case 'pistol':
       drawPistol(ctx, len, s);
       break;
+    case 'goldpistol':
+      drawGoldPistol(ctx, len, s, ready, performance.now() / 1000);
+      break;
     case 'gun67':
       drawGun67(ctx, len, s, ready);
       break;
@@ -1602,7 +1606,7 @@ function drawSnowball(ctx: Ctx, x: number, y: number, r: number, edge = '#90a4ae
   ctx.stroke();
 }
 
-function hpBar(ctx: Ctx, x: number, y: number, w: number, frac: number, color: string) {
+export function hpBar(ctx: Ctx, x: number, y: number, w: number, frac: number, color: string) {
   ctx.fillStyle = 'rgba(0,0,0,0.55)';
   roundRect(ctx, x - w / 2 - 2, y - 2, w + 4, 9, 4);
   ctx.fill();
@@ -2211,7 +2215,7 @@ function drawSnowman(ctx: Ctx, m: Snowman) {
 }
 
 function drawProjectile(ctx: Ctx, p: Projectile, time: number) {
-  if (drawExtraProjectile(ctx, p, time) || drawCritterProjectile(ctx, p, time) || drawMonsterProjectile(ctx, p, time) || drawGadgetProjectile(ctx, p, time) || drawToyProjectile(ctx, p, time) || drawTreatProjectile(ctx, p) || drawOct30Projectile(ctx, p, time) || drawNov05Projectile(ctx, p) || drawJayProjectile(ctx, p) || drawNov12Projectile(ctx, p, time)) return;
+  if (drawExtraProjectile(ctx, p, time) || drawCritterProjectile(ctx, p, time) || drawMonsterProjectile(ctx, p, time) || drawGadgetProjectile(ctx, p, time) || drawToyProjectile(ctx, p, time) || drawTreatProjectile(ctx, p) || drawOct30Projectile(ctx, p, time) || drawNov05Projectile(ctx, p) || drawJayProjectile(ctx, p) || drawNov12Projectile(ctx, p, time) || drawNov21Projectile(ctx, p)) return;
   switch (p.kind) {
     case 'nerf': {
       // Foam dart: blue body, orange tip
@@ -2648,7 +2652,7 @@ export function renderGame(g: Game, ctx: Ctx, vw: number, vh: number, dpr: numbe
       continue;
     }
     // Chicks, the Chicken, the little pigeon, skeletons (a pile of bones when beaten) and the dog (asleep).
-    if (drawCritter(ctx, c, g.time) || drawMonster(ctx, c, g.time) || drawGadget(ctx, c, g.time) || drawToy(ctx, c, g.time) || drawTreat(ctx, c, g.time) || drawOct30Helper(ctx, c, g.time) || drawPhylHelper(ctx, c, g.time)) continue;
+    if (drawCritter(ctx, c, g.time) || drawMonster(ctx, c, g.time) || drawGadget(ctx, c, g.time) || drawToy(ctx, c, g.time) || drawTreat(ctx, c, g.time) || drawOct30Helper(ctx, c, g.time) || drawPhylHelper(ctx, c, g.time) || drawNov21Helper(ctx, c, g.time)) continue;
     if (!c.alive) continue;
     if (c.variant === 'sbsnow' || c.variant === 'fireally') {
       drawSbAlly(ctx, c, g.time);
@@ -2697,6 +2701,7 @@ export function renderGame(g: Game, ctx: Ctx, vw: number, vh: number, dpr: numbe
   if (g.phy) drawPhylWorld(ctx, g, g.time);
   drawDotWorld(ctx, g, g.time);
   for (const p of g.projectiles) drawProjectile(ctx, p, g.time);
+  drawWrecks(ctx, g, g.time);
   for (const f of g.fighters) if (f.alive && f.jetT > 0) drawJet(ctx, f, g.time);
   for (const b of g.bolts) drawBolt(ctx, b);
   for (const tr of g.tracers) {

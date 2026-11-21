@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
-import { Fighter, Snowman, type Projectile } from '../game/entities';
+import { Cat, Fighter, Snowman, type Projectile } from '../game/entities';
 import type { Game } from '../game/game';
 import { THEMES } from '../game/maps';
 import { swingArm, walkLegs } from '../game/toys';
@@ -37,6 +37,8 @@ interface Rig {
   weapons: { group: THREE.Group; key: string }[];
   shield: THREE.Mesh;
   color: string;
+  /** Grandfather Cat: ears, a white beard, whiskers and a pink nose on the head. */
+  catBits: THREE.Group | null;
 }
 
 interface SnowRig {
@@ -62,6 +64,7 @@ export class Renderer3D {
   private deco = new THREE.Group();
   private rigs = new Map<Fighter, Rig>();
   private snows = new Map<Snowman, SnowRig>();
+  private catRigs = new Map<Cat, CatRig>();
   private shots = new Map<Projectile, THREE.Object3D>();
   private balls: THREE.Mesh[] = [];
   private bits: THREE.InstancedMesh;
@@ -123,6 +126,7 @@ export class Renderer3D {
     this.updatePlatforms(g);
     this.updateFighters(g);
     this.updateSnowmen(g);
+    this.updateCats(g);
     this.updateShots(g);
     this.updateBalls(g);
     this.updateBits(g);
@@ -249,7 +253,9 @@ export class Renderer3D {
     const shield = new THREE.Mesh(this.geo.sphere, this.mats.shield);
     shield.visible = false;
     root.add(shield);
-    r = { root, head, eyes, pupils, lids, bones, joints, mat, weapons: [], shield, color: f.color };
+    const catBits = f.cat ? grandpaCatBits(mat, this.mats, this.geo) : null;
+    if (catBits) root.add(catBits);
+    r = { root, head, eyes, pupils, lids, bones, joints, mat, weapons: [], shield, color: f.color, catBits };
     this.rigs.set(f, r);
     this.actors.add(root);
     return r;
@@ -317,6 +323,11 @@ export class Renderer3D {
     const lookX = Math.cos(aim) * 0.06;
     const lookY = -Math.sin(aim) * 0.05;
     r.eyes.rotation.set(0, d * 0.75, 0);
+    if (r.catBits) {
+      r.catBits.position.copy(r.head.position);
+      r.catBits.scale.setScalar(hr);
+      r.catBits.rotation.set(0, d * 0.75, 0);
+    }
     r.pupils.forEach((p, i) => p.position.set((i ? 1 : -1) * 0.33 + lookX * d, 0.12 + lookY, 1.0));
     const blink = (g.time + f.id * 1.37) % 3.6 < 0.13 || f.stun > 0.25;
     r.lids.forEach((l) => (l.visible = blink));
@@ -401,6 +412,32 @@ export class Renderer3D {
     }
   }
 
+  // ---------- helpers (Grandfather Cat's AI cats) ----------
+
+  private updateCats(g: Game) {
+    for (const [c, r] of this.catRigs) if (!g.cats.includes(c) || !c.alive) {
+      this.actors.remove(r.root);
+      this.catRigs.delete(c);
+    }
+    for (const c of g.cats) {
+      if (!c.alive) continue;
+      let r = this.catRigs.get(c);
+      if (!r) {
+        r = c.variant === 'cat' ? catRig(c, this.mats, this.geo) : blobRig(c, this.geo);
+        this.catRigs.set(c, r);
+        this.actors.add(r.root);
+      }
+      r.root.position.set(c.x, -c.y, 0);
+      // Turn to face the way it is going (a little toward the camera so you see its face).
+      r.root.rotation.y = (c.facing || 1) > 0 ? 0.35 : Math.PI - 0.35;
+      const sw = c.onGround && Math.abs(c.vx) > 20 ? Math.sin(c.walkPhase) * 0.5 : 0;
+      r.legs.forEach((l, i) => (l.rotation.z = i % 2 ? sw : -sw));
+      if (r.tail) r.tail.rotation.z = 0.5 + Math.sin(g.time * 6 + c.id) * 0.25;
+      r.mat.emissive.set(c.hurtFlash > 0 ? '#ffffff' : '#000000');
+      r.mat.emissiveIntensity = c.hurtFlash > 0 ? 0.6 : 0;
+    }
+  }
+
   // ---------- shots ----------
 
   private updateShots(g: Game) {
@@ -417,7 +454,7 @@ export class Renderer3D {
       }
       o.position.set(p.x, -p.y, 4);
       if (p.kind === 'arrow' || p.kind === 'laser' || p.kind === 'dart') o.rotation.set(0, 0, -Math.atan2(p.vy, p.vx));
-      else if (p.kind === 'boomerang' || p.kind === 'shuriken' || p.kind === 'axe') o.rotation.set(0.4, 0, -p.t * 18);
+      else if (p.kind === 'boomerang' || p.kind === 'shuriken' || p.kind === 'axe' || p.kind === 'six7') o.rotation.set(0.4, 0, -p.t * 18);
       else o.rotation.set(p.t * 3, p.t * 5, 0);
     }
   }
@@ -614,6 +651,15 @@ function makeMats() {
     fire: new THREE.MeshStandardMaterial({ color: '#ff9100', emissive: new THREE.Color('#ff6d00'), emissiveIntensity: 0.8, roughness: 0.4 }),
     gem: new THREE.MeshStandardMaterial({ color: '#7c4dff', emissive: new THREE.Color('#651fff'), emissiveIntensity: 0.5, roughness: 0.15, metalness: 0.3 }),
     gunBody: new THREE.MeshStandardMaterial({ color: '#37474f', roughness: 0.35, metalness: 0.5 }),
+    // The third update: the 67 Weapon, the Poop Bomb, Grandfather Cat and his cats.
+    yellow: new THREE.MeshStandardMaterial({ color: '#ffeb3b', roughness: 0.4 }),
+    poo: new THREE.MeshStandardMaterial({ color: '#6d4c41', roughness: 0.55 }),
+    bowl: new THREE.MeshStandardMaterial({ color: '#90a4ae', roughness: 0.35, metalness: 0.4 }),
+    soup: new THREE.MeshStandardMaterial({ color: '#fdd835', emissive: new THREE.Color('#f9a825'), emissiveIntensity: 0.35, roughness: 0.25 }),
+    soupDim: new THREE.MeshStandardMaterial({ color: '#c8a415', roughness: 0.5 }),
+    pink: new THREE.MeshStandardMaterial({ color: '#f06292', roughness: 0.4 }),
+    catDark: new THREE.MeshStandardMaterial({ color: '#8d6e63', roughness: 0.6 }),
+    catTail: new THREE.MeshStandardMaterial({ color: '#ef6c00', roughness: 0.55 }),
   };
 }
 
@@ -704,10 +750,212 @@ function weaponMesh(id: string, len: number, s: number, ready: boolean, mats: Ma
       shaft(-6 * s, len - 10 * s, 2.2 * s, mats.darkWood);
       add(mesh(geo.sphere, ready ? mats.fire : mats.gem), len - 4 * s, 0, 0, 7 * s, 7 * s, 7 * s);
       break;
+    // The third update: the 67 Weapon, the Poop Bomb, and Grandfather Cat's soup and bell (and his Treasure).
+    case 'six7':
+      g.add(six7(len, s, mats, geo));
+      break;
+    case 'poop':
+      if (ready) {
+        const p = poop(10 * s, mats, geo);
+        p.position.x = 12 * s;
+        g.add(p);
+      }
+      break;
+    case 'soup':
+    case 'treasure': {
+      const b = soupBowl(s, id === 'treasure', ready, mats);
+      b.position.x = 14 * s;
+      g.add(b);
+      break;
+    }
+    case 'catcall':
+      shaft(0, 10 * s, 1.4 * s, mats.wood);
+      add(mesh(geo.cone, ready ? mats.gold : mats.darkWood), 18 * s, 0, 0, 9 * s, 16 * s, 9 * s, -Math.PI / 2);
+      add(mesh(geo.smallSphere, mats.darkSteel), 27 * s, 0, 0, 2.5 * s, 2.5 * s, 2.5 * s);
+      break;
     default:
       shaft(-4 * s, len, 2.4 * s, mats.wood);
   }
   return g;
+}
+
+/** The 67 Weapon: a handle with a yellow block that says 67 in red. */
+function six7(len: number, s: number, mats: Mats, geo: Geos) {
+  const g = new THREE.Group();
+  const h = mesh(geo.cyl, mats.darkWood);
+  h.scale.set(2.5 * s, len - 16 * s, 2.5 * s);
+  h.rotation.z = Math.PI / 2;
+  h.position.x = (len - 16 * s) / 2 - 6 * s;
+  g.add(h);
+  const face = new THREE.MeshStandardMaterial({ map: label67(), roughness: 0.4 });
+  const b = new THREE.Mesh(new RoundedBoxGeometry(30, 28, 12, 2, 4), [mats.yellow, mats.yellow, mats.yellow, mats.yellow, face, face]);
+  b.userData.own = true;
+  b.castShadow = true;
+  b.scale.setScalar(s);
+  b.position.x = len - 11 * s;
+  g.add(b);
+  return g;
+}
+
+let tex67: THREE.CanvasTexture | null = null;
+function label67() {
+  if (tex67) return tex67;
+  const c = document.createElement('canvas');
+  c.width = 128;
+  c.height = 120;
+  const ctx = c.getContext('2d')!;
+  ctx.fillStyle = '#ffeb3b';
+  ctx.fillRect(0, 0, 128, 120);
+  ctx.translate(64, 60);
+  ctx.rotate(Math.PI / 2);
+  ctx.fillStyle = '#d50000';
+  ctx.font = '900 78px "Baloo 2", system-ui, sans-serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText('67', 0, 4);
+  tex67 = new THREE.CanvasTexture(c);
+  tex67.colorSpace = THREE.SRGBColorSpace;
+  return tex67;
+}
+
+/** A poo: three brown blobs stacked up, with two white eyes. */
+function poop(r: number, mats: Mats, geo: Geos) {
+  const g = new THREE.Group();
+  for (const [dy, k] of [[-0.35, 1], [0.15, 0.75], [0.6, 0.5]]) {
+    const m = mesh(geo.sphere, mats.poo);
+    m.scale.set(r * k, r * 0.45, r * k);
+    m.position.y = dy * r;
+    g.add(m);
+  }
+  for (const sx of [-1, 1]) {
+    const e = mesh(geo.smallSphere, mats.white);
+    e.scale.setScalar(r * 0.16);
+    e.position.set(sx * r * 0.3, 0, r * 0.75);
+    g.add(e);
+  }
+  return g;
+}
+
+/** A bowl of yellow gang som soup (a gold bowl for the Treasure). */
+function soupBowl(s: number, gold: boolean, ready: boolean, mats: Mats) {
+  const g = new THREE.Group();
+  const bowl = new THREE.Mesh(new THREE.CylinderGeometry(13, 8, 11, 20, 1, true), gold ? mats.gold : mats.bowl);
+  bowl.userData.own = true;
+  bowl.castShadow = true;
+  (bowl.material as THREE.Material).side = THREE.DoubleSide;
+  bowl.scale.setScalar(s);
+  g.add(bowl);
+  const soup = new THREE.Mesh(new THREE.CylinderGeometry(12, 12, 1.5, 20), ready ? mats.soup : mats.soupDim);
+  soup.userData.own = true;
+  soup.scale.setScalar(s);
+  soup.position.y = 3.5 * s;
+  g.add(soup);
+  return g;
+}
+
+/** Grandfather Cat's ears, white beard, whiskers and pink nose (in head units: the head is a ball of radius 1). */
+function grandpaCatBits(fur: THREE.Material, mats: Mats, geo: Geos) {
+  const g = new THREE.Group();
+  for (const side of [-1, 1]) {
+    const ear = mesh(geo.cone, fur);
+    ear.scale.set(0.42, 0.75, 0.32);
+    ear.position.set(side * 0.62, 0.95, 0);
+    ear.rotation.z = -side * 0.35;
+    g.add(ear);
+    const inner = mesh(geo.cone, mats.pink);
+    inner.scale.set(0.22, 0.45, 0.1);
+    inner.position.set(side * 0.6, 0.9, 0.22);
+    inner.rotation.z = -side * 0.35;
+    g.add(inner);
+    for (const k of [-1, 0, 1]) {
+      const w = mesh(geo.cyl, mats.black);
+      w.scale.set(0.025, 0.75, 0.025);
+      w.position.set(side * 0.72, -0.18 + k * 0.1, 0.78);
+      w.rotation.z = Math.PI / 2 + side * k * 0.18;
+      g.add(w);
+    }
+  }
+  const beard = mesh(geo.sphere, mats.white);
+  beard.scale.set(0.55, 0.62, 0.42);
+  beard.position.set(0, -0.78, 0.5);
+  g.add(beard);
+  const nose = mesh(geo.smallSphere, mats.pink);
+  nose.scale.setScalar(0.14);
+  nose.position.set(0, -0.12, 1.0);
+  g.add(nose);
+  return g;
+}
+
+interface CatRig {
+  root: THREE.Group;
+  mat: THREE.MeshStandardMaterial;
+  legs: THREE.Object3D[];
+  tail: THREE.Object3D | null;
+}
+
+/** An AI cat: a round orange body, a big head with ears and eyes, a tail, four legs and a collar in its owner's colour. */
+function catRig(c: Cat, mats: Mats, geo: Geos): CatRig {
+  const root = new THREE.Group();
+  const mat = new THREE.MeshStandardMaterial({ color: '#ffb74d', roughness: 0.55 });
+  const body = mesh(geo.sphere, mat);
+  body.scale.set(16, 9.5, 10);
+  body.position.y = 16;
+  root.add(body);
+  const legs: THREE.Object3D[] = [];
+  for (const [lx, lz] of [[-9, -5], [9, -5], [-9, 5], [9, 5]]) {
+    const pivot = new THREE.Group();
+    pivot.position.set(lx, 12, lz);
+    const l = mesh(geo.cyl, mats.catDark);
+    l.scale.set(2.2, 12, 2.2);
+    l.position.y = -6;
+    pivot.add(l);
+    root.add(pivot);
+    legs.push(pivot);
+  }
+  const tail = new THREE.Group();
+  tail.position.set(-14, 18, 0);
+  const tm = mesh(geo.cyl, mats.catTail);
+  tm.scale.set(2.2, 18, 2.2);
+  tm.position.y = 9;
+  tail.add(tm);
+  root.add(tail);
+  const head = new THREE.Group();
+  head.position.set(14, 26, 0);
+  const hb = mesh(geo.sphere, mat);
+  hb.scale.setScalar(9.5);
+  head.add(hb);
+  for (const side of [-1, 1]) {
+    const ear = mesh(geo.cone, mat);
+    ear.scale.set(3.6, 7, 3);
+    ear.position.set(0, 9, side * 5);
+    ear.rotation.x = side * 0.3;
+    head.add(ear);
+    const eye = mesh(geo.smallSphere, mats.black);
+    eye.scale.setScalar(1.7);
+    eye.position.set(7.5, 1.5, side * 3.6);
+    head.add(eye);
+  }
+  const nose = mesh(geo.smallSphere, mats.pink);
+  nose.scale.setScalar(1.3);
+  nose.position.set(9.3, -1.2, 0);
+  head.add(nose);
+  const collar = mesh(new THREE.TorusGeometry(7.5, 1.6, 8, 20), new THREE.MeshStandardMaterial({ color: c.color, roughness: 0.4 }), true);
+  collar.position.set(-2, -7, 0);
+  collar.rotation.set(Math.PI / 2, 0.5, 0);
+  head.add(collar);
+  root.add(head);
+  return { root, mat, legs, tail };
+}
+
+/** Any other helper (not in 3D's updates): a simple ball in its colour. */
+function blobRig(c: Cat, geo: Geos): CatRig {
+  const root = new THREE.Group();
+  const mat = new THREE.MeshStandardMaterial({ color: c.color, roughness: 0.45 });
+  const b = mesh(geo.sphere, mat);
+  b.scale.set(c.w / 2, c.h / 2, c.w / 2);
+  b.position.y = c.h / 2;
+  root.add(b);
+  return { root, mat, legs: [], tail: null };
 }
 
 /** An axe head on a handle (thrown, it spins and comes back). */
@@ -815,6 +1063,21 @@ function shotMesh(p: Projectile, mats: Mats, geo: Geos): THREE.Object3D {
     }
     case 'fireball': {
       const b = mesh(geo.sphere, mats.fire);
+      b.scale.setScalar(p.r);
+      g.add(b);
+      break;
+    }
+    case 'six7': {
+      const w = six7(60 * s, s, mats, geo);
+      w.position.x = -34 * s;
+      g.add(w);
+      break;
+    }
+    case 'poop':
+      g.add(poop(p.r, mats, geo));
+      break;
+    case 'soup': {
+      const b = mesh(geo.sphere, mats.soup);
       b.scale.setScalar(p.r);
       g.add(b);
       break;
