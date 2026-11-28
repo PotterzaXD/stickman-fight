@@ -49,6 +49,8 @@ import { BOOGER, CHEF, CUPCAKE, FROG, GHOST, GINGER, KNIGHT, LOLLIPOP } from './
 import { oct23AttackGap, oct23Bit, oct23Hit, oct23Skill, oct23Splat, summonOct23, updateOct23 } from './oct23';
 import { infectHit, infectionWinner, startInfection, turnZombie, updateInfection, type InfectionState } from './infection';
 import { makeMe, meDodge, meFly } from './meBoss';
+import { airDown, armBrick, brickHit, brickWallPush, callAirFleet, fishSwims, nov28Hit, nov28Splat, updateNov28 } from './nov28';
+import { isAircraft } from './entities';
 import { GUN_SOLDIER, aircraftDown, aircraftWreck, callAircraft, goldAutoFire, nov21Hit, nov21Skill, nov21Splat, updateWrecks } from './nov21';
 import { BETTA, callGhostClones, ghostFade, ghostRevive, makeGhost, nov12Hit, nov12Skill, nov12Splat, updateNov12 } from './nov12';
 import { dotGuard, dotThink, initDot } from './dot';
@@ -350,7 +352,7 @@ export interface FeedItem {
   t: number;
 }
 /** Helpers with their own kill feed lines. */
-const HELPER_FEED: Record<string, FeedKind> = { cat: 'meow', chick: 'chick', chicken: 'chicken', fish: 'fish', betta: 'fish', memory: 'memory', dog: 'dog', skeleton: 'skeleton', lilpigeon: 'lilpigeon', retro: 'retro', zombie: 'zombie', bee: 'bee', aircraft: 'aircraft' };
+const HELPER_FEED: Record<string, FeedKind> = { cat: 'meow', chick: 'chick', chicken: 'chicken', fish: 'fish', betta: 'fish', memory: 'memory', dog: 'dog', skeleton: 'skeleton', lilpigeon: 'lilpigeon', retro: 'retro', zombie: 'zombie', bee: 'bee', aircraft: 'aircraft', miniair: 'aircraft', redair: 'aircraft', greenair: 'aircraft' };
 /** Seconds a kill feed line stays, and how many show at once. */
 export const FEED_LIFE = 5;
 export const FEED_MAX = 6;
@@ -748,7 +750,7 @@ export class Game {
       let n = 1;
       if (hp.kind === 'chick') n = Math.min(SB_CHICKS, MAX_CHICKS - this.cats.filter((c) => c.variant === 'chick' && c.owner === owner).length);
       for (let j = 0; j < n; j++) {
-        const c = new Cat(owner, x + (n > 1 ? (j - (n - 1) / 2) * 12 : 0), sp.y - (hp.kind === 'drone' || hp.kind === 'ghost' ? 120 : hp.kind === 'aircraft' ? 200 : 4), o.hp, o.dmg, hp.kind);
+        const c = new Cat(owner, x + (n > 1 ? (j - (n - 1) / 2) * 12 : 0), sp.y - (hp.kind === 'drone' || hp.kind === 'ghost' ? 120 : isAircraft(hp.kind) ? 200 : 4), o.hp, o.dmg, hp.kind);
         // Sandbox helpers stay until they are beaten.
         c.life = Infinity;
         c.team = team;
@@ -918,6 +920,9 @@ export class Game {
   get boss(): Fighter | undefined {
     return this.fighters.find((f) => f.boss);
   }
+
+  /** More than 0 while an explosion is hurting people (the Red Aircraft can't be hurt by explosions). */
+  blastN = 0;
 
   play(name: keyof typeof sfx) {
     if (this.record) this.events.push(['s', name]);
@@ -1203,7 +1208,7 @@ export class Game {
 
     this.stepBody(f, dt, f.me || f.dot ? 0 : f.dashT > 0 ? 0.15 : 1);
     // Skills break glass: the sword's dash and the spear's thrust.
-    if (f.dashT > 0) f.weapons.forEach((w, i) => (w.id === 'sword' || w.id === 'ghostsword') && this.breakGlassAt(f.tip(i).x, f.tip(i).y, 14, f));
+    if (f.dashT > 0) f.weapons.forEach((w, i) => (w.id === 'sword' || w.id === 'ghostsword' || w.id === 'bricksword') && this.breakGlassAt(f.tip(i).x, f.tip(i).y, 14, f));
     if (f.thrustT > 0) this.breakGlassAt(f.tip(f.thrustSlot).x, f.tip(f.thrustSlot).y, 10, f);
     if (f.onGround) f.airJumps = 1;
     if (f.slamming && f.onGround) {
@@ -1261,6 +1266,8 @@ export class Game {
     }
     // Walls: you can't walk through them or jump up through them (the Ghost floats through everything).
     if (!(b instanceof Cat && b.variant === 'ghost')) this.map.platforms.forEach((p, i) => p.kind === 'wall' && this.solid(i) && wallPush(b, p, prevX, prevY));
+    // Brick Sword walls: only enemies are stopped.
+    brickWallPush(this, b, prevX, prevY);
   }
 
   /** Standing on an ice block? */
@@ -1386,6 +1393,11 @@ export class Game {
   /** Returns true if the hit landed (not blocked by a shield). */
   damage(target: Body, amount: number, src: Body | null, kx: number, ky: number, how?: Finish): boolean {
     if (!target.alive || amount <= 0) return false;
+    // The Red Aircraft: explosions can't hurt it.
+    if (target instanceof Cat && target.variant === 'redair' && this.blastN > 0) {
+      this.text(target.x, target.y - target.h - 30, '🛡️ IMMUNE!', '#ffcdd2', 18);
+      return false;
+    }
     // The Kraken can't be hurt while it is still coming up.
     if (this.kr && !krakenGuard(this, target)) return false;
     // The boss with your name is very good at dodging.
@@ -1492,6 +1504,8 @@ export class Game {
     if (b instanceof Cat && b.variant === 'zexploder' && how !== 'void') zombieBoom(this, b);
     // The Aircraft blows up (and its pilots may get out alive).
     if (b instanceof Cat && b.variant === 'aircraft' && how !== 'void') aircraftDown(this, b);
+    // The new LEGO aircraft blow up too, and their pilot gets out.
+    if (b instanceof Cat && isAircraft(b.variant) && b.variant !== 'aircraft' && how !== 'void') airDown(this, b);
     if (fighter) b.finish = how;
     // Fell into the void: nothing at all. Helpers leave their own remains (a grave, a cooked fish...).
     // The original pop for snowmen and 'pop' kills.
@@ -1622,6 +1636,7 @@ export class Game {
           // Mega Punch sends them flying.
           const force = glove ? 2.4 : dash || thrust ? 1.4 : nov05Force(def.id) ?? meleeForce(def.id);
           const hit = this.damage(e, dmg, f, dir * (220 + dmg * 8) * force, -(260 + dmg * 5) * force, MELEE_FINISH[def.id]);
+          if (hit && dash && def.id === 'bricksword') brickHit(this, f, e);
           if (hit && e.alive && def.id === 'firesword') this.setBurn(e, FIRE_SWORD.burnS, FIRE_SWORD.burn, f);
           if (hit && e.alive && def.id === 'dart') this.setPoison(e, f);
         }
@@ -1641,7 +1656,10 @@ export class Game {
     const tip = f.tip(i);
     switch (def.id) {
       case 'sword':
-      case 'ghostsword': {
+      case 'ghostsword':
+      case 'bricksword': {
+        // The Brick Sword's dash builds a brick wall on its first hit (nov28.ts).
+        if (def.id === 'bricksword') armBrick(f);
         const dir = Math.abs(cos) < 0.2 ? f.facing : sign(cos);
         f.facing = dir;
         f.dashT = 0.22;
@@ -2096,6 +2114,8 @@ export class Game {
     // November 21: 3 pistol soldiers and the Aircraft.
     this.callCats(f, GUN_SOLDIER, 'gunsoldier');
     callAircraft(this, f);
+    // November 28: the Mini, Red and Green Aircraft.
+    callAirFleet(this, f);
     for (let k = 0; k < SUMMONER.snowmen; k++) {
       if (this.snowmen.filter((m) => m.alive && m.owner === f).length >= this.maxSnowmen) break;
       const m = new Snowman(f, f.x + (k - 1) * 56, f.y - 6);
@@ -2847,18 +2867,20 @@ export class Game {
     this.text(c.x, c.y - c.h - 50, 'BOOM!', '#ff9800', 30);
     this.shake = Math.min(18, this.shake + 6);
     this.play('boom');
+    this.blastN++;
     for (const e of this.bodies()) {
       if (!e.alive || e.team === c.team) continue;
       const dx = e.x - c.x;
       if (Math.hypot(dx, e.cy - c.cy) > CLONE.boomR + e.w / 2) continue;
       this.damage(e, CLONE.boom, c, (sign(dx) || 1) * 500, -400, 'fling');
     }
+    this.blastN--;
   }
 
   /** What a helper leaves behind: a cat's grave, a cooked fish, a soldier's ragdoll, or the Recall Memory boss fading away. */
   helperRemains(c: Cat) {
     // The Aircraft: a burning wreck that falls slowly down the map.
-    if (c.variant === 'aircraft') {
+    if (isAircraft(c.variant)) {
       aircraftWreck(this, c);
       return;
     }
@@ -2928,9 +2950,9 @@ export class Game {
     const scale = owner instanceof Fighter ? owner.scale : 1;
     const big = kind === 'boomerang' || kind === 'bomb' || kind === 'axe' || kind === 'fireball' || kind === 'six7' || kind === 'soup' || kind === 'hay';
     const r =
-      { arrow: 5, snowball: 11, minisnow: 8, boomerang: 16, bomb: 11, axe: 22, shuriken: 8, laser: 6, fireball: 14, six7: 24, poop: 10, soup: 14, icebolt: 9, banana: 10, fireslash: 34, dart: 6, memorybox: 12, rocket: 10, wave: 60, shard: 10, crash: 80, vine: 14, nerf: 6, bullet67: 7, water: 7, bubble: 18, yoyo: 13, fishthrow: 14, allyfire: 12, egg: 10, gum: 11, crow: 14, hay: 34, goo: 10, sound: 40, pebble: 6, flame: 14, booger: 9, tennis: 9, pie: 13, ketchup: 7, popcorn: 7, plane: 12, slipper: 12, balloon: 12, plunger: 9, frisbee: 16, blanket: 22, magic: 10, mattress: 26, aphone: 9, macaroni: 12, ricebox: 15, blindfold: 12, gold: 5 }[kind] *
+      { arrow: 5, snowball: 11, minisnow: 8, boomerang: 16, bomb: 11, axe: 22, shuriken: 8, laser: 6, fireball: 14, six7: 24, poop: 10, soup: 14, icebolt: 9, banana: 10, fireslash: 34, dart: 6, memorybox: 12, rocket: 10, wave: 60, shard: 10, crash: 80, vine: 14, nerf: 6, bullet67: 7, water: 7, bubble: 18, yoyo: 13, fishthrow: 14, allyfire: 12, egg: 10, gum: 11, crow: 14, hay: 34, goo: 10, sound: 40, pebble: 6, flame: 14, booger: 9, tennis: 9, pie: 13, ketchup: 7, popcorn: 7, plane: 12, slipper: 12, balloon: 12, plunger: 9, frisbee: 16, blanket: 22, magic: 10, mattress: 26, aphone: 9, macaroni: 12, ricebox: 15, blindfold: 12, gold: 5, decoy: 5 }[kind] *
       (big || kind === 'fireslash' ? scale : 1);
-    const life = { arrow: 2, snowball: 3, minisnow: 3, boomerang: 3.5, bomb: 1.5, axe: 3.5, shuriken: 2, laser: 0.7, fireball: 2, six7: 3.5, poop: 3, soup: 3, icebolt: 2, banana: 3, fireslash: 0.7, dart: 2, memorybox: 0.35, rocket: 2, wave: 1.7, shard: 1.6, crash: 1.9, vine: 0.42, nerf: 2, bullet67: 1.2, water: 0.9, bubble: 2.6, yoyo: 3.5, fishthrow: 3, allyfire: 2, egg: 2.5, gum: 2.5, crow: 3.5, hay: 2.4, goo: 2.5, sound: 0.45, pebble: 2, flame: 0.5, booger: 2.5, tennis: 3.5, pie: 2.5, ketchup: 1.2, popcorn: 1.5, plane: 2.2, slipper: 2.5, balloon: 2.5, plunger: 1.5, frisbee: 1.1, blanket: 2.5, magic: 1.6, mattress: 2.5, aphone: 2.5, macaroni: 2.5, ricebox: 2.5, blindfold: 2.5, gold: 1 }[kind];
+    const life = { arrow: 2, snowball: 3, minisnow: 3, boomerang: 3.5, bomb: 1.5, axe: 3.5, shuriken: 2, laser: 0.7, fireball: 2, six7: 3.5, poop: 3, soup: 3, icebolt: 2, banana: 3, fireslash: 0.7, dart: 2, memorybox: 0.35, rocket: 2, wave: 1.7, shard: 1.6, crash: 1.9, vine: 0.42, nerf: 2, bullet67: 1.2, water: 0.9, bubble: 2.6, yoyo: 3.5, fishthrow: 3, allyfire: 2, egg: 2.5, gum: 2.5, crow: 3.5, hay: 2.4, goo: 2.5, sound: 0.45, pebble: 2, flame: 0.5, booger: 2.5, tennis: 3.5, pie: 2.5, ketchup: 1.2, popcorn: 1.5, plane: 2.2, slipper: 2.5, balloon: 2.5, plunger: 1.5, frisbee: 1.1, blanket: 2.5, magic: 1.6, mattress: 2.5, aphone: 2.5, macaroni: 2.5, ricebox: 2.5, blindfold: 2.5, gold: 1, decoy: 1 }[kind];
     this.projectiles.push({
       kind,
       x,
@@ -3088,7 +3110,7 @@ export class Game {
           oct30Hit(this, p, e, dir);
           continue;
         }
-        if (oct22Hit(this, p, e, dir) || oct23Hit(this, p, e, dir) || oct30Hit(this, p, e, dir) || nov05Hit(this, p, e, dir) || nov12Hit(this, p, e, dir) || nov21Hit(this, p, e, dir) || jayHit(this, p, e, dir)) {
+        if (oct22Hit(this, p, e, dir) || oct23Hit(this, p, e, dir) || oct30Hit(this, p, e, dir) || nov05Hit(this, p, e, dir) || nov12Hit(this, p, e, dir) || nov21Hit(this, p, e, dir) || nov28Hit(this, p, e) || jayHit(this, p, e, dir)) {
           // Booger, tennis ball, pie, ketchup, popcorn and the October 30 shots (see oct22.ts, oct23.ts and oct30.ts).
         } else if (p.kind === 'fireball') this.explode(p, 120 * p.scale, true);
         else if (p.kind === 'bomb') this.explode(p);
@@ -3187,7 +3209,7 @@ export class Game {
             p.dead = true;
             break;
           }
-          if (tennisBounce(p, pl) || oct23Splat(this, p, pl) || oct30Splat(this, p, pl) || nov05Splat(this, p, pl) || nov12Splat(this, p, pl) || nov21Splat(this, p, pl) || jaySplat(this, p, pl)) break;
+          if (tennisBounce(p, pl) || oct23Splat(this, p, pl) || oct30Splat(this, p, pl) || nov05Splat(this, p, pl) || nov12Splat(this, p, pl) || nov21Splat(this, p, pl) || nov28Splat(this, p, pl) || jaySplat(this, p, pl)) break;
           if (p.kind === 'booger') {
             this.burst(p.x, Math.min(p.y, pl.y), '#9ccc65', 6, 160);
             p.dead = true;
@@ -3293,6 +3315,7 @@ export class Game {
     this.burst(p.x, p.y, '#424242', 12, 300);
     this.shake = Math.min(18, this.shake + 10);
     this.play('boom');
+    this.blastN++;
     for (const e of this.bodies()) {
       if (!e.alive || e.team === p.team) continue;
       const dx = e.x - p.x;
@@ -3310,6 +3333,7 @@ export class Game {
         e.burnSrc = p.owner;
       }
     }
+    this.blastN--;
   }
 
   private shockwave(f: Fighter) {
@@ -3338,6 +3362,11 @@ export class Game {
     for (const b of this.bodies()) {
       if (!b.alive) continue;
       if (b.y < m.h + 300 && b.x > -700 && b.x < m.w + 700) continue;
+      // Fish on a beach map can't get hurt falling in: they swim back up (nov28.ts).
+      if (fishSwims(this, b)) {
+        this.bounce(b, 0);
+        continue;
+      }
       // Helpers (snowmen, cats, fish, soldiers, the Recall Memory boss) fall just like stickmen.
       if (b instanceof Fighter && b.boss) this.bounce(b, 250);
       // The Plane: whoever jumps out is out of the match.
@@ -3347,7 +3376,7 @@ export class Game {
   }
 
   /** Fell off: lose HP and get launched back up under the nearest platform. */
-  private bounce(f: Body, dmg: number) {
+  bounce(f: Body, dmg: number) {
     const np = nearestPlatform(this, clamp(f.x, 0, this.map.w), this.map.h);
     const px = np ? clamp(f.x, np.x + 30, np.x + np.w - 30) : this.map.w / 2;
     const py = np ? np.y : this.map.h / 2;
@@ -3362,8 +3391,14 @@ export class Game {
       f.airJumps = 1;
       f.dmgTaken += dmg;
     }
-    this.text(f.x, this.map.h - 40, `-${dmg}`, '#ff5252', 30);
-    this.play('jump');
+    if (dmg > 0) {
+      this.text(f.x, this.map.h - 40, `-${dmg}`, '#ff5252', 30);
+      this.play('jump');
+    } else {
+      this.text(f.x, this.map.h - 40, '🐟 Swim!', '#81d4fa', 24);
+      this.burst(f.x, this.map.h - 20, '#81d4fa', 12, 300);
+      this.play('splash');
+    }
     if (f.hp <= 0) this.kill(f, null, 'void');
   }
 
@@ -3472,6 +3507,7 @@ export class Game {
 
   updateEffects(dt: number) {
     updateWrecks(this, dt);
+    updateNov28(this, dt);
     for (const p of this.particles) {
       p.vy += p.g * dt;
       p.x += p.vx * dt;

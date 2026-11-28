@@ -26,6 +26,7 @@ import { drawKrakenBack, drawKrakenFront } from './krakenDraw';
 import { drawJayDress, drawJayHead, drawJayProjectile, drawJayWeapon } from './jayDraw';
 import { drawDot, drawDotWorld } from './dotDraw';
 import { drawGoldPistol, drawNov21Helper, drawNov21Projectile, drawWrecks } from './nov21Draw';
+import { drawBrickSword, drawBrickWalls, drawLegoProp, drawNov28Helper, drawNov28Projectile } from './nov28Draw';
 import { drawNov12Over, drawNov12Projectile, drawNov12Weapon } from './nov12Draw';
 import { drawOct30Helper, drawOct30Over, drawOct30Projectile, drawOct30Weapon, drawWarps } from './oct30Draw';
 import { clipAboveGround, drawCastle, drawToy, drawToyProjectile, drawToyWeapon, drawWall, swingArm, walkLegs } from './toys';
@@ -941,6 +942,9 @@ export function drawWeaponShape(ctx: Ctx, id: WeaponId, len: number, s: number, 
     case 'pistol':
       drawPistol(ctx, len, s);
       break;
+    case 'bricksword':
+      drawBrickSword(ctx, len, s, ready);
+      break;
     case 'goldpistol':
       drawGoldPistol(ctx, len, s, ready, performance.now() / 1000);
       break;
@@ -1031,7 +1035,7 @@ function drawPotion(ctx: Ctx, x: number, y: number, time: number) {
 }
 
 /** A jagged lightning bolt (same shape on every device). */
-function drawBolt(ctx: Ctx, b: { x1: number; y1: number; x2: number; y2: number; life: number }) {
+export function drawBolt(ctx: Ctx, b: { x1: number; y1: number; x2: number; y2: number; life: number }) {
   const n = 9;
   ctx.globalAlpha = Math.min(1, b.life / 0.15);
   for (const [w, c] of [
@@ -1284,7 +1288,7 @@ function drawMemoryAlly(ctx: Ctx, c: Cat, bar = true) {
 }
 
 /** What a helper (or the Pigeon) leaves behind: a cat's grave, a cooked fish, the fried Pigeon, or the Recall Memory boss fading away. */
-function drawProp(ctx: Ctx, c: Corpse, time: number) {
+export function drawProp(ctx: Ctx, c: Corpse, time: number) {
   const d = c.facing ?? 1;
   const { x, y } = c;
   if (c.prop === 'fade') {
@@ -1448,6 +1452,7 @@ function drawProp(ctx: Ctx, c: Corpse, time: number) {
     steam(x, y - 92 * c.s, c.s < 1 ? 2 : 4, 50 * c.s);
   } else if (c.prop === 'pixels' || c.prop === 'beefall') drawMonsterProp(ctx, c.prop, x, y, d, c.t / c.life);
   else if (c.prop === 'scrap') drawGadgetProp(ctx, x, y, c.t / c.life);
+  else if (c.prop === 'lego') drawLegoProp(ctx, c);
   else if (c.prop) drawCritterProp(ctx, c.prop, x, y, d, time);
   ctx.globalAlpha = 1;
 }
@@ -2215,7 +2220,7 @@ function drawSnowman(ctx: Ctx, m: Snowman) {
 }
 
 function drawProjectile(ctx: Ctx, p: Projectile, time: number) {
-  if (drawExtraProjectile(ctx, p, time) || drawCritterProjectile(ctx, p, time) || drawMonsterProjectile(ctx, p, time) || drawGadgetProjectile(ctx, p, time) || drawToyProjectile(ctx, p, time) || drawTreatProjectile(ctx, p) || drawOct30Projectile(ctx, p, time) || drawNov05Projectile(ctx, p) || drawJayProjectile(ctx, p) || drawNov12Projectile(ctx, p, time) || drawNov21Projectile(ctx, p)) return;
+  if (drawExtraProjectile(ctx, p, time) || drawCritterProjectile(ctx, p, time) || drawMonsterProjectile(ctx, p, time) || drawGadgetProjectile(ctx, p, time) || drawToyProjectile(ctx, p, time) || drawTreatProjectile(ctx, p) || drawOct30Projectile(ctx, p, time) || drawNov05Projectile(ctx, p) || drawJayProjectile(ctx, p) || drawNov12Projectile(ctx, p, time) || drawNov21Projectile(ctx, p) || drawNov28Projectile(ctx, p)) return;
   switch (p.kind) {
     case 'nerf': {
       // Foam dart: blue body, orange tip
@@ -2633,6 +2638,7 @@ export function renderGame(g: Game, ctx: Ctx, vw: number, vh: number, dpr: numbe
   drawPlatforms(ctx, g.map, g.time, g.glassT, g.kr ? () => drawKrakenBack(ctx, g, g.time) : undefined);
   if (g.map.warps?.length) drawWarps(ctx, g.map.warps, g.time);
   for (const s of g.iceSpikes) drawIceSpike(ctx, s);
+  drawBrickWalls(ctx, g);
   // King of the Hill: the zone, in the colour of whoever holds it alone.
   if (g.hill) drawHill(ctx, g.hill.x, g.hill.y, g.hill.w, g.hill.holder === null ? null : g.fighters.find((f) => f.team === g.hill!.holder)?.color ?? null, g.time);
 
@@ -2652,7 +2658,7 @@ export function renderGame(g: Game, ctx: Ctx, vw: number, vh: number, dpr: numbe
       continue;
     }
     // Chicks, the Chicken, the little pigeon, skeletons (a pile of bones when beaten) and the dog (asleep).
-    if (drawCritter(ctx, c, g.time) || drawMonster(ctx, c, g.time) || drawGadget(ctx, c, g.time) || drawToy(ctx, c, g.time) || drawTreat(ctx, c, g.time) || drawOct30Helper(ctx, c, g.time) || drawPhylHelper(ctx, c, g.time) || drawNov21Helper(ctx, c, g.time)) continue;
+    if (drawCritter(ctx, c, g.time) || drawMonster(ctx, c, g.time) || drawGadget(ctx, c, g.time) || drawToy(ctx, c, g.time) || drawTreat(ctx, c, g.time) || drawOct30Helper(ctx, c, g.time) || drawPhylHelper(ctx, c, g.time) || drawNov21Helper(ctx, c, g.time) || drawNov28Helper(ctx, c, g.time)) continue;
     if (!c.alive) continue;
     if (c.variant === 'sbsnow' || c.variant === 'fireally') {
       drawSbAlly(ctx, c, g.time);

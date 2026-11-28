@@ -408,7 +408,8 @@ export type CatVariant =
   | 'unicorn' | 'dino' | 'wizard' | 'panda'
   | 'physi'
   | 'betta'
-  | 'gunsoldier' | 'aircraft' | 'pilot';
+  | 'gunsoldier' | 'aircraft' | 'pilot'
+  | 'miniair' | 'redair' | 'greenair' | 'pilotmini' | 'pilotred' | 'pilotgreen';
 /** The Outbreak's zombies (on the zombies' side). */
 export type ZombieKind = 'znormal' | 'zshooter' | 'zmini' | 'zbig' | 'zrunner' | 'zexploder' | 'zboss';
 export const ZOMBIE_KINDS: ZombieKind[] = ['znormal', 'zshooter', 'zmini', 'zbig', 'zrunner', 'zexploder', 'zboss'];
@@ -424,6 +425,7 @@ export const CAT_VARIANTS: CatVariant[] = [
   'physi',
   'betta',
   'gunsoldier', 'aircraft', 'pilot',
+  'miniair', 'redair', 'greenair', 'pilotmini', 'pilotred', 'pilotgreen',
 ];
 /** Helpers that don't vanish when beaten: they stay where they went down (the red guy frozen, skeletons as bones, the dog asleep) until their weapon or the Summoner brings them back. */
 export const REVIVES = (v: CatVariant) => v === 'redguy' || v === 'skeleton' || v === 'dog';
@@ -440,6 +442,19 @@ export const SPEAR_SQUAD = { count: 3, hp: SOLDIER_HP, dmg: 12, max: 6 };
 export const AIRCRAFT = { hp: 300, dmg: 3, every: 0.55, max: 1, range: 850, boom: 40, boomR: 260 };
 /** When the Aircraft blows up: 50% one pilot gets out, 25% both do (25% none). Pilots: 30 HP, 2 a bullet, a shot every 10 s. */
 export const PILOT = { one: 0.5, two: 0.25, hp: 30, dmg: 2, aimS: 0.8, every: 10 };
+/** November 28 (nov28.ts): three more LEGO aircraft, each with its own pilot sitting on it (the pilot always gets out when it goes down). */
+/** The Mini Aircraft: 30 HP, super fast, its back gun fires harmless shots that make enemies come after it. Pilot: 10 HP, no damage. */
+export const MINI_AIR = { hp: 30, dmg: 0, speed: 950, every: 0.35, range: 750, lure: 2.5, max: 1, pilotHp: 10, pilotDmg: 0 };
+/** The Red Aircraft: 700 HP, very fast, explosions can't hurt it, no gun: it flies into enemies and stabs them with its front spikes (20). Pilot: 50 HP, 2 a hit. */
+export const RED_AIR = { hp: 700, dmg: 20, speed: 820, every: 0.7, max: 1, pilotHp: 50, pilotDmg: 2 };
+/** The Green Aircraft: 900 HP, slow, crashes into enemies for 40 and takes 20 itself each time. Pilot: 30 HP (like the Aircraft 07 pilots). */
+export const GREEN_AIR = { hp: 900, dmg: 40, self: 20, speed: 230, every: 1.4, max: 1, pilotHp: 30, pilotDmg: 2 };
+/** Every aircraft (they fly, and blow up into a falling wreck when they go down). */
+export const isAircraft = (v: string) => v === 'aircraft' || v === 'miniair' || v === 'redair' || v === 'greenair';
+/** Every pilot (07's and the new ones). */
+export const isPilot = (v: string) => v === 'pilot' || v === 'pilotmini' || v === 'pilotred' || v === 'pilotgreen';
+/** Brick Sword: the LEGO brick wall it builds on a dash hit stands 5 s; enemies can't get through, you and your team can. */
+export const BRICK_WALL = { life: 5, w: 34, h: 210 };
 
 /** Recall Memory's boss ally: 1,000 HP, 30 damage, fades away after 20 seconds. */
 export const MEMORY_ALLY = { hp: 1000, dmg: 30, life: 20 };
@@ -556,8 +571,8 @@ export class Cat extends Body {
     // Zombies and ninjas are stickmen too; the mini zombie is small, the big one and the Zombie Boss are huge.
     const stick = variant === 'soldier' || variant === 'gunsoldier' || variant === 'sbsnow' || variant === 'fireally' || variant === 'skeleton' || variant === 'ninja' || variant === 'zombie' || variant === 'znormal' || variant === 'zshooter' || variant === 'zrunner' || variant === 'zexploder' || variant === 'physi';
     const [w, h] =
-      variant === 'memory' ? [46, 128] : stick ? [30, 80] : variant === 'aircraft' ? [96, 38] : variant === 'pilot' ? [22, 50] : variant === 'redguy' ? [16, 43] : variant === 'retro' ? [30, 60] : variant === 'bee' ? [16, 14] : variant === 'zmini' ? [20, 48] : variant === 'zbig' ? [52, 120] : variant === 'zboss' ? [80, 190] : variant === 'babyele' ? [56, 50] : variant === 'drone' ? [34, 18] : variant === 'penguin' ? [28, 40] : variant === 'knight' ? [34, 86] : variant === 'frog' ? [34, 26] : variant === 'ghost' ? [34, 44] : variant === 'ginger' ? [30, 56] : variant === 'cupcake' ? [28, 28] : variant === 'chef' || variant === 'wizard' ? [30, 80] : variant === 'unicorn' ? [52, 48] : variant === 'dino' ? [46, 56] : variant === 'panda' ? [44, 42] : variant === 'chick' ? [16, 16] : variant === 'chicken' ? [38, 42] : variant === 'lilpigeon' ? [28, 32] : variant === 'dog' ? [46, 34] : [34, 30];
-    super(x, y, w, h, hp, owner.team, variant === 'pilot' ? '#e53935' : variant === 'physi' ? '#311b92' : variant === 'sbsnow' ? '#bdeeff' : variant === 'fireally' ? '#ff7a1a' : variant === 'redguy' ? '#f66' : variant === 'skeleton' ? '#eeeeee' : variant === 'retro' ? '#111111' : variant === 'babyele' ? '#b0bec5' : variant === 'penguin' ? '#263238' : variant === 'frog' ? '#66bb6a' : variant === 'ghost' ? '#eceff1' : variant === 'ginger' ? '#b9773a' : variant === 'cupcake' ? '#f48fb1' : variant === 'unicorn' ? '#fafafa' : variant === 'dino' ? '#66bb6a' : variant === 'wizard' ? '#5e35b1' : variant === 'panda' ? '#fafafa' : isZombie(variant) || variant === 'zombie' ? '#7cb342' : owner.color);
+      variant === 'memory' ? [46, 128] : stick ? [30, 80] : variant === 'aircraft' ? [96, 38] : variant === 'miniair' ? [60, 28] : variant === 'redair' ? [104, 40] : variant === 'greenair' ? [112, 44] : isPilot(variant) ? [22, 50] : variant === 'redguy' ? [16, 43] : variant === 'retro' ? [30, 60] : variant === 'bee' ? [16, 14] : variant === 'zmini' ? [20, 48] : variant === 'zbig' ? [52, 120] : variant === 'zboss' ? [80, 190] : variant === 'babyele' ? [56, 50] : variant === 'drone' ? [34, 18] : variant === 'penguin' ? [28, 40] : variant === 'knight' ? [34, 86] : variant === 'frog' ? [34, 26] : variant === 'ghost' ? [34, 44] : variant === 'ginger' ? [30, 56] : variant === 'cupcake' ? [28, 28] : variant === 'chef' || variant === 'wizard' ? [30, 80] : variant === 'unicorn' ? [52, 48] : variant === 'dino' ? [46, 56] : variant === 'panda' ? [44, 42] : variant === 'chick' ? [16, 16] : variant === 'chicken' ? [38, 42] : variant === 'lilpigeon' ? [28, 32] : variant === 'dog' ? [46, 34] : [34, 30];
+    super(x, y, w, h, hp, owner.team, variant === 'pilot' || variant === 'pilotmini' ? '#e53935' : variant === 'pilotred' || variant === 'pilotgreen' ? '#6d4c41' : variant === 'physi' ? '#311b92' : variant === 'sbsnow' ? '#bdeeff' : variant === 'fireally' ? '#ff7a1a' : variant === 'redguy' ? '#f66' : variant === 'skeleton' ? '#eeeeee' : variant === 'retro' ? '#111111' : variant === 'babyele' ? '#b0bec5' : variant === 'penguin' ? '#263238' : variant === 'frog' ? '#66bb6a' : variant === 'ghost' ? '#eceff1' : variant === 'ginger' ? '#b9773a' : variant === 'cupcake' ? '#f48fb1' : variant === 'unicorn' ? '#fafafa' : variant === 'dino' ? '#66bb6a' : variant === 'wizard' ? '#5e35b1' : variant === 'panda' ? '#fafafa' : isZombie(variant) || variant === 'zombie' ? '#7cb342' : owner.color);
     this.owner = owner;
     this.touchDmg = touchDmg;
     this.facing = owner.facing;
@@ -621,7 +636,8 @@ export type ProjKind =
   | 'blindfold'
   | 'macaroni'
   | 'ricebox'
-  | 'gold';
+  | 'gold'
+  | 'decoy';
 
 /** Thrown weapons that fly out and come back to the hand. */
 export const returns = (k: ProjKind) => k === 'boomerang' || k === 'axe' || k === 'six7' || k === 'yoyo';

@@ -1,5 +1,5 @@
 import type { Game } from '../game/game';
-import { drawHud, drawLabel, drawWorldFx, hpBar } from '../game/render';
+import { drawBolt, drawHud, drawLabel, drawProp, drawWorldFx, hpBar } from '../game/render';
 import { Renderer3D } from './render3d';
 
 const STEP = 1 / 120;
@@ -70,6 +70,9 @@ export function startLoop3D(
     ctx.clearRect(0, 0, hud.width, hud.height);
     if (!opts.bare) {
       ctx.setTransform(dpr * z, 0, 0, dpr * z, dpr * (w / 2 - g.cam.x * z + sx), dpr * (h / 2 - g.cam.y * z + sy));
+      // Helpers' remains (the 3D finishers are in the 3D picture) and lightning from the Thunder Hammer.
+      for (const c of g.corpses) if (c.prop) drawProp(ctx, c, g.time);
+      for (const b of g.bolts) drawBolt(ctx, b);
       for (const f of g.fighters) if (f.alive && !f.boss) drawLabel(ctx, f, f.y - f.h - 22);
       // Helpers' HP bars (Grandfather Cat's AI cats).
       for (const c of g.cats) if (c.alive) hpBar(ctx, c.x, c.y - c.h - 22, 28, c.hp / c.maxHp, c.color);

@@ -23,6 +23,9 @@ import type { Loop3D } from '../three/loop3d';
  * concrete, lava and glass blocks), and Boss Fight with 1 to 3 bosses. The third update brought the 67 Weapon, the
  * Poop Bomb, the Space map (low gravity) and Grandfather Cat (his Treasure is the reward), and Credits on the menu.
  * You against bots. Its menu is laid out like the normal main menu.
+ * The fourth update brought death finishers (every weapon's own way to go down, in 3D), the Mascot boss (unlocked
+ * once you own every 3D shop weapon; the first win gives the Mascot Stick), healing potions, and the Ice Wand,
+ * Thunder Hammer and Banana.
  */
 
 /** The weapons from the day the game came out (sword and spear were free then too), then the second update's four. */
@@ -42,13 +45,20 @@ export const THREE_D_WEAPONS: { id: WeaponId; price: number }[] = [
   // The third update.
   { id: 'poop', price: 100 },
   { id: 'six7', price: 120 },
+  // The fourth update.
+  { id: 'banana', price: 110 },
+  { id: 'ice', price: 130 },
+  { id: 'thunder', price: 150 },
 ];
-/** Not sold: beat Grandfather Cat in 3D to get it (like in the normal game). */
-export const THREE_D_REWARDS: WeaponId[] = ['treasure'];
+/** Not sold: beat Grandfather Cat (his Treasure) or the Mascot (the Mascot Stick) in 3D to get them (like in the normal game). */
+export const THREE_D_REWARDS: WeaponId[] = ['treasure', 'mascotstick'];
+/** The Mascot unlocks once you own every 3D shop weapon (like in the normal game). */
+const mascotOpen3D = () => THREE_D_WEAPONS.every((w) => save.data.threeD.owned.includes(w.id));
+const mascotHave3D = () => THREE_D_WEAPONS.filter((w) => save.data.threeD.owned.includes(w.id)).length;
 /** The maps from the first version, then the second update's five, then Space. */
 export const THREE_D_MAPS = ['arena', 'sky', 'tower', 'bridge', 'snow', 'pit', 'volcano', 'factory', 'glass', 'rooftops', 'frozen', 'space'];
 
-type Mode3D = 'ffa' | 'team' | 'boss' | 'cat';
+type Mode3D = 'ffa' | 'team' | 'boss' | 'cat' | 'mascot';
 interface Setup3D {
   mode: Mode3D;
   mapId: string;
@@ -58,8 +68,8 @@ interface Setup3D {
   bosses?: number;
 }
 
-/** 3D coins for a win: 10 + 5 a bot, 20 a boss in Boss Fight, or 50 for beating Grandfather Cat. */
-const pay3D = (s: Setup3D) => (s.mode === 'cat' ? 50 : s.mode === 'boss' ? 20 * (s.bosses ?? 1) : 10 + 5 * s.bots);
+/** 3D coins for a win: 10 + 5 a bot, 20 a boss in Boss Fight, 50 for beating Grandfather Cat, or 250 for the Mascot. */
+const pay3D = (s: Setup3D) => (s.mode === 'mascot' ? 250 : s.mode === 'cat' ? 50 : s.mode === 'boss' ? 20 * (s.bosses ?? 1) : 10 + 5 * s.bots);
 /** Bosses only hold 3D weapons (two different ones). */
 function bossWeapons3D(n: number): string[][] {
   return Array.from({ length: n }, () => {
@@ -137,6 +147,7 @@ register('threeD', (root) => {
           h('button', { class: 'btn big primary', onclick: () => ((tab = 'play'), paint()) }, `⚔️ ${t('play')}`),
           h('button', { class: 'btn big cat3d', onclick: () => ((setup.mode = 'cat'), (tab = 'play'), paint()) }, `🐱 ${t('cat_name')}`),
           h('button', { class: 'btn big boss3d', onclick: () => ((setup.mode = 'boss'), (tab = 'play'), paint()) }, `👹 ${t('boss')}`),
+          h('button', { class: 'btn big mascot3d', onclick: () => ((setup.mode = 'mascot'), (tab = 'play'), paint()) }, `${mascotOpen3D() ? '⚪' : '🔒'} ${t('mascot_name')}`),
         ),
         h(
           'div',
@@ -167,7 +178,7 @@ register('threeD', (root) => {
             const have = save.data.threeD.owned.includes(w.id);
             // A reward: shown locked until you win it.
             if (w.price < 0 && !have)
-              return h('div', { class: 'three-card locked' }, h('div', { class: 'three-icon' }, weaponIcon(w.id, 64)), h('b', {}, t(`w.${w.id}` as Key)), h('small', { class: 'muted' }, `🔒 ${t('threeDTreasureHow')}`));
+              return h('div', { class: 'three-card locked' }, h('div', { class: 'three-icon' }, weaponIcon(w.id, 64)), h('b', {}, t(`w.${w.id}` as Key)), h('small', { class: 'muted' }, `🔒 ${t(w.id === 'mascotstick' ? 'threeDStickHow' : 'threeDTreasureHow')}`));
             const using = save.data.threeD.weapon === w.id;
             const buy = async () => {
               if (save.data.threeD.coins < w.price) return toast(t('notEnough'));
@@ -202,8 +213,11 @@ register('threeD', (root) => {
     panel.replaceChildren(
       head,
       h('h3', {}, t('mode')),
-      seg<Mode3D>(setup.mode, [['ffa', `🥊 ${t('ffa')}`], ['team', `🤝 ${t('team')}`], ['boss', `👹 ${t('boss')}`], ['cat', `🐱 ${t('cat_name')}`]], (v) => (setup.mode = v)),
+      seg<Mode3D>(setup.mode, [['ffa', `🥊 ${t('ffa')}`], ['team', `🤝 ${t('team')}`], ['boss', `👹 ${t('boss')}`], ['cat', `🐱 ${t('cat_name')}`], ['mascot', `${mascotOpen3D() ? '⚪' : '🔒'} ${t('mascot_name')}`]], (v) => (setup.mode = v)),
       ...(setup.mode === 'cat' ? [h('p', { class: 'muted small' }, t('threeDCatNote'))] : []),
+      ...(setup.mode === 'mascot'
+        ? [h('p', { class: 'muted small' }, mascotOpen3D() ? t('threeDMascotNote') : t('threeDMascotLocked', { n: mascotHave3D(), total: THREE_D_WEAPONS.length }))]
+        : []),
       ...(setup.mode === 'boss'
         ? [h('p', { class: 'muted small' }, t('threeDBossNote')), h('h3', {}, t('threeDBosses')), seg<number>(setup.bosses ?? 1, [1, 2, 3].map((n) => [n, `👹 ${n}`]), (v) => (setup.bosses = v))]
         : []),
@@ -219,7 +233,7 @@ register('threeD', (root) => {
       seg<number>(setup.bots, [1, 2, 3, 4, 5].map((n) => [n, String(n)]), (v) => (setup.bots = v)),
       seg<Difficulty>(setup.difficulty, (['easy', 'medium', 'hard'] as Difficulty[]).map((d) => [d, t(d)]), (v) => (setup.difficulty = v)),
       h('p', { class: 'muted' }, `${t('weapon')}: ${t(`w.${save.data.threeD.weapon}` as Key)} · 🧊 ${t('threeDPay', { n: pay3D(setup) })}`),
-      btn3(`⚔️ ${t('start')}`, () => go('threeDPlay', { ...setup }), 'primary big'),
+      btn3(`⚔️ ${t('start')}`, () => (setup.mode === 'mascot' && !mascotOpen3D() ? toast(t('threeDMascotLocked', { n: mascotHave3D(), total: THREE_D_WEAPONS.length })) : go('threeDPlay', { ...setup })), 'primary big'),
     );
   };
 
@@ -252,7 +266,7 @@ register('threeDPlay', (root, s) => {
     const me: FighterSpec = { name: localName(0), color: team ? TEAM_COLORS[0] : PLAYER_COLORS[0], team: 0, human: true, weapon: save.data.threeD.weapon, difficulty: 'medium', playerIndex: 0 };
     const bots = Array.from({ length: s.bots }, (_, i): FighterSpec => {
       // Teams: you and every other bot against the rest. Boss Fight: every bot is on your side.
-      const tm = s.mode === 'boss' || s.mode === 'cat' ? 0 : team ? (i % 2 ? 0 : 1) : i + 1;
+      const tm = s.mode === 'boss' || s.mode === 'cat' || s.mode === 'mascot' ? 0 : team ? (i % 2 ? 0 : 1) : i + 1;
       return {
         name: t('bot', { n: i + 1 }),
         color: team ? TEAM_COLORS[tm] : BOT_COLORS[i],
@@ -289,14 +303,17 @@ register('threeDPlay', (root, s) => {
   const showResult = (r: MatchResult) => {
     const won = r.humanWon;
     const got = won ? pay3D(s) : 1;
-    // Grandfather Cat: the first win also gives his Treasure.
+    // Grandfather Cat: the first win also gives his Treasure. The Mascot: the Mascot Stick.
     const treasure = won && s.mode === 'cat' && !save.data.threeD.owned.includes('treasure');
+    const stick = won && s.mode === 'mascot' && !save.data.threeD.owned.includes('mascotstick');
     save.update((d) => {
       d.threeD.coins += got;
       if (won) d.threeD.wins++;
       if (treasure) d.threeD.owned.push('treasure');
+      if (stick) d.threeD.owned.push('mascotstick');
     });
     if (treasure) setTimeout(() => toast(`🍲 ${t('threeDTreasureGot')}`), 400);
+    if (stick) setTimeout(() => toast(`⚪ ${t('threeDStickGot')}`), 400);
     if (won) sfx.win();
     jingle(won ? 'victory' : 'defeat');
     const ranked = game.fighters.filter((f) => !f.cloneOf).sort((a, b) => Number(b.alive) - Number(a.alive) || b.kos - a.kos);
@@ -326,8 +343,11 @@ register('threeDPlay', (root, s) => {
       mode: s.mode,
       fallMode: save.data.settings.fallMode,
       juice: save.data.settings.juice,
+      // The fourth update: healing potions (Settings on/off, like the normal game).
+      potions: save.data.settings.potions,
       ...(s.mode === 'boss' ? { bosses, bossWeapons: bossWeapons3D(bosses), bossName: t('boss_name') } : {}),
       ...(s.mode === 'cat' ? { bossName: t('cat_name') } : {}),
+      ...(s.mode === 'mascot' ? { bossName: t('mascot_name') } : {}),
     });
     game.onOver = showResult;
     game.focus = [0];

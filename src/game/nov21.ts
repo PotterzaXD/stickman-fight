@@ -1,6 +1,7 @@
 import { AIRCRAFT, Body, Cat, Fighter, GOLD_PISTOL, GUN_SOLDIER, PILOT, SPEAR_SQUAD, type Projectile } from './entities';
 import type { Game } from './game';
 import { callGhostClones } from './nov12';
+import { callAirFleet } from './nov28';
 import type { Intent, Platform } from './types';
 
 /*
@@ -50,6 +51,8 @@ export function squadUp(g: Game, f: Fighter) {
   callGhostClones(g, f, 2, 2);
   g.summonClone(f);
   callAircraft(g, f);
+  // November 28: the Mini, Red and Green Aircraft come too.
+  callAirFleet(g, f);
   g.ring(f.x, f.y, 170, 0.5, '#ffd54f');
   g.text(f.x, f.y - f.h - 80, '🔫 SQUAD UP!', '#ffd54f', 30);
 }
@@ -193,6 +196,8 @@ export interface Wreck {
   t: number;
   facing: number;
   color: string;
+  /** Which aircraft it was (they each fall as their own wreck). */
+  kind: string;
   /** Where it blew up (the fireball and smoke stay there). */
   bx: number;
   by: number;
@@ -207,6 +212,24 @@ export const wrecksOf = (g: Game) => wrecks.get(g) ?? [];
 
 /** The host: the Aircraft blows up. It hurts enemies close by, and each pilot may get out alive. */
 export function aircraftDown(g: Game, c: Cat) {
+  bigBoom(g, c, AIRCRAFT.boom);
+  // The pilots: 50% one gets out, 25% both do.
+  const r = rand();
+  const n = r < PILOT.two ? 2 : r < PILOT.two + PILOT.one ? 1 : 0;
+  for (let i = 0; i < n; i++) {
+    const k = n === 1 ? (rand() < 0.5 ? -1 : 1) : i ? 1 : -1;
+    const p = new Cat(c.owner, c.x + k * 10, c.y - 10, PILOT.hp, PILOT.dmg, 'pilot');
+    p.team = c.team;
+    p.vx = k * (100 + rand() * 80);
+    p.vy = -700;
+    p.shootT = PILOT.aimS + rand() * 0.3;
+    g.cats.push(p);
+    g.text(p.x, p.y - 60, '🪂 Still alive!', '#ffccbc', 20);
+  }
+}
+
+/** The biggest boom in the game (every aircraft goes out this way): `dmg` to enemies close by (0 = just the show). */
+export function bigBoom(g: Game, c: Cat, dmg: number) {
   const R = AIRCRAFT.boomR;
   // The biggest boom in the game: rings, fire, sparks, smoke, a white flash and a big shake.
   g.ring(c.x, c.cy, R, 0.35, '#ffffff');
@@ -225,40 +248,35 @@ export function aircraftDown(g: Game, c: Cat) {
   g.juice.flash = 0.85;
   g.juice.flashColor = '#fff8e1';
   g.play('boom');
+  g.blastN++;
   for (const e of g.bodies()) {
-    if (!e.alive || e.team === c.team) continue;
+    if (!e.alive || e.team === c.team || dmg <= 0) continue;
     const dx = e.x - c.x;
     if (Math.hypot(dx, e.cy - c.cy) > R + e.w / 2) continue;
-    g.damage(e, AIRCRAFT.boom, c.owner, (sign(dx) || 1) * 650, -520, 'ashes');
+    g.damage(e, dmg, c.owner, (sign(dx) || 1) * 650, -520, 'ashes');
   }
-  // The pilots: 50% one gets out, 25% both do.
-  const r = rand();
-  const n = r < PILOT.two ? 2 : r < PILOT.two + PILOT.one ? 1 : 0;
-  for (let i = 0; i < n; i++) {
-    const k = n === 1 ? (rand() < 0.5 ? -1 : 1) : i ? 1 : -1;
-    const p = new Cat(c.owner, c.x + k * 10, c.y - 10, PILOT.hp, PILOT.dmg, 'pilot');
-    p.team = c.team;
-    p.vx = k * (100 + rand() * 80);
-    p.vy = -700;
-    p.shootT = PILOT.aimS + rand() * 0.3;
-    g.cats.push(p);
-    g.text(p.x, p.y - 60, '🪂 Still alive!', '#ffccbc', 20);
-  }
+  g.blastN--;
 }
 
 /** Every device: the wreck and its fireball (from helperRemains, which also runs on joining devices). */
 export function aircraftWreck(g: Game, c: Cat) {
   const list = wrecks.get(g) ?? [];
-  list.push({ x: c.x, y: c.cy, vx: c.vx * 0.3, vy: -120, rot: 0, vr: c.facing * (0.5 + rand() * 0.35), t: 0, facing: c.facing, color: c.owner.color, bx: c.x, by: c.cy, smoke: [], bits: blastBits() });
+  list.push({ x: c.x, y: c.cy, vx: c.vx * 0.3, vy: -120, rot: 0, vr: c.facing * (0.5 + rand() * 0.35), t: 0, facing: c.facing, color: c.owner.color, kind: c.variant, bx: c.x, by: c.cy, smoke: [], bits: blastBits(c.variant) });
   wrecks.set(g, list);
 }
 
-const BIT_COLORS = ['#d8c9a3', '#d8c9a3', '#c4b48a', '#8a8f96', '#212121', '#ffd600', '#e53935', '#b3e5fc'];
-function blastBits(): Wreck['bits'] {
+const BIT_COLORS: Record<string, string[]> = {
+  aircraft: ['#d8c9a3', '#d8c9a3', '#c4b48a', '#8a8f96', '#212121', '#ffd600', '#e53935', '#b3e5fc'],
+  miniair: ['#43a047', '#43a047', '#8d5a3b', '#e53935', '#212121', '#ffd600'],
+  redair: ['#c62828', '#c62828', '#e53935', '#d8893f', '#5d4037', '#ffb74d', '#cfd8dc'],
+  greenair: ['#2e9e44', '#2e9e44', '#1b7a33', '#f9a825', '#212121', '#ffd600', '#6d4c41'],
+};
+function blastBits(kind: string): Wreck['bits'] {
+  const BITS = BIT_COLORS[kind] ?? BIT_COLORS.aircraft;
   return Array.from({ length: 22 }, () => {
     const a = rand() * Math.PI * 2;
     const sp = 260 + rand() * 520;
-    return { vx: Math.cos(a) * sp, vy: Math.sin(a) * sp - 320, vr: (rand() - 0.5) * 18, color: BIT_COLORS[Math.floor(rand() * BIT_COLORS.length)], w: 6 + rand() * 9, h: 4 + rand() * 6 };
+    return { vx: Math.cos(a) * sp, vy: Math.sin(a) * sp - 320, vr: (rand() - 0.5) * 18, color: BITS[Math.floor(rand() * BITS.length)], w: 6 + rand() * 9, h: 4 + rand() * 6 };
   });
 }
 

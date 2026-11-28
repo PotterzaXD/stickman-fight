@@ -7,6 +7,7 @@ import { applyPhyl, encodePhyl } from '../game/phyl';
 import { applySurvival, encodeSurvival } from '../game/survival';
 import { PLANE_PHASES, applyDoom, applyPlane, encodeDoom } from '../game/nov05Maps';
 import { applyKraken, encodeKraken } from '../game/kraken';
+import { setWalls, wallsOf } from '../game/nov28';
 import type { WeaponId } from '../game/weapons';
 import type { Game, NetEvent } from '../game/game';
 import { FINISHES, makeCorpse } from '../game/finish';
@@ -67,9 +68,11 @@ export interface Snapshot {
   gh?: number[][];
   /** The "." boss: [fighter index, its turn (1) or yours (0), its attack, Kraken zone seconds, zone x, zone y]. */
   dt?: number[][];
+  /** Brick Sword walls: [x, y, w, h, seconds left, team]. */
+  bw?: number[][];
 }
 
-const KINDS: ProjKind[] = ['arrow', 'snowball', 'minisnow', 'boomerang', 'bomb', 'axe', 'shuriken', 'laser', 'fireball', 'six7', 'poop', 'soup', 'icebolt', 'banana', 'fireslash', 'dart', 'memorybox', 'rocket', 'wave', 'shard', 'crash', 'vine', 'nerf', 'bullet67', 'water', 'bubble', 'yoyo', 'fishthrow', 'allyfire', 'egg', 'gum', 'crow', 'hay', 'goo', 'sound', 'pebble', 'flame', 'booger', 'tennis', 'pie', 'ketchup', 'popcorn', 'plane', 'slipper', 'balloon', 'plunger', 'frisbee', 'blanket', 'magic', 'mattress', 'aphone', 'macaroni', 'ricebox', 'blindfold', 'gold'];
+const KINDS: ProjKind[] = ['arrow', 'snowball', 'minisnow', 'boomerang', 'bomb', 'axe', 'shuriken', 'laser', 'fireball', 'six7', 'poop', 'soup', 'icebolt', 'banana', 'fireslash', 'dart', 'memorybox', 'rocket', 'wave', 'shard', 'crash', 'vine', 'nerf', 'bullet67', 'water', 'bubble', 'yoyo', 'fishthrow', 'allyfire', 'egg', 'gum', 'crow', 'hay', 'goo', 'sound', 'pebble', 'flame', 'booger', 'tennis', 'pie', 'ketchup', 'popcorn', 'plane', 'slipper', 'balloon', 'plunger', 'frisbee', 'blanket', 'magic', 'mattress', 'aphone', 'macaroni', 'ricebox', 'blindfold', 'gold', 'decoy'];
 const r1 = (v: number) => Math.round(v);
 const r2 = (v: number) => Math.round(v * 100) / 100;
 
@@ -174,6 +177,8 @@ export function encodeSnapshot(g: Game): Snapshot {
   if (gh.length) snap.gh = gh;
   const dots = g.fighters.flatMap((f, i) => (f.dot ? [[i, f.dot.turn === 'boss' ? 1 : 0, f.dot.move, r2(f.dot.zoneT), r1(f.dot.zoneX), r1(f.dot.zoneY)]] : []));
   if (dots.length) snap.dt = dots;
+  const bw = wallsOf(g);
+  if (bw.length) snap.bw = bw.map((w) => [r1(w.x), r1(w.y), r1(w.w), r1(w.h), r2(w.life), w.team]);
   g.events = [];
   return snap;
 }
@@ -197,6 +202,7 @@ export class Mirror {
       const c = g.addClone(g.fighters[oi], wid as WeaponId);
       c.alive = false;
     }
+    setWalls(g, (s.bw ?? []).map(([x, y, w, h, life, team]) => ({ x, y, w, h, life, team })));
     g.iceSpikes = (s.ic ?? []).map(([x, y, w, h, life, head]) => ({ x, y, w, h, life, max: 5, head: head === 1, plat: null }));
     s.f.forEach((a, i) => {
       const f = g.fighters[i];

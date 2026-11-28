@@ -4,6 +4,7 @@ import { drawHat } from './hats';
 import { wrecksOf, type Wreck } from './nov21';
 import { hpBar } from './render';
 import { walkLegs } from './toys';
+import { airBody, legoPilot, legoPilotOnFoot } from './nov28Draw';
 
 type Ctx = CanvasRenderingContext2D;
 
@@ -171,44 +172,9 @@ function drawGunSoldier(ctx: Ctx, c: Cat, time: number) {
   hpBar(ctx, x, y - c.h - 26, 34, c.hp / c.maxHp, c.color);
 }
 
-/** A little yellow-headed pilot in a red shirt (sitting on the jet, or on foot after getting out). */
-function pilotFigure(ctx: Ctx, x: number, y: number, s: number, d: number, sitting: boolean, flash: boolean) {
-  const red = flash ? '#ffffff' : '#e53935';
-  const yellow = flash ? '#ffffff' : '#ffd600';
-  ctx.lineCap = 'round';
-  // Body (red shirt)
-  ctx.fillStyle = red;
-  ctx.strokeStyle = OUT;
-  ctx.lineWidth = 1.4 * s;
-  ctx.beginPath();
-  ctx.roundRect(x - 5 * s, y - 14 * s, 10 * s, 12 * s, 2.5 * s);
-  ctx.fill();
-  ctx.stroke();
-  if (!sitting) {
-    ctx.strokeStyle = '#37474f';
-    ctx.lineWidth = 3 * s;
-    line(ctx, x - 2.5 * s, y - 2 * s, x - 3 * s, y + 8 * s);
-    line(ctx, x + 2.5 * s, y - 2 * s, x + 3 * s, y + 8 * s);
-  }
-  // Arm forward (on the stick, or holding a pistol)
-  ctx.strokeStyle = yellow;
-  ctx.lineWidth = 2.6 * s;
-  line(ctx, x, y - 11 * s, x + d * 8 * s, y - 7 * s);
-  // Head: a round yellow stud with a red base, like the picture
-  ctx.fillStyle = '#c62828';
-  ctx.beginPath();
-  ctx.ellipse(x, y - 15 * s, 6 * s, 2 * s, 0, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.fillStyle = yellow;
-  ctx.strokeStyle = OUT;
-  ctx.lineWidth = 1.4 * s;
-  ctx.beginPath();
-  ctx.arc(x, y - 21 * s, 6 * s, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.stroke();
-  // Goggles
-  ctx.fillStyle = '#212121';
-  ctx.fillRect(x + d * 1 * s - (d < 0 ? 5 * s : 0), y - 23 * s, 5 * s, 2.4 * s);
+/** A pilot of Aircraft 07: LEGO pieces like Potter's, a round yellow stud piece on a see-through red flower plate. */
+function pilotFigure(ctx: Ctx, x: number, y: number, s: number, _d: number, _sitting: boolean, flash: boolean) {
+  legoPilot(ctx, x, y, s * 1.15, '#ffd600', '#e53935', true, flash);
 }
 
 /** The jet in profile, nose toward `d`, centred on (0, 0). Shared by the flying jet and the wreck. */
@@ -319,8 +285,8 @@ function drawAircraft(ctx: Ctx, c: Cat, time: number) {
   ctx.rotate(tilt);
   ctx.scale(1.25, 1.25);
   // The pilots sit one behind the other at the back.
-  pilotFigure(ctx, -d * 30, -5, 0.75, d, true, c.hurtFlash > 0);
-  pilotFigure(ctx, -d * 20, -5, 0.75, d, true, c.hurtFlash > 0);
+  pilotFigure(ctx, -d * 31, -5, 0.75, d, true, c.hurtFlash > 0);
+  pilotFigure(ctx, -d * 18, -5, 0.75, d, true, c.hurtFlash > 0);
   jetBody(ctx, d, time, false, c.hurtFlash > 0);
   // Muzzle flashes on both guns
   if (c.attackT > 0.08) {
@@ -336,19 +302,7 @@ function drawAircraft(ctx: Ctx, c: Cat, time: number) {
 
 /** A pilot on foot (out of the wreck or from Sandbox): 30 HP, a shot every 10 s. */
 function drawPilot(ctx: Ctx, c: Cat) {
-  const d = c.facing || 1;
-  const bob = c.onGround ? 0 : -2;
-  pilotFigure(ctx, c.x, c.y - 9 + bob, 1.3, d, false, c.hurtFlash > 0);
-  // His little pistol
-  ctx.fillStyle = '#455a64';
-  ctx.fillRect(c.x + d * 10 - (d < 0 ? 9 : 0), c.y - 9 - 13 * 1.3 - 2, 9, 3.5);
-  if (c.attackT > 0.15) {
-    ctx.fillStyle = '#ffeb3b';
-    ctx.beginPath();
-    ctx.arc(c.x + d * 22, c.y - 9 - 13 * 1.3, 4, 0, Math.PI * 2);
-    ctx.fill();
-  }
-  hpBar(ctx, c.x, c.y - 50, 24, c.hp / c.maxHp, '#e53935');
+  legoPilotOnFoot(ctx, c, '#ffd600', '#e53935', true, 'gold');
 }
 
 // ---------- shots ----------
@@ -477,7 +431,8 @@ export function drawWrecks(ctx: Ctx, g: Game, time: number) {
       ctx.translate(w.x, w.y);
       ctx.rotate(w.rot);
       ctx.scale(1.25, 1.25);
-      jetBody(ctx, w.facing, time, true, false);
+      if (w.kind === 'aircraft') jetBody(ctx, w.facing, time, true, false);
+      else airBody(ctx, w.kind, w.facing, time, true, false);
       // It's on fire.
       for (let i = 0; i < 5; i++) {
         const fx = -30 + i * 14;
