@@ -1,7 +1,7 @@
 import { ME } from '../game/meBoss';
 import { SB_ROCK_AT, TEAM_COLORS } from '../game/game';
 import { playMusic } from '../music';
-import { AIRCRAFT, GUN_SOLDIER, PILOT, BABY_ELE, BEES, CHEF, CUPCAKE, GINGER, FROG, GHOST, KNIGHT, CHICK, CHICKEN, DOG, DRONE, LIL_PIGEON, MEMORY_ALLY, NINJAS, PENGUIN, PIGEON_HP, RED_GUY, RETRO, SB_ALLY, SECRET_HP, SKELETON, SNOWMAN_HP, SOLDIER_HP, XBOSS_HP, ZOMBIES, ZOMBIE_ALLY, UNICORN, DINO, WIZARD, PANDA, PHYSI } from '../game/entities';
+import { AIRCRAFT, GUN_SOLDIER, PILOT, MINI_AIR, RED_AIR, GREEN_AIR, BABY_ELE, BEES, CHEF, CUPCAKE, GINGER, FROG, GHOST, KNIGHT, CHICK, CHICKEN, DOG, DRONE, LIL_PIGEON, MEMORY_ALLY, NINJAS, PENGUIN, PIGEON_HP, RED_GUY, RETRO, SB_ALLY, SECRET_HP, SKELETON, SNOWMAN_HP, SOLDIER_HP, XBOSS_HP, ZOMBIES, ZOMBIE_ALLY, UNICORN, DINO, WIZARD, PANDA, PHYSI } from '../game/entities';
 import { PHYL_KINDS, isPhylKind, phylKindPhase } from '../game/types';
 import { PHYL } from '../game/phyl';
 import { HELPER_KINDS, SB_CHICKS, SB_ZOMBIE_KINDS, SECRET_KINDS, XBOSS_KINDS, isSbZombie, type HelperKind, type SandboxHelper, type SbZombieKind } from '../game/types';
@@ -35,13 +35,13 @@ const BOSS_HP: Record<BossKind, number> = { boss: 5000, cat: 10000, mascot: 5000
 export const BOSS_ICON: Record<BossKind, string> = { boss: '👹', cat: '🐱', mascot: '⚪', buffalo: '🐃', fish: '🐟', pigeon: '🐦', queen: '❄️', tide: '🌊', guardian: '🌲', elephant: '🐘', scarecrow: '🌾', robo: '🤖', jay: '🍝', dot: '⚫', phyl1: '📖', phyl2: '📕', phyl3: '📜', golem: '🗿', me: '🪞' };
 const HELPER_ICON: Record<HelperKind | SbZombieKind, string> = {
   cat: '🐱', fish: '🐟', memory: '💭', soldier: '💂', snowman: '☃️', sbsnow: '⛄', fireally: '🔥', redguy: '🟥', chicken: '🐔', chick: '🐥', lilpigeon: '🐦', skeleton: '💀', dog: '🐕', retro: '👾', bee: '🐝', ninja: '🥷', zombie: '🧟',
-  babyele: '🐘', drone: '🛸', penguin: '🐧', knight: '🛡️', frog: '🐸', ghost: '👻', ginger: '🍪', cupcake: '🧁', chef: '👨‍🍳', unicorn: '🦄', dino: '🦖', wizard: '🧙', panda: '🐼', physi: '👁️', betta: '🐠', gunsoldier: '🔫', aircraft: '✈️', pilot: '👨‍✈️',
+  babyele: '🐘', drone: '🛸', penguin: '🐧', knight: '🛡️', frog: '🐸', ghost: '👻', ginger: '🍪', cupcake: '🧁', chef: '👨‍🍳', unicorn: '🦄', dino: '🦖', wizard: '🧙', panda: '🐼', physi: '👁️', betta: '🐠', gunsoldier: '🔫', aircraft: '✈️', pilot: '👨‍✈️', miniair: '🛩️', redair: '🔺', greenair: '🟩', pilotmini: '🧑‍✈️', pilotred: '🧑‍✈️', pilotgreen: '🧑‍✈️',
   znormal: '🧟', zshooter: '🤢', zmini: '🧒', zbig: '🦍', zrunner: '🏃', zexploder: '💥', zboss: '👑',
 };
 const HELPER_HP: Record<HelperKind | SbZombieKind, number> = {
   cat: 100, fish: 50, memory: MEMORY_ALLY.hp, soldier: SOLDIER_HP, snowman: SNOWMAN_HP, sbsnow: SB_ALLY.hp, fireally: SB_ALLY.hp, redguy: RED_GUY.hp,
   chicken: CHICKEN.hp, chick: CHICK.hp, lilpigeon: LIL_PIGEON.hp, skeleton: SKELETON.hp, dog: DOG.hp, retro: RETRO.hp, bee: BEES.hp, ninja: NINJAS.hp, zombie: ZOMBIE_ALLY.hp,
-  babyele: BABY_ELE.hp, drone: DRONE.hp, penguin: PENGUIN.hp, knight: KNIGHT.hp, frog: FROG.hp, ghost: GHOST.hp, ginger: GINGER.hp, cupcake: CUPCAKE.hp, chef: CHEF.hp, unicorn: UNICORN.hp, dino: DINO.hp, wizard: WIZARD.hp, panda: PANDA.hp, physi: PHYSI.hp, betta: 80, gunsoldier: GUN_SOLDIER.hp, aircraft: AIRCRAFT.hp, pilot: PILOT.hp,
+  babyele: BABY_ELE.hp, drone: DRONE.hp, penguin: PENGUIN.hp, knight: KNIGHT.hp, frog: FROG.hp, ghost: GHOST.hp, ginger: GINGER.hp, cupcake: CUPCAKE.hp, chef: CHEF.hp, unicorn: UNICORN.hp, dino: DINO.hp, wizard: WIZARD.hp, panda: PANDA.hp, physi: PHYSI.hp, betta: 80, gunsoldier: GUN_SOLDIER.hp, aircraft: AIRCRAFT.hp, pilot: PILOT.hp, miniair: MINI_AIR.hp, redair: RED_AIR.hp, greenair: GREEN_AIR.hp, pilotmini: MINI_AIR.pilotHp, pilotred: RED_AIR.pilotHp, pilotgreen: GREEN_AIR.pilotHp,
   znormal: ZOMBIES.znormal.hp, zshooter: ZOMBIES.zshooter.hp, zmini: ZOMBIES.zmini.hp, zbig: ZOMBIES.zbig.hp, zrunner: ZOMBIES.zrunner.hp, zexploder: ZOMBIES.zexploder.hp, zboss: ZOMBIES.zboss.hp,
 };
 /** Helpers that count toward the helper limit (chicks don't, zombies have their own). */

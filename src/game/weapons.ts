@@ -13,6 +13,7 @@ export type WeaponId = 'sword' | 'spear' | 'hammer' | 'bow' | 'boomerang' | 'bom
   | 'macaroni' | 'friedrice' | 'jaylunch' | 'tentacle'
   | 'blindfold' | 'ghostsword' | 'dotcore'
   | 'goldpistol'
+  | 'bricksword'
   | SummonCardId;
 
 /** Summon cards (October 30): one for every helper that had no weapon of its own to call it. */
@@ -189,6 +190,8 @@ export const WEAPONS: WeaponDef[] = [
   // November 21: the Golden Pistol. 8 a bonk; drag to aim and it fires on its own (10 a bullet, like the Pistol).
   // Let go for Squad Up: pistol soldiers, spear soldiers, 2 ghost clones, a Clone and the Aircraft.
   { id: 'goldpistol', price: 1100, length: 38, damage: 8, turn: 15, cooldown: 25, ranged: true },
+  // November 28: the Brick Sword (LEGO). 30 a hit like the Sword; its dash builds a brick wall on a hit (5 s).
+  { id: 'bricksword', price: 1000, length: 72, damage: 30, turn: 16, cooldown: 5, ranged: false },
   ...SUMMON_CARDS.map((c): WeaponDef => ({ id: c.id, price: c.price, length: 34, damage: 10, turn: 14, cooldown: c.cd, ranged: true })),
 ];
 

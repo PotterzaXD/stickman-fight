@@ -1,6 +1,6 @@
 import { ballisticAngle } from './ai';
 import {
-  AIRCRAFT, PILOT, BABY_ELE, Body, CHEF, GUN_SOLDIER, CUPCAKE, Cat, DINO, DRONE, FROG, Fighter, GHOST, GINGER, KNIGHT, PANDA, PENGUIN, PHYSI, RETRO, SB_ALLY, UNICORN, WIZARD, ZOMBIE_ALLY,
+  AIRCRAFT, PILOT, MINI_AIR, RED_AIR, GREEN_AIR, BABY_ELE, Body, CHEF, GUN_SOLDIER, CUPCAKE, Cat, DINO, DRONE, FROG, Fighter, GHOST, GINGER, KNIGHT, PANDA, PENGUIN, PHYSI, RETRO, SB_ALLY, UNICORN, WIZARD, ZOMBIE_ALLY,
   type CatVariant, type Projectile,
 } from './entities';
 import type { Game } from './game';
@@ -172,6 +172,13 @@ export const HELPER_STATS: Partial<Record<CatVariant, [number, number]>> = {
   gunsoldier: [GUN_SOLDIER.hp, GUN_SOLDIER.dmg],
   aircraft: [AIRCRAFT.hp, AIRCRAFT.dmg],
   pilot: [PILOT.hp, PILOT.dmg],
+  // November 28: the Mini, Red and Green Aircraft and their pilots.
+  miniair: [MINI_AIR.hp, MINI_AIR.dmg],
+  redair: [RED_AIR.hp, RED_AIR.dmg],
+  greenair: [GREEN_AIR.hp, GREEN_AIR.dmg],
+  pilotmini: [MINI_AIR.pilotHp, MINI_AIR.pilotDmg],
+  pilotred: [RED_AIR.pilotHp, RED_AIR.pilotDmg],
+  pilotgreen: [GREEN_AIR.pilotHp, GREEN_AIR.pilotDmg],
 };
 
 /** A new shot hit someone. Returns false for other shots. */

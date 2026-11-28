@@ -246,12 +246,14 @@ function updateFallers(g: Game, dt: number) {
 }
 
 function boom(g: Game, at: { x: number; y: number }) {
+  g.blastN++;
   for (const b of g.bodies()) {
     if (!b.alive) continue;
     const d = Math.hypot(b.x - at.x, b.cy - at.y);
     if (d > EVENTS.bombR + b.w / 2) continue;
     g.damage(b, EVENTS.bomb * (1 - (d / (EVENTS.bombR * 2))), null, (Math.sign(b.x - at.x) || 1) * 600, -650, 'pieces');
   }
+  g.blastN--;
   g.ring(at.x, at.y, EVENTS.bombR, 0.4, '#ff9100');
   g.burst(at.x, at.y, '#ff6d00', 18, 420);
   g.burst(at.x, at.y, '#ffeb3b', 10, 300);

@@ -2142,4 +2142,5 @@ button.chef-item {
 .three-home .logo3d { font-size: clamp(40px, 9vw, 84px); }
 .menu-buttons .btn.cat3d { background: linear-gradient(90deg, #ff9800, #ffcc80); color: #3e2723; }
 .menu-buttons .btn.boss3d { background: linear-gradient(90deg, #263238, #c62828); color: #fff; }
+.menu-buttons .btn.mascot3d { background: linear-gradient(90deg, #eceff1, #fdd835); color: #263238; }
 .three-card.locked { opacity: 0.6; filter: grayscale(0.6); }

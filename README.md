@@ -42,7 +42,7 @@ Play has two tabs: **⚔️ Battle** (Free For All, Teams, 3 Lives, King of the 
 
 - **Secret bosses:** there are secret bosses hidden in the game. They show as locked **🔒 ???** buttons in Play; tap one (or read the **Secret boss hints** box) for a hint on how to unlock it, with your progress where it can be counted. When you meet the conditions, they show up as new modes in Play (and online, when the host has them).
 
-- **Sandbox** (its own button on the main menu): add any players, bots and bosses (Boss, Grandfather Cat, Mascot, Buffalo, Fishy boss, the Pigeon once you beat it, and any secret bosses you have unlocked), put them on teams, and change each one's HP and power. Sandbox takes up to 30 players and bots and up to 20 bosses. You can also add up to 20 **helpers**: AI cats, fish, the Recall Memory boss and spear soldiers, each on the team you choose. Betta fish, pistol soldiers and Aircraft 07 are helpers too, and the **Ghost Clones** section adds up to 20 ghost clones (100 HP, Ghost Sword) of any player or bot. You can try every weapon there. Sandbox matches never change your coins.
+- **Sandbox** (its own button on the main menu): add any players, bots and bosses (Boss, Grandfather Cat, Mascot, Buffalo, Fishy boss, the Pigeon once you beat it, and any secret bosses you have unlocked), put them on teams, and change each one's HP and power. Sandbox takes up to 30 players and bots and up to 20 bosses. You can also add up to 20 **helpers**: AI cats, fish, the Recall Memory boss and spear soldiers, each on the team you choose. Betta fish, pistol soldiers, all four aircraft and their pilots are helpers too, and the **Ghost Clones** section adds up to 20 ghost clones (100 HP, Ghost Sword) of any player or bot. You can try every weapon there. Sandbox matches never change your coins.
 
 You can have up to 6 players and 6 bots at once. Each bot has its own difficulty: CPU-easy, CPU-medium or CPU-hard. With no players, you watch the bots fight.
 
@@ -82,10 +82,11 @@ Winning gives 3–5 coins. When bots or the boss win, you get 1 coin. Beating th
 | Shotgun | 600 | A blast of pellets, cooldown 2 seconds. Up close (about one stickman away) it does 180, from far away 90 |
 | Pistol | 150 | Shoots nerf bullets for 10 damage. 1 second between shots, and after 5 shots it reloads for 3 seconds |
 | 67 Gun | 500 | One shot for 100 damage, cooldown 10 seconds |
-| Summoner | 5,000 | Calls 3 cats, 3 fish and 3 snowmen (all weaker than normal), the Recall Memory boss, and a spear soldier (300 HP, hits for 20). Since November 12 it also calls 2 ghost clones (100 HP) and 10 betta fish (80 HP, twice a Summoner fish, and bite for 6, half a Summoner fish). Since November 21 it also calls 3 pistol soldiers and the Aircraft. In the game its description just says "Uhhh guess it." |
+| Summoner | 5,000 | Calls 3 cats, 3 fish and 3 snowmen (all weaker than normal), the Recall Memory boss, and a spear soldier (300 HP, hits for 20). Since November 12 it also calls 2 ghost clones (100 HP) and 10 betta fish (80 HP, twice a Summoner fish, and bite for 6, half a Summoner fish). Since November 21 it also calls 3 pistol soldiers and the Aircraft, and since November 28 the Mini, Red and Green Aircraft. In the game its description just says "Uhhh guess it." |
 | Blindfold | Free | 30 a hit. Throw the blindfold (60): it lands on their head and they fall asleep until somebody hits them (5 seconds at most) |
 | Ghost Sword | 1,200 | For sale once you own the Sword and the Fire Sword. Just like the Sword (30 a hit, Dash Slash). Passive, once a match: when you go down you come back as a see-through ghost with 250 HP (+10 for every KO you made before that), and 2 ghost clones of you (100 HP each, with Ghost Swords) come to help |
-| Golden Pistol | 1,100 | Drag the joystick to aim and it fires on its own toward where you aim (10 a bullet, the Pistol's damage, about 3 a second). Let go for **Squad Up** (25 s cooldown): 3 pistol soldiers and 3 spear soldiers (500 HP each), your 2 ghost clones, a Clone, and **Aircraft 07** (see below) |
+| Golden Pistol | 1,100 | Drag the joystick to aim and it fires on its own toward where you aim (10 a bullet, the Pistol's damage, about 3 a second). Let go for **Squad Up** (25 s cooldown): 3 pistol soldiers and 3 spear soldiers (500 HP each), your 2 ghost clones, a Clone, **Aircraft 07** and the **Mini, Red and Green Aircraft** (see below) |
+| Brick Sword | 1,000 | A LEGO sword: 30 a hit, like the Sword. Its skill is a dash, and when the dash hits someone a **brick wall** goes up between you (5 s cooldown). Enemies can't get past the wall or shoot through it; you and your team walk right through. It falls apart after 5 seconds |
 | Spear of Bravery | 800 | Calls 3 spear soldiers (300 HP each, half-strength spears) |
 | Frying Pan | 300 | BONK: 40 damage and the enemy sees stars for 1.5 seconds |
 | Water Gun | 200 | Sprays water that pushes enemies far away (6 a drop) |
@@ -243,14 +244,29 @@ The final boss, shown as ??? in the boss list until you have all 28 achievements
 
 A tan jet (number 07) with two yellow pilots in red shirts riding on top. 300 HP. It flies over the fight and fires both wing guns at once (2 bullets, 3 damage each). When it goes down it blows up in the biggest explosion in the game (a white flash, a fireball, a mushroom of smoke, flying bricks and a big shake; enemies close by take 40), and the burning wreck slowly falls down the map. The kill feed says **"Are they okay?"**. There is a 50% chance that 1 pilot gets out alive and a 25% chance that both do. Pilots have 30 HP and keep shooting: a bullet for 2 damage every 10 seconds. The Aircraft comes from the Golden Pistol and the Summoner. The Aircraft and the pilots are both helpers in Sandbox.
 
+Since November 28 the pilots look like Potter's LEGO pieces: a round yellow stud piece for a head on a see-through red flower plate.
+
+### The Mini, Red and Green Aircraft
+
+Three more LEGO aircraft (from Potter's builds), each with its own LEGO pilot already sitting on it. They come from the Summoner and the Golden Pistol, and they are helpers in Sandbox. When one goes down it blows up like Aircraft 07 (the Mini one's blast does no damage), the wreck falls down the map, and its pilot always gets out.
+
+| Aircraft | HP | What it does | Pilot |
+|---|---|---|---|
+| Mini Aircraft | 30 | Super fast. Zips around its target in circles and fires harmless shots from the gun on its back. Whoever gets hit goes after it for a while (it is the distraction). | 10 HP, red flower body, no damage (its shots distract too) |
+| Red Aircraft | 700 | Very fast, no gun. **Explosions can't hurt it.** It flies nose first into enemies and stabs them with its front spikes (20), pulls back and goes again. | 50 HP, grey head and brown body, hits for 2 |
+| Green Aircraft | 900 | Slow. Crashes into enemies for 40, and takes 20 itself each time. | 30 HP, yellow head and brown body, a bullet for 2 every 10 s |
+
+**Fish on the beach:** Summoner fish and betta fish that fall off a beach map (the Beach and the Pirate Ship) don't get hurt: they swim back up.
+
 **Pistol soldiers** (Golden Pistol, Summoner, Sandbox): stickmen in helmets with 500 HP who keep their distance and shoot (10 a bullet, one a second, 3 seconds to reload after 5 shots).
 
 ## 3D mode
 
-Opened by the **Tome Key** (the same key as 1D): a **🧊 3D** button in the main menu's small row. It is the normal game with **exactly the same camera and point of view**, only drawn in 3D (Three.js): round shiny heads with eyes that blink and look where you aim, round arms and legs, thick blocks for platforms with real shadows, 3D weapons and shots. Its menu is laid out like the main menu (Play, Grandfather Cat and Boss Fight buttons, a row with Shop, Settings and Back, then How to play and Credits) with a 3D fight in the background.
+Opened by the **Tome Key** (the same key as 1D): a **🧊 3D** button in the main menu's small row. It is the normal game with **exactly the same camera and point of view**, only drawn in 3D (Three.js): round shiny heads with eyes that blink and look where you aim, round arms and legs, thick blocks for platforms with real shadows, 3D weapons and shots. Its menu is laid out like the main menu (Play, Grandfather Cat, Boss Fight and Mascot buttons, a row with Shop, Settings and Back, then How to play and Credits) with a 3D fight in the background.
 
 - Its own coins (**3D coins**) and its own shop with the weapons from the first two versions: Sword and Spear free, Hammer 20, Bow 25, Boomerang 30, Bomb 35, Katana 40, Snowball 50, from the second update Axe 60, Shuriken 70, Laser Gun 80 and Magic Staff 90, and from the third update Poop Bomb 100 and 67 Weapon 120.
 - You against 1 to 5 bots (Free For All or Teams), or **Boss Fight**: you and your bots against 1 to 3 giant bosses holding 3D weapons. The 6 first maps plus the second update's Volcano, Concrete Factory, Glass Palace, Rooftops and Frozen Lake (with their concrete, lava and glass blocks). Win: 10 + 5 for each bot, or 20 for each boss. Offline only.
+- The fourth update (the Mascot and finishers): **death finishers** in 3D (ragdoll, flung, cut in half, burned to ashes, flown into the sky, tripped, frozen and shattered, zapped, slipped on a banana, and blown to pieces with googly eyes), the **Mascot** boss (unlocked once you own every 3D shop weapon; win: 250 3D coins, the first win gives the **Mascot Stick** for 3D), **healing potions** (Settings on/off), and the Banana 110, Ice Wand 130 and Thunder Hammer 150 in the 3D shop.
 - The third update (Grandfather Cat): the **Space** map (low gravity) and **Grandfather Cat** with his soup, his bell and his AI cats, all in 3D. Beating him gives 50 3D coins, and the first win gives **The Grandfather Cat Treasure** for 3D.
 
 ## Profile

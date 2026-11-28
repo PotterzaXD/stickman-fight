@@ -5,6 +5,7 @@ import type { Game } from '../game/game';
 import { THEMES } from '../game/maps';
 import { swingArm, walkLegs } from '../game/toys';
 import type { MapDef, Platform } from '../game/types';
+import { Finishers3D } from './finish3d';
 
 /*
  * 3D mode's picture of a normal match. The game itself is exactly the same as 2D; only the drawing changes.
@@ -71,6 +72,8 @@ export class Renderer3D {
   // Shared pieces
   private geo = makeGeos();
   private mats = makeMats();
+  /** The fourth update: finishers, potions and banana peels. */
+  private fin: Finishers3D;
 
   constructor(canvas: HTMLCanvasElement) {
     this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
@@ -94,6 +97,7 @@ export class Renderer3D {
     this.bits.count = 0;
     this.bits.frustumCulled = false;
     this.actors.add(this.bits);
+    this.fin = new Finishers3D(this.actors, this.geo);
   }
 
   /** Same camera as the 2D game: centre (cam.x, cam.y) shifted by the shake, `zoom` world pixels per screen pixel. */
@@ -130,11 +134,13 @@ export class Renderer3D {
     this.updateShots(g);
     this.updateBalls(g);
     this.updateBits(g);
+    this.fin.update(g);
     this.updateDeco(cx);
     this.renderer.render(this.scene, cam);
   }
 
   dispose() {
+    this.fin.dispose();
     this.renderer.dispose();
   }
 
@@ -332,8 +338,10 @@ export class Renderer3D {
     const blink = (g.time + f.id * 1.37) % 3.6 < 0.13 || f.stun > 0.25;
     r.lids.forEach((l) => (l.visible = blink));
     r.pupils.forEach((p) => (p.visible = !blink));
+    // The Mascot has no eyes (like the game icon).
+    r.eyes.visible = !f.mascot;
     // Hurt: a white flash. Frozen: icy blue.
-    r.mat.emissive.set(f.hurtFlash > 0 ? '#ffffff' : f.frozenT > 0 ? '#4fc3f7' : '#000000');
+    r.mat.emissive.set(f.hurtFlash > 0 ? (f.mascot ? '#ff1744' : '#ffffff') : f.frozenT > 0 ? '#4fc3f7' : '#000000');
     r.mat.emissiveIntensity = f.hurtFlash > 0 ? 0.45 : f.frozenT > 0 ? 0.5 : 0;
     // Weapons
     while (r.weapons.length < f.weapons.length) {
@@ -453,8 +461,8 @@ export class Renderer3D {
         this.actors.add(o);
       }
       o.position.set(p.x, -p.y, 4);
-      if (p.kind === 'arrow' || p.kind === 'laser' || p.kind === 'dart') o.rotation.set(0, 0, -Math.atan2(p.vy, p.vx));
-      else if (p.kind === 'boomerang' || p.kind === 'shuriken' || p.kind === 'axe' || p.kind === 'six7') o.rotation.set(0.4, 0, -p.t * 18);
+      if (p.kind === 'arrow' || p.kind === 'laser' || p.kind === 'dart' || p.kind === 'icebolt') o.rotation.set(0, 0, -Math.atan2(p.vy, p.vx));
+      else if (p.kind === 'boomerang' || p.kind === 'shuriken' || p.kind === 'axe' || p.kind === 'six7' || p.kind === 'banana') o.rotation.set(0.4, 0, -p.t * 18);
       else o.rotation.set(p.t * 3, p.t * 5, 0);
     }
   }
@@ -660,6 +668,14 @@ function makeMats() {
     pink: new THREE.MeshStandardMaterial({ color: '#f06292', roughness: 0.4 }),
     catDark: new THREE.MeshStandardMaterial({ color: '#8d6e63', roughness: 0.6 }),
     catTail: new THREE.MeshStandardMaterial({ color: '#ef6c00', roughness: 0.55 }),
+    // The fourth update: Ice Wand, Thunder Hammer and Banana.
+    iceBlue: new THREE.MeshStandardMaterial({ color: '#90caf9', roughness: 0.3 }),
+    iceGlow: new THREE.MeshStandardMaterial({ color: '#e1f5fe', emissive: new THREE.Color('#4fc3f7'), emissiveIntensity: 0.7, roughness: 0.05, metalness: 0.2, transparent: true, opacity: 0.9 }),
+    iceDim: new THREE.MeshStandardMaterial({ color: '#90a4ae', roughness: 0.3 }),
+    thunder: new THREE.MeshStandardMaterial({ color: '#3949ab', roughness: 0.35, metalness: 0.5 }),
+    bolt: new THREE.MeshStandardMaterial({ color: '#ffeb3b', emissive: new THREE.Color('#ffeb3b'), emissiveIntensity: 0.9 }),
+    boltDim: new THREE.MeshStandardMaterial({ color: '#9fa8da', roughness: 0.4 }),
+    banana: new THREE.MeshStandardMaterial({ color: '#fdd835', roughness: 0.45 }),
   };
 }
 
@@ -773,9 +789,42 @@ function weaponMesh(id: string, len: number, s: number, ready: boolean, mats: Ma
       add(mesh(geo.cone, ready ? mats.gold : mats.darkWood), 18 * s, 0, 0, 9 * s, 16 * s, 9 * s, -Math.PI / 2);
       add(mesh(geo.smallSphere, mats.darkSteel), 27 * s, 0, 0, 2.5 * s, 2.5 * s, 2.5 * s);
       break;
+    // The fourth update: Ice Wand, Thunder Hammer, Banana, and the Mascot's stick (its Mascot Stick is the reward).
+    case 'ice':
+      shaft(-8 * s, len - 12 * s, 2 * s, mats.iceBlue);
+      add(mesh(new THREE.OctahedronGeometry(1), ready ? mats.iceGlow : mats.iceDim, true), len - 6 * s, 0, 0, 10 * s, 9 * s, 6 * s);
+      break;
+    case 'thunder':
+      shaft(-4 * s, len - 10 * s, 2.5 * s, mats.darkWood);
+      add(mesh(new RoundedBoxGeometry(24, 34, 22, 2, 4), mats.thunder, true), len - 4 * s, 0, 0, s, s, s);
+      add(mesh(geo.box, ready ? mats.bolt : mats.boltDim), len - 4 * s, 0, 11.5 * s, 4 * s, 22 * s, 1.5 * s, 0.5);
+      break;
+    case 'banana':
+      if (ready) {
+        const b = banana(11 * s, mats);
+        b.position.x = 12 * s;
+        g.add(b);
+      }
+      break;
+    case 'stick':
+    case 'mascotstick':
+      shaft(-6 * s, len, 2.6 * s, mats.yellow);
+      break;
     default:
       shaft(-4 * s, len, 2.4 * s, mats.wood);
   }
+  return g;
+}
+
+/** A banana: a curved yellow tube with a brown tip. */
+function banana(r: number, mats: Mats) {
+  const g = new THREE.Group();
+  const curve = new THREE.QuadraticBezierCurve3(new THREE.Vector3(-r, r * 0.35, 0), new THREE.Vector3(0, -r * 0.75, 0), new THREE.Vector3(r, r * 0.35, 0));
+  const b = mesh(new THREE.TubeGeometry(curve, 12, r * 0.33, 8), mats.banana, true);
+  g.add(b);
+  const tip = mesh(new THREE.SphereGeometry(r * 0.2, 8, 6), mats.darkWood, true);
+  tip.position.set(r, r * 0.38, 0);
+  g.add(tip);
   return g;
 }
 
@@ -1082,6 +1131,15 @@ function shotMesh(p: Projectile, mats: Mats, geo: Geos): THREE.Object3D {
       g.add(b);
       break;
     }
+    case 'icebolt': {
+      const b = mesh(new THREE.OctahedronGeometry(1), mats.iceGlow, true);
+      b.scale.set(Math.max(8, p.r) * 1.4, Math.max(8, p.r) * 0.8, Math.max(8, p.r) * 0.8);
+      g.add(b);
+      break;
+    }
+    case 'banana':
+      g.add(banana(Math.max(9, p.r), mats));
+      break;
     default: {
       const b = mesh(geo.sphere, mats.boomer);
       b.scale.setScalar(Math.max(5, p.r));

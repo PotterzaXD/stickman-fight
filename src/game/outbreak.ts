@@ -257,6 +257,7 @@ export function zombieBoom(g: Game, c: Cat) {
   g.burst(c.x, c.cy, '#aed581', 22, 420);
   g.burst(c.x, c.cy, '#558b2f', 12, 260);
   g.play('boom');
+  g.blastN++;
   for (const b of [...g.fighters, ...g.cats, ...g.snowmen]) {
     if (!b.alive || b === c || b.team === c.team) continue;
     const d = Math.hypot(b.x - c.x, b.cy - c.cy);
@@ -264,4 +265,5 @@ export function zombieBoom(g: Game, c: Cat) {
     const dir = Math.sign(b.x - c.x) || 1;
     g.damage(b, c.touchDmg, c, dir * 700, -600, 'ragdoll');
   }
+  g.blastN--;
 }

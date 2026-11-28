@@ -85,6 +85,7 @@ export const MELEE_FINISH: Partial<Record<WeaponId, Finish>> = {
   fan: 'fling',
   morningstar: 'fling',
   blanket: 'fling',
+  bricksword: 'ragdoll',
 };
 
 /** Finisher for a skill shot. */
@@ -176,6 +177,9 @@ const BONES: [number, number][] = [
   [HIP, LF],
   [HIP, RF],
 ];
+export const CORPSE_BONES = BONES;
+/** Ragdoll point numbers the 3D picture needs: the head, and the two ends of the bone an axe cuts. */
+export const RAG = { HEAD, CHEST, BELLY };
 
 export interface Corpse {
   style: Finish;
@@ -203,9 +207,11 @@ export interface Corpse {
   /** Not a stickman: a cat's grave, a cooked fish, the fried Pigeon, or the Recall Memory boss fading away. */
   prop?: Prop;
   facing?: number;
+  /** A LEGO pilot falling apart: the colour of its head piece (the body piece is `color`). */
+  head?: string;
 }
 
-export type Prop = 'grave' | 'cooked' | 'fried' | 'fade' | 'nugget' | 'drumstick' | 'pixels' | 'beefall' | 'scrap';
+export type Prop = 'grave' | 'cooked' | 'fried' | 'fade' | 'nugget' | 'drumstick' | 'pixels' | 'beefall' | 'scrap' | 'lego';
 
 function ragdoll(f: Fighter, vx: number, vy: number, spin: number, cut: boolean) {
   const s = f.scale;
@@ -375,9 +381,17 @@ export function helperCorpse(c: Cat): Corpse | null {
       return propCorpse('fade', c.x, c.y, c.color, c.facing, 1.4);
     case 'drone':
       return propCorpse('scrap', c.x, c.y, '#90a4ae', c.facing, 1.4);
+    // LEGO pilots pop apart into their two pieces.
+    case 'pilot':
+    case 'pilotmini':
+    case 'pilotred':
+    case 'pilotgreen': {
+      const p = propCorpse('lego', c.x, c.y, c.color, c.facing, 3);
+      p.head = c.variant === 'pilotred' ? '#cfd8dc' : '#ffd600';
+      return p;
+    }
     case 'soldier':
     case 'gunsoldier':
-    case 'pilot':
     case 'knight':
     case 'chef':
     case 'wizard':

@@ -7,6 +7,7 @@ import { ICE_SPIKE, PIE, oct23Helper, oct23Reach, oct23Speed } from './oct23';
 import { nov05BotSkill } from './nov05';
 import { jayBotSkill } from './jay';
 import { nov12BotSkill } from './nov12';
+import { miniPilotShoot, updateGreenAir, updateMiniAir, updateRedAir } from './nov28';
 import { gunSoldierShoot, nov21BotSkill, pilotShoot, updateAircraft } from './nov21';
 import { oct30BotSkill, oct30Helper, oct30Reach, oct30Speed } from './oct30';
 import type { Difficulty, Intent, Platform } from './types';
@@ -100,9 +101,19 @@ export class BotBrain {
   private shieldT = 0;
   private careEdge = true;
   private wander = 0;
+  /** The Mini Aircraft's harmless shots: go after it instead for a while. */
+  private lure: Body | null = null;
+  private lureT = 0;
 
   constructor(diff: Difficulty | 'boss') {
     this.p = PARAMS[diff];
+  }
+
+  /** Somebody distracted this bot: it goes after them for `s` seconds. */
+  distract(b: Body, s: number) {
+    this.lure = b;
+    this.lureT = s;
+    this.thinkT = 0;
   }
 
   think(dt: number, f: Fighter, g: Game): Intent {
@@ -110,11 +121,12 @@ export class BotBrain {
     this.time += dt;
     this.thinkT -= dt;
     this.shieldT -= dt;
+    this.lureT -= dt;
     const it: Intent = { moveX: 0, aim: null, shield: false, jump: false, skill: null, skillSlot: 0 };
     const fresh = this.thinkT <= 0;
     if (fresh) {
       this.thinkT = p.react * (0.7 + rand() * 0.6);
-      this.target = nearestEnemy(g, f);
+      this.target = this.lureT > 0 && this.lure?.alive && this.lure.team !== f.team ? this.lure : nearestEnemy(g, f);
       this.careEdge = rand() < p.edge;
       if (!f.boss && !f.shieldBroken && this.underThreat(f, g) && rand() < p.shieldP) this.shieldT = 0.3 + rand() * 0.4;
     }
@@ -218,6 +230,7 @@ export class BotBrain {
       switch (f.weapons[i].id) {
         case 'sword':
         case 'ghostsword':
+        case 'bricksword':
           if (Math.abs(dx) < 380 * s && Math.abs(dy) < 80 * s) angle = dx > 0 ? 0 : Math.PI;
           break;
         case 'spear':
@@ -484,6 +497,9 @@ export function updateCat(c: Cat, dt: number, g: Game) {
   if (c.variant === 'bee') return updateBee(c, dt, g);
   if (c.variant === 'drone') return updateDrone(c, dt, g);
   if (c.variant === 'aircraft') return updateAircraft(c, dt, g);
+  if (c.variant === 'miniair') return updateMiniAir(c, dt, g);
+  if (c.variant === 'redair') return updateRedAir(c, dt, g);
+  if (c.variant === 'greenair') return updateGreenAir(c, dt, g);
   if (c.variant === 'ghost') return updateGhost(c, dt, g);
   // Ninjas blink next to whoever they are after.
   if (c.variant === 'ninja') ninjaBlink(c, dt, g);
@@ -509,14 +525,14 @@ export function updateCat(c: Cat, dt: number, g: Game) {
       if (home && Math.abs(home.x - c.x) > 70) c.moveX = sign(home.x - c.x);
     }
     // The Fire Ally keeps its distance and throws fireballs.
-    if (t && (c.variant === 'fireally' || c.variant === 'zshooter' || c.variant === 'gunsoldier' || c.variant === 'pilot')) {
+    if (t && (c.variant === 'fireally' || c.variant === 'zshooter' || c.variant === 'gunsoldier' || c.variant === 'pilot' || c.variant === 'pilotmini' || c.variant === 'pilotgreen')) {
       const d = Math.abs(t.x - c.x);
       c.moveX = d < 260 ? -sign(t.x - c.x) : d > 480 ? sign(t.x - c.x) : 0;
     }
     // Don't run off an edge unless the target is across a small gap.
     if (c.onGround && c.moveX !== 0 && !platformBelow(g, c.x + sign(c.moveX) * 30, c.y, 700)) {
       // The Fire Ally backing away just stops at the edge.
-      if (c.variant === 'fireally' || c.variant === 'zshooter' || c.variant === 'gunsoldier' || c.variant === 'pilot') c.moveX = 0;
+      if (c.variant === 'fireally' || c.variant === 'zshooter' || c.variant === 'gunsoldier' || c.variant === 'pilot' || c.variant === 'pilotmini' || c.variant === 'pilotgreen') c.moveX = 0;
       else if (t && t.y < c.y + 80 && Math.abs(t.x - c.x) > 120 && rand() < 0.5) {
         c.vy = -900;
         c.onGround = false;
@@ -532,7 +548,7 @@ export function updateCat(c: Cat, dt: number, g: Game) {
     }
   }
   // The boss ally walks a bit slower; fish flop about quickly.
-  const speed = oct22Speed(c) ?? oct23Speed(c) ?? oct30Speed(c) ?? (isZombie(c.variant) ? ZOMBIES[c.variant].speed : c.variant === 'zombie' ? 300 : c.variant === 'babyele' ? 240 : c.variant === 'penguin' ? 190 : c.variant === 'ninja' ? 380 : c.variant === 'retro' ? 290 :
+  const speed = oct22Speed(c) ?? oct23Speed(c) ?? oct30Speed(c) ?? (isZombie(c.variant) ? ZOMBIES[c.variant].speed : c.variant === 'zombie' ? 300 : c.variant === 'babyele' ? 240 : c.variant === 'penguin' ? 190 : c.variant === 'ninja' ? 380 : c.variant === 'pilotmini' ? 460 : c.variant === 'retro' ? 290 :
     c.variant === 'memory' ? 280 : c.variant === 'fish' || c.variant === 'betta' ? 360 : c.variant === 'soldier' || c.variant === 'gunsoldier' || c.variant === 'sbsnow' || c.variant === 'fireally' || c.variant === 'skeleton' ? 300 : c.variant === 'dog' ? 380 : c.variant === 'chick' ? 300 : 330);
   if (c.stun > 0) c.vx *= Math.max(0, 1 - 2 * dt);
   else c.vx += (c.moveX * speed - c.vx) * Math.min(1, (c.onGround ? 10 : 4) * dt);
@@ -548,7 +564,8 @@ export function updateCat(c: Cat, dt: number, g: Game) {
   }
   // Pistol soldiers keep their distance and shoot (nov21.ts).
   if (c.variant === 'gunsoldier') return gunSoldierShoot(c, dt, g, t);
-  if (c.variant === 'pilot') return pilotShoot(c, dt, g, t);
+  if (c.variant === 'pilot' || c.variant === 'pilotgreen') return pilotShoot(c, dt, g, t);
+  if (c.variant === 'pilotmini') return miniPilotShoot(c, dt, g, t);
   if (c.variant === 'fireally') {
     if (t) c.facing = sign(t.x - c.x) || c.facing;
     c.shootT -= dt;
